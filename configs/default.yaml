@@ -1,13 +1,13 @@
 seed: 20260717
 paths:
   root: .
-  atlas_labels: AAL_atlas/ROI_MNI_V4.txt
-  sc_dir: CSV_Files/HCP_Structure/AAL90
+  atlas_labels: data/raw/atlas/ROI_MNI_V4.txt
+  sc_dir: data/raw/sc/HCP_Structure/AAL90
   timeseries:
-    LR: TimeSeries_LR
-    RL: TimeSeries_RL
-  split_csv: outputs/splits.csv
-  cache_dir: cache/dfc
+    LR: data/raw/timeseries_lr
+    RL: data/raw/timeseries_rl
+  split_csv: data/interim/splits.csv
+  cache_dir: data/cache/dfc
   output_dir: outputs
 data:
   n_nodes: 90

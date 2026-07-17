@@ -75,7 +75,7 @@ x^{SC}_s=\operatorname{zscore}_{train}(\log(1+SC_{s,upper}))
 
 #### BOLD 到 dFC
 
-程序不会使用工作区中已有的静态 FC CSV 作为监督标签，而是直接从 `TimeSeries_LR` 或 `TimeSeries_RL` 的 ROI BOLD 重新计算 dFC。对第 `k` 个滑窗起点 `a_k=k×5`：
+程序不会使用工作区中已有的静态 FC CSV 作为监督标签，而是直接从 `data/raw/timeseries_lr` 或 `data/raw/timeseries_rl` 的 ROI BOLD 重新计算 dFC。对第 `k` 个滑窗起点 `a_k=k×5`：
 
 \[
 FC_k=\operatorname{corr}(BOLD[a_k:a_k+83,:])
@@ -90,7 +90,7 @@ z_k=\operatorname{arctanh}(\operatorname{clip}(FC_{k,upper},-0.999999,0.999999))
 1200 个 TR 在 83 TR 窗长、5 TR 步长下得到 224 个窗口。第一个窗口 `z_0` 作为 warm-up；`z_1` 到 `z_223` 是模型必须预测的 223 个未来标签。每个窗长独立缓存在：
 
 ```text
-cache/dfc/window_83.zarr/
+data/cache/dfc/window_83.zarr/
 └── subjects/<subject_id>/<LR_or_RL>/
     ├── fc_z             # [224, 4005]，float32
     └── window_starts    # [224]
@@ -219,28 +219,29 @@ outputs/window_83/transformer_full/best.pt
 
 ```text
 SC2dFC/
-├── AAL_atlas/
-│   └── ROI_MNI_V4.txt
-├── CSV_Files/
-│   └── HCP_Structure/AAL90/<subject_id>.csv
-├── TimeSeries_LR/
-│   └── <subject_id>_AAL90_timeseries.csv
-├── TimeSeries_RL/                         # 推荐；可暂缺
-│   └── <subject_id>_AAL90_timeseries.csv
+├── data/
+│   ├── raw/
+│   │   ├── atlas/ROI_MNI_V4.txt
+│   │   ├── sc/HCP_Structure/AAL90/<subject_id>.csv
+│   │   ├── timeseries_lr/<subject_id>_AAL90_timeseries.csv
+│   │   └── timeseries_rl/<subject_id>_AAL90_timeseries.csv  # 推荐；可暂缺
+│   ├── interim/                         # audit、split、训练集统计量
+│   └── cache/dfc/                        # 可重新计算的 Zarr dFC 缓存
+├── outputs/                              # checkpoint、预测和评价输出
 ├── configs/default.yaml
 └── src/
 ```
 
 ### 3.1 SC 矩阵
 
-- 文件名：`CSV_Files/HCP_Structure/AAL90/<subject_id>.csv`；
+- 文件名：`data/raw/sc/HCP_Structure/AAL90/<subject_id>.csv`；
 - 格式：无表头的 `90×90` CSV；
 - 要求：数值有限、对称、对角线为零或接近零；
 - 不在程序中进行阈值化；训练时对 SC 上三角做 `log1p`，再按训练集逐边标准化。
 
 ### 3.2 BOLD ROI 时间序列
 
-- 文件名：`TimeSeries_LR/<subject_id>_AAL90_timeseries.csv`；RL 文件规则相同；
+- 文件名：`data/raw/timeseries_lr/<subject_id>_AAL90_timeseries.csv`；RL 文件位于 `data/raw/timeseries_rl/`，规则相同；
 - 默认形状：`1200×91`，第一列为 `timepoint`，后 90 列为 AAL90 ROI；
 - 要求：ROI 名称与 `ROI_MNI_V4.txt` 前 90 个标签的顺序严格一致；
 - 默认假设 HCP TR 为 0.72 秒，时间序列来自 HCP minimal preprocessing + ICA-FIX；如不符合，请修改配置并记录实际预处理。
@@ -285,7 +286,7 @@ scdfc audit --config configs/default.yaml
 scdfc split --config configs/default.yaml
 ```
 
-输出为 `outputs/splits.csv`，默认比例为 70% 训练、15% 验证、15% 测试。划分以 `subject_id` 为单位，同一被试的 LR/RL 始终属于同一分区；划分由 `seed` 固定，可在配置文件中修改。
+输出为 `data/interim/splits.csv`，默认比例为 70% 训练、15% 验证、15% 测试。划分以 `subject_id` 为单位，同一被试的 LR/RL 始终属于同一分区；划分由 `seed` 固定，可在配置文件中修改。
 
 ### 步骤 3：离线计算 dFC 缓存
 
@@ -293,7 +294,7 @@ scdfc split --config configs/default.yaml
 scdfc precompute --config configs/default.yaml --windows 83 42 125
 ```
 
-该步骤使用矩形窗 Pearson 相关，取上三角并 Fisher-z 变换，写入 `cache/dfc/window_<window_length>.zarr`。训练阶段只读取这些缓存，**不会在线计算滑窗相关**。
+该步骤使用矩形窗 Pearson 相关，取上三角并 Fisher-z 变换，写入 `data/cache/dfc/window_<window_length>.zarr`。训练阶段只读取这些缓存，**不会在线计算滑窗相关**。
 
 默认参数：
 

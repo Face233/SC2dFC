@@ -11,7 +11,7 @@ conda activate GCN_mri
 python -m pip install -e ".[dev]"
 ```
 
-The existing `AAL_atlas`, `CSV_Files`, and `TimeSeries_LR` directories remain source data. Add RL files under `TimeSeries_RL` when available.
+Place source data under `data/raw/`: atlas labels in `atlas/`, SC files in `sc/`, and ROI time series in `timeseries_lr/` and `timeseries_rl/`. Derived splits and statistics belong in `data/interim/`; regenerable dFC caches belong in `data/cache/`.
 
 ## Pipeline
 

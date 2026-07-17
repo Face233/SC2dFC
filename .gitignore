@@ -11,10 +11,8 @@ checkpoints/
 *.pt
 *.pth
 
-# Local neuroimaging data and participant metadata (never publish)
-AAL_atlas/
-CSV_Files/
-TimeSeries_*/
+# Local neuroimaging data, caches and participant metadata (never publish)
+data/
 metadata/
 *.nii
 *.nii.gz
