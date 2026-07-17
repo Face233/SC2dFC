@@ -13,7 +13,7 @@ from .cache import read_cached
 from .config import resolve_path
 from .connectivity import nonoverlap_horizon
 from .data import DFCSequenceDataset
-from .metrics import dynamic_state_metrics, family_bootstrap_difference, projection_report, retrieval_metrics, sequence_metrics
+from .metrics import dynamic_state_metrics, projection_report, retrieval_metrics, sequence_metrics, subject_bootstrap_difference
 from .models.baselines import group_mean, persistence
 from .training import build_sequence_model, device_from_arg
 
@@ -42,15 +42,14 @@ def fit_state_model(dataset: DFCSequenceDataset, n_states: int, seed: int, max_w
 
 @torch.no_grad()
 def collect_predictions(model, loader, device):
-    predictions, targets, subjects, families, runs = [], [], [], [], []
+    predictions, targets, subjects, runs = [], [], [], []
     for batch in loader:
         result = model(batch["sc_matrix"].to(device), batch["sc_edges"].to(device), batch["fc_warmup"].to(device), batch["run"].to(device))
         predictions.append(result.fc_z_edges.cpu().numpy())
         targets.append(batch["fc_future"].numpy())
         subjects.extend(batch["subject_id"])
-        families.extend(batch["family_id"])
         runs.extend(batch["run"].numpy().tolist())
-    return np.concatenate(predictions), np.concatenate(targets), subjects, families, runs
+    return np.concatenate(predictions), np.concatenate(targets), subjects, runs
 
 
 def evaluate_checkpoint(
@@ -67,7 +66,7 @@ def evaluate_checkpoint(
     test = DFCSequenceDataset(config, window_length, "test", stats_path, payload.get("ablation", "full"))
     train = DFCSequenceDataset(config, window_length, "train", stats_path)
     loader = DataLoader(test, batch_size=int(config["training"]["batch_size"]), shuffle=False, num_workers=0)
-    predictions, targets, subjects, families, runs = collect_predictions(model, loader, device)
+    predictions, targets, subjects, runs = collect_predictions(model, loader, device)
     template = model.group_template.cpu().numpy()
     nonoverlap = nonoverlap_horizon(window_length, int(config["data"]["stride"]))
     rows = [sequence_metrics(p, t, template, nonoverlap) for p, t in zip(predictions, targets)]
@@ -94,18 +93,18 @@ def evaluate_checkpoint(
         "n_samples": len(subjects),
         "aggregate": aggregate,
         "analytic_baselines": analytic_reports,
-        "per_sample": [{"subject_id": s, "family_id": f, "run": r, **m} for s, f, r, m in zip(subjects, families, runs, rows)],
+        "per_sample": [{"subject_id": s, "run": r, **m} for s, r, m in zip(subjects, runs, rows)],
     }
     if baseline_checkpoint:
         baseline_model, baseline_payload = _load_model(config, window_length, baseline_checkpoint, Path(stats_path), device)
         baseline_test = DFCSequenceDataset(config, window_length, "test", stats_path, baseline_payload.get("ablation", "fc1_only"))
         baseline_loader = DataLoader(baseline_test, batch_size=int(config["training"]["batch_size"]), shuffle=False, num_workers=0)
-        baseline_predictions, baseline_targets, baseline_subjects, baseline_families, _ = collect_predictions(baseline_model, baseline_loader, device)
+        baseline_predictions, baseline_targets, baseline_subjects, _ = collect_predictions(baseline_model, baseline_loader, device)
         if subjects != baseline_subjects:
             raise ValueError("Main and baseline checkpoints do not cover the same ordered samples")
         main_scores = np.asarray([row["long_residual_pearson"] for row in rows])
         baseline_scores = np.asarray([sequence_metrics(p, t, template, nonoverlap)["long_residual_pearson"] for p, t in zip(baseline_predictions, baseline_targets)])
-        report["success_gate"] = family_bootstrap_difference(main_scores, baseline_scores, families, int(config["evaluation"]["bootstrap_replicates"]), int(config["seed"]))
+        report["success_gate"] = subject_bootstrap_difference(main_scores, baseline_scores, subjects, int(config["evaluation"]["bootstrap_replicates"]), int(config["seed"]))
     output_dir = Path(checkpoint).resolve().parent
     report_path = output_dir / "evaluation.json"
     report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")

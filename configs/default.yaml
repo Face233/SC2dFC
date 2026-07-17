@@ -6,7 +6,6 @@ paths:
   timeseries:
     LR: TimeSeries_LR
     RL: TimeSeries_RL
-  family_csv: metadata/families.csv
   split_csv: outputs/splits.csv
   cache_dir: cache/dfc
   output_dir: outputs
@@ -59,4 +58,3 @@ evaluation:
   bootstrap_replicates: 2000
   state_clusters: 5
   projection_epsilon: 1.0e-6
-

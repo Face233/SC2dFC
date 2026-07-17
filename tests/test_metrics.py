@@ -1,6 +1,6 @@
 import numpy as np
 
-from scdfc.metrics import dynamic_state_metrics, family_bootstrap_difference, retrieval_metrics, sequence_metrics
+from scdfc.metrics import dynamic_state_metrics, retrieval_metrics, sequence_metrics, subject_bootstrap_difference
 
 
 def test_metrics_are_best_for_exact_prediction():
@@ -13,12 +13,12 @@ def test_metrics_are_best_for_exact_prediction():
     assert metrics["fcd_pearson"] > 0.999
 
 
-def test_retrieval_and_family_bootstrap():
+def test_retrieval_and_subject_bootstrap():
     rng = np.random.default_rng(6)
     targets = rng.normal(size=(8, 20, 15))
     result = retrieval_metrics(targets, targets, np.zeros((20, 15)), 5)
     assert result["retrieval_top1"] == 1
-    boot = family_bootstrap_difference(np.ones(8), np.zeros(8), [str(i // 2) for i in range(8)], replicates=100, seed=1)
+    boot = subject_bootstrap_difference(np.ones(8), np.zeros(8), [str(i // 2) for i in range(8)], replicates=100, seed=1)
     assert boot["passes"]
 
 

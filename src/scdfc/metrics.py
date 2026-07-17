@@ -96,22 +96,22 @@ def retrieval_metrics(
     return {"retrieval_top1": float(np.mean(ranks == 1)), "retrieval_top5": float(np.mean(ranks <= 5)), "retrieval_mean_rank": float(ranks.mean())}
 
 
-def family_bootstrap_difference(
+def subject_bootstrap_difference(
     main_scores: np.ndarray,
     baseline_scores: np.ndarray,
-    family_ids: Iterable[str],
+    subject_ids: Iterable[str],
     replicates: int = 2000,
     seed: int = 20260717,
 ) -> dict[str, float]:
-    family_ids = np.asarray(list(family_ids))
-    families = np.unique(family_ids)
+    subject_ids = np.asarray(list(subject_ids))
+    subjects = np.unique(subject_ids)
     difference = np.asarray(main_scores) - np.asarray(baseline_scores)
-    family_values = {family: difference[family_ids == family] for family in families}
+    subject_values = {subject: difference[subject_ids == subject].mean() for subject in subjects}
     rng = np.random.default_rng(seed)
     estimates = np.empty(replicates)
     for index in range(replicates):
-        sampled = rng.choice(families, size=len(families), replace=True)
-        estimates[index] = np.mean(np.concatenate([family_values[family] for family in sampled]))
+        sampled = rng.choice(subjects, size=len(subjects), replace=True)
+        estimates[index] = np.mean([subject_values[subject] for subject in sampled])
     low, high = np.quantile(estimates, [0.025, 0.975])
     return {"mean_difference": float(difference.mean()), "ci_low": float(low), "ci_high": float(high), "passes": bool(low > 0)}
 
