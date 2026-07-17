@@ -8,7 +8,6 @@ import numpy as np
 @dataclass(frozen=True)
 class SubjectRunSample:
     subject_id: str
-    family_id: str
     run: str
     sc: np.ndarray
     fc_warmup: np.ndarray
@@ -21,4 +20,3 @@ class Prediction:
     fc_z_edges: object
     fc_matrices: object
     latent: object | None = None
-

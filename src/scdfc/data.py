@@ -71,7 +71,6 @@ class DFCSequenceDataset(Dataset):
         self.window_length = window_length
         self.stats = dict(np.load(stats_path))
         split = load_split(resolve_path(config, "split_csv"))
-        self.family = dict(zip(split.subject_id.astype(str), split.family_id.astype(str)))
         allowed = set(split.loc[split.split == split_name, "subject_id"].astype(str))
         self.samples = [(s, r) for s, r in iter_cached_samples(config, window_length) if s in allowed]
         self.ablation = ablation
@@ -108,7 +107,6 @@ class DFCSequenceDataset(Dataset):
             warmup = np.zeros_like(warmup)
         return {
             "subject_id": subject,
-            "family_id": self.family[subject],
             "run": 0 if run.upper() == "LR" else 1,
             "sc_matrix": torch.from_numpy(sc_matrix.astype(np.float32)),
             "sc_edges": torch.from_numpy(sc_edges.astype(np.float32)),

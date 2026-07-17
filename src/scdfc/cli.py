@@ -4,14 +4,12 @@ import argparse
 import json
 from pathlib import Path
 
-import pandas as pd
-
 from .audit import audit_dataset, discover_data, write_audit
 from .cache import precompute_dfc
 from .config import load_config, resolve_path
 from .data import fit_training_statistics
 from .evaluation import evaluate_checkpoint
-from .split import make_family_split, validate_split
+from .split import make_subject_split, validate_split
 from .training import autoencoder_checkpoint_path, train_autoencoder, train_sequence_model
 
 
@@ -36,13 +34,9 @@ def command_audit(args):
 
 def command_split(args):
     config = load_config(args.config)
-    family_path = resolve_path(config, "family_csv")
-    if not family_path.exists():
-        raise FileNotFoundError(f"Family metadata is required: {family_path}")
-    family = pd.read_csv(family_path, dtype={"subject_id": str, "family_id": str})
     subjects = discover_data(config)["subjects"]
     fractions = (float(config["split"]["train"]), float(config["split"]["val"]), float(config["split"]["test"]))
-    split = make_family_split(subjects, family, fractions, int(config["seed"]))
+    split = make_subject_split(subjects, fractions, int(config["seed"]))
     validate_split(split)
     destination = resolve_path(config, "split_csv")
     destination.parent.mkdir(parents=True, exist_ok=True)

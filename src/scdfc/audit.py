@@ -77,9 +77,6 @@ def audit_dataset(config: dict[str, Any], sample_limit: int | None = None) -> di
             "min": float(np.min(sc_zero_fractions)),
             "max": float(np.max(sc_zero_fractions)),
         }
-    family_path = resolve_path(config, "family_csv")
-    if not family_path.exists():
-        report["warnings"].append(f"Family metadata missing: {family_path}")
     if not found["runs"].get("RL"):
         report["warnings"].append("RL timeseries are not available")
     return report
@@ -89,4 +86,3 @@ def write_audit(report: dict[str, Any], path: str | Path) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-
