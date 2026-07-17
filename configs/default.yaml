@@ -1,0 +1,62 @@
+seed: 20260717
+paths:
+  root: .
+  atlas_labels: AAL_atlas/ROI_MNI_V4.txt
+  sc_dir: CSV_Files/HCP_Structure/AAL90
+  timeseries:
+    LR: TimeSeries_LR
+    RL: TimeSeries_RL
+  family_csv: metadata/families.csv
+  split_csv: outputs/splits.csv
+  cache_dir: cache/dfc
+  output_dir: outputs
+data:
+  n_nodes: 90
+  n_timepoints: 1200
+  tr_seconds: 0.72
+  window_length: 83
+  stride: 5
+  sensitivity_windows: [42, 125]
+  fisher_clip: 0.999999
+  cache_dtype: float32
+  allow_missing_runs: true
+split:
+  train: 0.70
+  val: 0.15
+  test: 0.15
+model:
+  fc_latent_dim: 256
+  hidden_dim: 256
+  sc_graph_layers: 3
+  sc_graph_heads: 4
+  tcn_dilations: [1, 2, 4, 8, 16, 32]
+  transformer_layers: 4
+  transformer_heads: 8
+  transformer_ffn_dim: 1024
+  dropout: 0.1
+training:
+  batch_size: 4
+  autoencoder_batch_size: 256
+  epochs: 200
+  autoencoder_epochs: 100
+  decoder_frozen_epochs: 20
+  learning_rate: 0.0003
+  decoder_learning_rate_scale: 0.1
+  weight_decay: 0.0001
+  gradient_clip: 1.0
+  patience: 20
+  num_workers: 0
+  loss_weights:
+    edge: 1.0
+    residual_corr: 0.5
+    difference: 0.25
+    static: 0.25
+    variance: 0.25
+    fcd: 0.1
+    contrastive: 0.1
+    psd: 0.01
+evaluation:
+  bootstrap_replicates: 2000
+  state_clusters: 5
+  projection_epsilon: 1.0e-6
+

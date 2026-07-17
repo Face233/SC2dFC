@@ -1,0 +1,24 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+*.egg-info/
+build/
+dist/
+outputs/
+cache/
+checkpoints/
+*.pt
+*.pth
+
+# Local neuroimaging data and participant metadata (never publish)
+AAL_atlas/
+CSV_Files/
+TimeSeries_*/
+metadata/
+*.nii
+*.nii.gz
+*.cifti
+*.dtseries.nii
+*Behavior*.xlsx
+*Behavior*.csv
