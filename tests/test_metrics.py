@@ -1,6 +1,6 @@
 import numpy as np
 
-from scdfc.metrics import dynamic_state_metrics, retrieval_metrics, sequence_metrics, subject_bootstrap_difference
+from scdfc.evaluation import dynamic_state_metrics, retrieval_metrics, sequence_metrics, subject_bootstrap_difference
 
 
 def test_metrics_are_best_for_exact_prediction():

@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from scdfc.cache import iter_cached_samples, precompute_dfc, read_cached
+from scdfc.data import iter_cached_samples, precompute_dfc, read_cached
 
 
 def test_precompute_cache_is_offline_and_reproducible(tmp_path: Path):
@@ -28,4 +28,3 @@ def test_precompute_cache_is_offline_and_reproducible(tmp_path: Path):
     assert fc.shape == (5, 6)
     np.testing.assert_array_equal(starts, [0, 5, 10, 15, 20])
     assert precompute_dfc(config, 10) == {"written": 0, "skipped": 1}
-

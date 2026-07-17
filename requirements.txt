@@ -1,0 +1,13 @@
+# Core numerical and data-processing dependencies
+numpy>=1.26
+pandas>=2.0
+scipy>=1.11
+scikit-learn>=1.4
+PyYAML>=6.0
+
+# Model training
+torch>=2.2
+
+# Offline dFC cache storage (the project uses the Zarr 2.x API)
+zarr>=2.18,<3
+numcodecs>=0.12

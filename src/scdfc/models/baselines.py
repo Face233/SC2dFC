@@ -3,9 +3,8 @@ from __future__ import annotations
 import torch
 from torch import nn
 
-from ..types import Prediction
 from .autoencoder import FCAutoencoder
-from .sequence import torch_edges_to_matrix
+from .sequence import Prediction, torch_edges_to_matrix
 
 
 def persistence(fc_warmup: torch.Tensor, steps: int) -> torch.Tensor:

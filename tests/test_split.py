@@ -1,4 +1,4 @@
-from scdfc.split import make_subject_split, validate_split
+from scdfc.data import make_subject_split, validate_split
 
 
 def test_subject_split_is_reproducible_and_complete():

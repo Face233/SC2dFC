@@ -7,18 +7,88 @@ from typing import Any
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from .config import resolve_path
 from .connectivity import nonoverlap_horizon
 from .data import DFCSequenceDataset, FCWindowDataset
-from .losses import CompositeLoss, correlation_loss, psd_penalty
-from .metrics import sequence_metrics
 from .models import ConditionalSequenceModel, FCAutoencoder
 from .models.baselines import DirectSCMLP, GCNGRUBaseline
+from .models.sequence import torch_edges_to_matrix
+
+
+# ======================== 训练损失函数 ========================
+def correlation_loss(prediction: torch.Tensor, target: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
+    """计算每个样本/时间窗内 FC 边模式的 Pearson 相关损失。"""
+    prediction = prediction - prediction.mean(dim=-1, keepdim=True)
+    target = target - target.mean(dim=-1, keepdim=True)
+    numerator = (prediction * target).sum(dim=-1)
+    denominator = prediction.square().sum(dim=-1).sqrt() * target.square().sum(dim=-1).sqrt()
+    return (1 - numerator / denominator.clamp_min(eps)).mean()
+
+
+def variance_loss(prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    """约束预测序列的逐边时间方差不坍缩。"""
+    return F.smooth_l1_loss(prediction.var(dim=1, unbiased=False), target.var(dim=1, unbiased=False))
+
+
+def fcd_gram_loss(prediction: torch.Tensor, target: torch.Tensor, max_windows: int = 32) -> torch.Tensor:
+    """用抽样窗口间 FC 相似度矩阵近似 FCD 损失，控制显存开销。"""
+    steps = prediction.shape[1]
+    if steps > max_windows:
+        indices = torch.linspace(0, steps - 1, max_windows, device=prediction.device).long()
+        prediction, target = prediction[:, indices], target[:, indices]
+    prediction = F.normalize(prediction - prediction.mean(-1, keepdim=True), dim=-1)
+    target = F.normalize(target - target.mean(-1, keepdim=True), dim=-1)
+    return F.smooth_l1_loss(prediction @ prediction.transpose(1, 2), target @ target.transpose(1, 2))
+
+
+def contrastive_loss(prediction: torch.Tensor, target: torch.Tensor, start: int, temperature: float = 0.1) -> torch.Tensor:
+    """鼓励预测的长时距个体表征与本人真实未来序列匹配。"""
+    pred_embed = F.normalize(prediction[:, start:].mean(1), dim=-1)
+    true_embed = F.normalize(target[:, start:].mean(1), dim=-1)
+    logits = pred_embed @ true_embed.T / temperature
+    labels = torch.arange(len(prediction), device=prediction.device)
+    return (F.cross_entropy(logits, labels) + F.cross_entropy(logits.T, labels)) / 2
+
+
+def psd_penalty(z_edges: torch.Tensor, n_nodes: int = 90, max_windows: int = 4) -> torch.Tensor:
+    """抽样检查预测相关矩阵的负特征值，并对其施加软惩罚。"""
+    steps = z_edges.shape[1]
+    indices = torch.linspace(0, steps - 1, min(max_windows, steps), device=z_edges.device).long()
+    eigenvalues = torch.linalg.eigvalsh(torch_edges_to_matrix(torch.tanh(z_edges[:, indices]), n_nodes))
+    return torch.relu(-eigenvalues).square().mean()
+
+
+class CompositeLoss:
+    """将边重建、个体化、动态性和 PSD 约束按配置权重组合。"""
+
+    def __init__(self, weights: dict[str, float], nonoverlap_start: int, n_nodes: int = 90) -> None:
+        self.weights = weights
+        self.nonoverlap_start = nonoverlap_start
+        self.n_nodes = n_nodes
+
+    def __call__(self, prediction: torch.Tensor, target: torch.Tensor, group_template: torch.Tensor) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        template = group_template[: target.shape[1]][None]
+        components = {
+            "edge": F.smooth_l1_loss(prediction, target),
+            "residual_corr": correlation_loss(prediction[:, self.nonoverlap_start :] - template[:, self.nonoverlap_start :], target[:, self.nonoverlap_start :] - template[:, self.nonoverlap_start :]),
+            "difference": F.smooth_l1_loss(prediction[:, 1:] - prediction[:, :-1], target[:, 1:] - target[:, :-1]),
+            "static": F.smooth_l1_loss(prediction.mean(1), target.mean(1)),
+            "variance": variance_loss(prediction, target),
+            "fcd": fcd_gram_loss(prediction, target),
+            "contrastive": contrastive_loss(prediction, target, self.nonoverlap_start),
+            "psd": psd_penalty(prediction, self.n_nodes),
+        }
+        return sum(self.weights[name] * value for name, value in components.items()), components
+
+
+# ======================== 训练与早停 ========================
 
 
 def seed_everything(seed: int) -> None:
+    """固定 Python、NumPy 与 PyTorch 随机源，保证实验可复现。"""
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -35,6 +105,7 @@ def autoencoder_checkpoint_path(config: dict[str, Any], window_length: int) -> P
 
 
 def train_autoencoder(config: dict[str, Any], window_length: int, stats_path: Path, device_name: str | None = None) -> Path:
+    """先训练 FC 自编码器，并按验证重建损失保存最佳检查点。"""
     seed_everything(int(config["seed"]))
     device = device_from_arg(device_name)
     sequence = DFCSequenceDataset(config, window_length, "train", stats_path)
@@ -88,6 +159,7 @@ def load_autoencoder(config: dict[str, Any], window_length: int, device: torch.d
 
 
 def build_sequence_model(config: dict[str, Any], window_length: int, decoder_type: str, stats_path: Path, device: torch.device):
+    """加载共享 FC 解码器，并按名称构建主模型或学习型基线。"""
     autoencoder = load_autoencoder(config, window_length, device)
     stats = dict(np.load(stats_path))
     model_cfg = config["model"]
@@ -115,21 +187,31 @@ def build_sequence_model(config: dict[str, Any], window_length: int, decoder_typ
 
 
 @torch.no_grad()
+def _long_residual_score(prediction: torch.Tensor, target: torch.Tensor, template: torch.Tensor, nonoverlap: int) -> torch.Tensor:
+    """早停专用：在无窗口重叠区间计算去群体模板后的边相关。"""
+    pred = prediction[:, nonoverlap:] - template[None, nonoverlap:]
+    true = target[:, nonoverlap:] - template[None, nonoverlap:]
+    pred = pred - pred.mean(dim=-1, keepdim=True)
+    true = true - true.mean(dim=-1, keepdim=True)
+    corr = (pred * true).sum(-1) / (pred.square().sum(-1).sqrt() * true.square().sum(-1).sqrt()).clamp_min(1e-6)
+    return corr.mean(dim=-1)
+
+
+@torch.no_grad()
 def validate(model: ConditionalSequenceModel, loader: DataLoader, nonoverlap: int, device: torch.device) -> float:
+    """返回验证集主指标均值，仅用于选择最佳训练 epoch。"""
     model.eval()
     scores = []
-    template = model.group_template.detach().cpu().numpy()
     for batch in loader:
         output = model(batch["sc_matrix"].to(device), batch["sc_edges"].to(device), batch["fc_warmup"].to(device), batch["run"].to(device))
-        pred = output.fc_z_edges.cpu().numpy()
-        true = batch["fc_future"].numpy()
-        scores.extend(sequence_metrics(p, t, template, nonoverlap)["long_residual_pearson"] for p, t in zip(pred, true))
+        scores.extend(_long_residual_score(output.fc_z_edges, batch["fc_future"].to(device), model.group_template, nonoverlap).cpu().tolist())
     return float(np.mean(scores))
 
 
 def train_sequence_model(
     config: dict[str, Any], window_length: int, decoder_type: str, stats_path: Path, ablation: str = "full", device_name: str | None = None
 ) -> Path:
+    """训练 TCN、Transformer 或学习型基线，并按主验证指标早停。"""
     seed_everything(int(config["seed"]))
     device = device_from_arg(device_name)
     train_data = DFCSequenceDataset(config, window_length, "train", stats_path, ablation)

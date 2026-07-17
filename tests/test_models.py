@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from scdfc.losses import CompositeLoss
+from scdfc.training import CompositeLoss
 from scdfc.models import ConditionalSequenceModel, FCAutoencoder
 from scdfc.models.baselines import GCNGRUBaseline
 
