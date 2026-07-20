@@ -158,11 +158,19 @@ def load_autoencoder(config: dict[str, Any], window_length: int, device: torch.d
     return model
 
 
-def build_sequence_model(config: dict[str, Any], window_length: int, decoder_type: str, stats_path: Path, device: torch.device):
+def build_sequence_model(
+    config: dict[str, Any],
+    window_length: int,
+    decoder_type: str,
+    stats_path: Path,
+    device: torch.device,
+    sc_encoder_type: str | None = None,
+):
     """加载共享 FC 解码器，并按名称构建主模型或学习型基线。"""
     autoencoder = load_autoencoder(config, window_length, device)
     stats = dict(np.load(stats_path))
     model_cfg = config["model"]
+    sc_encoder_type = sc_encoder_type or str(model_cfg.get("sc_encoder", "hybrid"))
     group_template = torch.from_numpy(stats["group_template"])
     if decoder_type == "direct_mlp":
         return DirectSCMLP(autoencoder, group_template, hidden=512, latent_dim=int(model_cfg["fc_latent_dim"])).to(device)
@@ -183,6 +191,9 @@ def build_sequence_model(config: dict[str, Any], window_length: int, decoder_typ
         dropout=float(model_cfg["dropout"]),
         sc_mean=torch.from_numpy(stats["sc_mean"]),
         sc_std=torch.from_numpy(stats["sc_std"]),
+        sc_encoder_type=sc_encoder_type,
+        hcp_gcn_hidden_dim=int(model_cfg.get("hcp_gcn_hidden_dim", 128)),
+        hcp_gcn_output_dim=int(model_cfg.get("hcp_gcn_output_dim", 64)),
     ).to(device)
 
 
@@ -209,7 +220,13 @@ def validate(model: ConditionalSequenceModel, loader: DataLoader, nonoverlap: in
 
 
 def train_sequence_model(
-    config: dict[str, Any], window_length: int, decoder_type: str, stats_path: Path, ablation: str = "full", device_name: str | None = None
+    config: dict[str, Any],
+    window_length: int,
+    decoder_type: str,
+    stats_path: Path,
+    ablation: str = "full",
+    device_name: str | None = None,
+    sc_encoder_type: str | None = None,
 ) -> Path:
     """训练 TCN、Transformer 或学习型基线，并按主验证指标早停。"""
     seed_everything(int(config["seed"]))
@@ -218,7 +235,13 @@ def train_sequence_model(
     val_data = DFCSequenceDataset(config, window_length, "val", stats_path, ablation)
     train_loader = DataLoader(train_data, batch_size=int(config["training"]["batch_size"]), shuffle=True, num_workers=int(config["training"]["num_workers"]))
     val_loader = DataLoader(val_data, batch_size=int(config["training"]["batch_size"]), shuffle=False, num_workers=int(config["training"]["num_workers"]))
-    model = build_sequence_model(config, window_length, decoder_type, stats_path, device)
+    requested_sc_encoder_type = sc_encoder_type
+    sc_encoder_type = requested_sc_encoder_type or str(config["model"].get("sc_encoder", "hybrid"))
+    if decoder_type in {"direct_mlp", "gcn_gru"} and requested_sc_encoder_type not in {None, "hybrid"}:
+        raise ValueError("--sc-encoder applies only to the tcn and transformer conditional models")
+    if decoder_type in {"direct_mlp", "gcn_gru"}:
+        sc_encoder_type = "hybrid"
+    model = build_sequence_model(config, window_length, decoder_type, stats_path, device, sc_encoder_type)
     for parameter in model.fc_autoencoder.encoder.parameters():
         parameter.requires_grad = False
     for parameter in model.fc_autoencoder.decoder.parameters():
@@ -227,7 +250,12 @@ def train_sequence_model(
     optimizer = torch.optim.AdamW(main_parameters, lr=float(config["training"]["learning_rate"]), weight_decay=float(config["training"]["weight_decay"]))
     nonoverlap = nonoverlap_horizon(window_length, int(config["data"]["stride"]))
     criterion = CompositeLoss(config["training"]["loss_weights"], nonoverlap, int(config["data"]["n_nodes"]))
-    output_dir = resolve_path(config, "output_dir") / f"window_{window_length}" / f"{decoder_type}_{ablation}"
+    conditional_name = (
+        decoder_type
+        if sc_encoder_type == "hybrid" or decoder_type in {"direct_mlp", "gcn_gru"}
+        else f"{decoder_type}_{sc_encoder_type}"
+    )
+    output_dir = resolve_path(config, "output_dir") / f"window_{window_length}" / f"{conditional_name}_{ablation}"
     output_dir.mkdir(parents=True, exist_ok=True)
     checkpoint = output_dir / "best.pt"
     best, stale = -float("inf"), 0
@@ -248,7 +276,18 @@ def train_sequence_model(
         score = validate(model, val_loader, nonoverlap, device)
         if score > best:
             best, stale = score, 0
-            torch.save({"model": model.state_dict(), "epoch": epoch, "score": score, "decoder_type": decoder_type, "ablation": ablation, "window_length": window_length}, checkpoint)
+            torch.save(
+                {
+                    "model": model.state_dict(),
+                    "epoch": epoch,
+                    "score": score,
+                    "decoder_type": decoder_type,
+                    "sc_encoder_type": sc_encoder_type,
+                    "ablation": ablation,
+                    "window_length": window_length,
+                },
+                checkpoint,
+            )
         else:
             stale += 1
             if stale >= int(config["training"]["patience"]):

@@ -24,10 +24,13 @@ split:
   val: 0.15
   test: 0.15
 model:
+  sc_encoder: hybrid
   fc_latent_dim: 256
   hidden_dim: 256
   sc_graph_layers: 3
   sc_graph_heads: 4
+  hcp_gcn_hidden_dim: 128
+  hcp_gcn_output_dim: 64
   tcn_dilations: [1, 2, 4, 8, 16, 32]
   transformer_layers: 4
   transformer_heads: 8

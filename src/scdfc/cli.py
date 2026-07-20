@@ -66,7 +66,15 @@ def command_train(args):
     stats = ensure_stats(config, args.window)
     if not autoencoder_checkpoint_path(config, args.window).exists():
         raise FileNotFoundError("Train the FC autoencoder first with `scdfc train-ae`")
-    path = train_sequence_model(config, args.window, args.model, stats, args.ablation, args.device)
+    path = train_sequence_model(
+        config,
+        args.window,
+        args.model,
+        stats,
+        args.ablation,
+        args.device,
+        args.sc_encoder,
+    )
     print(path)
 
 
@@ -100,6 +108,7 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("--config", default="configs/default.yaml")
     train.add_argument("--window", type=int, default=83)
     train.add_argument("--model", choices=["tcn", "transformer", "direct_mlp", "gcn_gru"], required=True)
+    train.add_argument("--sc-encoder", choices=["hybrid", "hcp_gcn"])
     train.add_argument("--ablation", choices=["full", "fc1_only", "sc_only", "mean_sc", "shuffled_sc"], default="full")
     train.add_argument("--device")
     train.set_defaults(function=command_train)

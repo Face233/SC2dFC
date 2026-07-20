@@ -7,6 +7,7 @@ import torch
 from torch import nn
 
 from .autoencoder import FCAutoencoder
+from .sc_encoders import HCPGCNEncoder
 
 
 @dataclass(frozen=True)
@@ -76,7 +77,7 @@ class SCGraphEncoder(nn.Module):
 
 
 class ConditionEncoder(nn.Module):
-    """融合 SC 图、SC 上三角边、首窗 FC 和 LR/RL run 条件。"""
+    """融合可选 SC 编码器、首窗 FC 和 LR/RL run 条件。"""
 
     def __init__(
         self,
@@ -87,34 +88,55 @@ class ConditionEncoder(nn.Module):
         graph_layers: int = 3,
         graph_heads: int = 4,
         dropout: float = 0.1,
+        sc_encoder_type: str = "hybrid",
+        hcp_gcn_hidden_dim: int = 128,
+        hcp_gcn_output_dim: int = 64,
     ) -> None:
         super().__init__()
+        if sc_encoder_type not in {"hybrid", "hcp_gcn"}:
+            raise ValueError("sc_encoder_type must be 'hybrid' or 'hcp_gcn'")
         self.fc_autoencoder = fc_autoencoder
-        self.graph = SCGraphEncoder(n_nodes, 128, graph_layers, graph_heads, dropout)
-        self.edge_mlp = nn.Sequential(nn.Linear(n_edges, 512), nn.GELU(), nn.Dropout(dropout), nn.Linear(512, 128))
+        self.sc_encoder_type = sc_encoder_type
+        if sc_encoder_type == "hybrid":
+            self.graph = SCGraphEncoder(n_nodes, 128, graph_layers, graph_heads, dropout)
+            self.edge_mlp = nn.Sequential(nn.Linear(n_edges, 512), nn.GELU(), nn.Dropout(dropout), nn.Linear(512, 128))
+            self.graph_token_projection = nn.Linear(128, hidden_dim)
+            self.edge_token_projection = nn.Linear(128, hidden_dim)
+        else:
+            self.hcp_gcn = HCPGCNEncoder(n_nodes, hcp_gcn_hidden_dim, hcp_gcn_output_dim)
+            self.hcp_global_projection = nn.Linear(hcp_gcn_output_dim, 256)
+            self.hcp_token_projection = nn.Linear(hcp_gcn_output_dim, hidden_dim)
+            self.hcp_summary_projection = nn.Linear(hcp_gcn_output_dim, hidden_dim)
         self.run_embedding = nn.Embedding(2, 32)
         fc_dim = fc_autoencoder.encoder[-1].normalized_shape[0]
-        combined = 128 + 128 + fc_dim + 32
+        combined = 256 + fc_dim + 32
         # 门控融合确保模型可按被试调整各类条件信息的贡献。
         self.value = nn.Linear(combined, hidden_dim)
         self.gate = nn.Sequential(nn.Linear(combined, hidden_dim), nn.Sigmoid())
-        self.graph_token_projection = nn.Linear(128, hidden_dim)
-        self.edge_token_projection = nn.Linear(128, hidden_dim)
         self.fc_token_projection = nn.Linear(fc_dim, hidden_dim)
 
     def forward(
         self, sc_matrix: torch.Tensor, sc_edges: torch.Tensor, fc_warmup: torch.Tensor, run: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        graph_global, graph_tokens = self.graph(sc_matrix)
-        edge_global = self.edge_mlp(sc_edges)
+        if self.sc_encoder_type == "hybrid":
+            graph_global, graph_tokens = self.graph(sc_matrix)
+            edge_global = self.edge_mlp(sc_edges)
+            sc_global = torch.cat([graph_global, edge_global], dim=-1)
+            sc_tokens = self.graph_token_projection(graph_tokens)
+            sc_summary = self.edge_token_projection(edge_global)[:, None]
+        else:
+            hcp_global, hcp_tokens = self.hcp_gcn(sc_matrix)
+            sc_global = self.hcp_global_projection(hcp_global)
+            sc_tokens = self.hcp_token_projection(hcp_tokens)
+            sc_summary = self.hcp_summary_projection(hcp_global)[:, None]
         warmup = self.fc_autoencoder.encode(fc_warmup)
-        combined = torch.cat([graph_global, edge_global, warmup, self.run_embedding(run)], dim=-1)
+        combined = torch.cat([sc_global, warmup, self.run_embedding(run)], dim=-1)
         condition = self.value(combined) * self.gate(combined)
         # Transformer 使用所有 token；TCN 虽不读取 memory，也保留统一调用接口。
         memory = torch.cat(
             [
-                self.graph_token_projection(graph_tokens),
-                self.edge_token_projection(edge_global)[:, None],
+                sc_tokens,
+                sc_summary,
                 self.fc_token_projection(warmup)[:, None],
                 condition[:, None],
             ],
@@ -217,13 +239,25 @@ class ConditionalSequenceModel(nn.Module):
         dropout: float = 0.1,
         sc_mean: torch.Tensor | None = None,
         sc_std: torch.Tensor | None = None,
+        sc_encoder_type: str = "hybrid",
+        hcp_gcn_hidden_dim: int = 128,
+        hcp_gcn_output_dim: int = 64,
     ) -> None:
         super().__init__()
         self.n_nodes = n_nodes
         self.n_edges = n_nodes * (n_nodes - 1) // 2
         self.fc_autoencoder = fc_autoencoder
         self.condition_encoder = ConditionEncoder(
-            fc_autoencoder, n_nodes, self.n_edges, hidden_dim, graph_layers, graph_heads, dropout
+            fc_autoencoder,
+            n_nodes,
+            self.n_edges,
+            hidden_dim,
+            graph_layers,
+            graph_heads,
+            dropout,
+            sc_encoder_type,
+            hcp_gcn_hidden_dim,
+            hcp_gcn_output_dim,
         )
         if decoder_type == "tcn":
             self.temporal = TCNDecoder(hidden_dim, 256, tcn_dilations, dropout)

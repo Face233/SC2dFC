@@ -127,7 +127,14 @@ def projection_report(z_edges: np.ndarray, n_nodes: int = 90, epsilon: float = 1
 def _load_model(config, window_length, checkpoint, stats_path, device):
     """按检查点记录的模型类型恢复模型和参数。"""
     payload = torch.load(checkpoint, map_location=device, weights_only=False)
-    model = build_sequence_model(config, window_length, payload["decoder_type"], stats_path, device)
+    model = build_sequence_model(
+        config,
+        window_length,
+        payload["decoder_type"],
+        stats_path,
+        device,
+        payload.get("sc_encoder_type", "hybrid"),
+    )
     model.load_state_dict(payload["model"])
     model.eval()
     return model, payload

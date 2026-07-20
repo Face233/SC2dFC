@@ -134,6 +134,8 @@ FC 自编码器的默认结构为：
 3. **首窗 FC 分支**：`FC1` 经预训练 FC 编码器映射为 256 维状态。
 4. **run 分支**：LR/RL 映射为 32 维 embedding。
 
+`model.sc_encoder` 控制 SC 编码方式：默认 `hybrid` 使用上述图分支与边分支；`hcp_gcn` 使用单位矩阵 ROI 特征、$D^{-1/2}(A+I)D^{-1/2}$ 对称归一化、两层 `90→128→64` GCN 和 max pooling。两种编码器随后都投影到相同条件维度，并共享 FC1、run、时序解码器和损失函数，以便公平比较。
+
 四者拼接后经门控融合：
 
 $$
@@ -186,6 +188,73 @@ $$
 | $L_{\mathrm{FCD}}$ | `fcd` | 最多抽样 32 个窗口的归一化边向量 Gram 矩阵 | 近似匹配 FCD，同时避免完整 $T\times T$ FCD 的高开销。 |
 | $L_{\mathrm{contrast}}$ | `contrastive` | 批内 InfoNCE，比较预测和真实长时距平均边表征 | 增强预测未来与同一被试真实未来的可辨识性。 |
 | $L_{\mathrm{PSD}}$ | `psd` | 最多抽样 4 个预测窗口的负特征值平方 | 减少非合法相关矩阵，但不以硬投影限制重建能力。 |
+
+令 $p_{b,t}\in\mathbb{R}^{E}$、$y_{b,t}\in\mathbb{R}^{E}$ 分别表示第 $b$ 个样本、未来第 $t$ 个窗口的预测与真实 Fisher-z 上三角边向量，$g_t$ 表示训练集群体模板，$E=4005$；$\operatorname{Huber}$ 表示 PyTorch 默认 `SmoothL1`（$β=1$）并对全部元素取均值。令 $\tau$ 为与首窗不重叠的起点（83 TR 主分析中为未来标签索引 17），则实现中的各项为：
+
+$$
+L_{\mathrm{edge}}=\operatorname{Huber}(p_{b,t},y_{b,t})
+$$
+
+$$
+L_{\mathrm{residual}}
+=\underset{b,\,t\ge\tau}{\operatorname{mean}}
+\left[1-\operatorname{corr}_e\left(p_{b,t}-g_t,\;y_{b,t}-g_t\right)\right]
+$$
+
+$$
+L_{\mathrm{diff}}
+=\operatorname{Huber}\left(p_{b,t}-p_{b,t-1},\;y_{b,t}-y_{b,t-1}\right)
+$$
+
+$$
+L_{\mathrm{static}}
+=\operatorname{Huber}\left(\frac{1}{T}\sum_t p_{b,t},\;\frac{1}{T}\sum_t y_{b,t}\right)
+$$
+
+$$
+L_{\mathrm{var}}
+=\operatorname{Huber}\left(\operatorname{Var}_t(p_{b,t}),\;\operatorname{Var}_t(y_{b,t})\right)
+$$
+
+其中 $\operatorname{corr}_e$ 是在边维度 $e$ 上计算的 Pearson 相关；`difference` 对 $t=1,\ldots,T-1$ 求均值，`variance` 使用总体方差（`unbiased=False`）。其余三项的实现细节为：
+
+$$
+\tilde p_{b,i}
+=\frac{p_{b,s_i}-\operatorname{mean}_e(p_{b,s_i})}
+ {\left\|p_{b,s_i}-\operatorname{mean}_e(p_{b,s_i})\right\|_2},
+\qquad
+\tilde y_{b,i}
+=\frac{y_{b,s_i}-\operatorname{mean}_e(y_{b,s_i})}
+ {\left\|y_{b,s_i}-\operatorname{mean}_e(y_{b,s_i})\right\|_2}
+$$
+
+$$
+L_{\mathrm{FCD}}=\operatorname{Huber}(\tilde P\tilde P^\top,\;\tilde Y\tilde Y^\top)
+$$
+
+$$
+a_b=\frac{\operatorname{mean}_{t\ge\tau}p_{b,t}}
+ {\left\|\operatorname{mean}_{t\ge\tau}p_{b,t}\right\|_2},
+\qquad
+b_j=\frac{\operatorname{mean}_{t\ge\tau}y_{j,t}}
+ {\left\|\operatorname{mean}_{t\ge\tau}y_{j,t}\right\|_2}
+$$
+
+$$
+L_{\mathrm{contrast}}
+=\frac{1}{2}\left[
+\operatorname{CE}\left(\frac{AB^\top}{0.1},\operatorname{diag}\right)
++\operatorname{CE}\left(\frac{BA^\top}{0.1},\operatorname{diag}\right)
+\right]
+$$
+
+$$
+L_{\mathrm{PSD}}
+=\operatorname{mean}_{b,i,k}
+\left[\max\left(0,-\lambda_k\left(C(p_{b,r_i})\right)\right)^2\right]
+$$
+
+这里 $s_i$ 是从全序列均匀抽取的至多 32 个窗口，$\tilde P$、$\tilde Y$ 的行分别是对应窗口的标准化边向量，因此其 Gram 矩阵是 FCD 的近似；$A$、$B$ 的行分别为 $a_b$、$b_b$，`diag` 表示 batch 内同一被试预测/真实样本为正对；$r_i$ 是至多 4 个均匀抽样窗口；$C(\cdot)$ 将预测边先经 $\tanh$ 变为相关系数，再恢复为对称矩阵并令对角线为 1。
 
 对于 83 TR 主窗，理论上第 17 个未来窗口（未来标签索引 16）起已不再与首窗共享 BOLD 样本。当前实现采用保守切片 `[:, 17:]`，即从未来标签索引 17（第 18 个未来窗口）开始计算 $L_{\mathrm{residual}}$ 与早停主指标；短时距重叠窗口只作为次级结果报告。
 
@@ -336,6 +405,9 @@ outputs/window_83/fc_autoencoder.pt
 scdfc train --config configs/default.yaml --window 83 --model tcn
 scdfc train --config configs/default.yaml --window 83 --model transformer
 
+# HCP_GCN 风格的 SC 编码器基线
+scdfc train --config configs/default.yaml --window 83 --model tcn --sc-encoder hcp_gcn
+
 # 学习型基线
 scdfc train --config configs/default.yaml --window 83 --model direct_mlp
 scdfc train --config configs/default.yaml --window 83 --model gcn_gru
@@ -345,12 +417,14 @@ scdfc train --config configs/default.yaml --window 83 --model gcn_gru
 
 ```text
 outputs/window_83/<model>_<ablation>/best.pt
+outputs/window_83/<model>_<sc_encoder>_<ablation>/best.pt
 ```
 
 例如主 TCN 的检查点为：
 
 ```text
 outputs/window_83/tcn_full/best.pt
+outputs/window_83/tcn_hcp_gcn_full/best.pt
 ```
 
 ### 步骤 6：SC 贡献消融
@@ -436,6 +510,9 @@ scdfc evaluate --config configs/default.yaml --window 83 `
 | `split.train/val/test` | 0.70/0.15/0.15 | 被试级分区比例 |
 | `model.fc_latent_dim` | 256 | FC 自编码器潜变量维度 |
 | `model.hidden_dim` | 256 | 时序解码器隐藏维度 |
+| `model.sc_encoder` | `hybrid` | SC 编码器：`hybrid` 或 `hcp_gcn` |
+| `model.hcp_gcn_hidden_dim` | 128 | HCP_GCN 第一层隐藏维度 |
+| `model.hcp_gcn_output_dim` | 64 | HCP_GCN 池化前节点表示维度 |
 | `model.tcn_dilations` | 1–32 | TCN 膨胀卷积感受野设置 |
 | `training.batch_size` | 4 | dFC 序列训练批大小 |
 | `training.patience` | 20 | 验证集早停耐心值 |

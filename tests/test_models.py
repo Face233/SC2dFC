@@ -2,12 +2,14 @@ import pytest
 import torch
 
 from scdfc.training import CompositeLoss
-from scdfc.models import ConditionalSequenceModel, FCAutoencoder
+from scdfc.models import ConditionalSequenceModel, FCAutoencoder, HCPGCNEncoder
 from scdfc.models.baselines import GCNGRUBaseline
+from scdfc.models.sc_encoders import symmetric_normalize_with_self_loops
 
 
 @pytest.mark.parametrize("decoder", ["tcn", "transformer"])
-def test_sequence_models_return_full_valid_shape(decoder):
+@pytest.mark.parametrize("sc_encoder", ["hybrid", "hcp_gcn"])
+def test_sequence_models_return_full_valid_shape(decoder, sc_encoder):
     torch.manual_seed(0)
     batch, nodes, edges, steps = 2, 90, 4005, 5
     autoencoder = FCAutoencoder(edges, latent_dim=32, dropout=0)
@@ -24,6 +26,7 @@ def test_sequence_models_return_full_valid_shape(decoder):
         transformer_ffn_dim=64,
         tcn_dilations=(1, 2),
         dropout=0,
+        sc_encoder_type=sc_encoder,
     )
     sc = torch.rand(batch, nodes, nodes)
     sc = (sc + sc.transpose(1, 2)) / 2
@@ -35,6 +38,24 @@ def test_sequence_models_return_full_valid_shape(decoder):
     torch.testing.assert_close(result.fc_matrices, result.fc_matrices.transpose(-1, -2))
     torch.testing.assert_close(torch.diagonal(result.fc_matrices, dim1=-2, dim2=-1), torch.ones(batch, steps, nodes))
     assert result.fc_matrices.abs().max() <= 1
+
+
+def test_hcp_gcn_encoder_normalizes_and_backpropagates():
+    torch.manual_seed(0)
+    adjacency = torch.rand(2, 6, 6)
+    adjacency = (adjacency + adjacency.transpose(1, 2)) / 2
+    adjacency[:, torch.arange(6), torch.arange(6)] = 0
+    normalized = symmetric_normalize_with_self_loops(adjacency)
+    torch.testing.assert_close(normalized, normalized.transpose(1, 2))
+    assert torch.isfinite(normalized).all()
+    assert (torch.diagonal(normalized, dim1=-2, dim2=-1) > 0).all()
+
+    encoder = HCPGCNEncoder(n_nodes=6, hidden_dim=8, output_dim=4)
+    global_embedding, tokens = encoder(adjacency)
+    assert global_embedding.shape == (2, 4)
+    assert tokens.shape == (2, 6, 4)
+    global_embedding.sum().backward()
+    assert all(parameter.grad is not None for parameter in encoder.parameters())
 
 
 def test_composite_loss_backpropagates():

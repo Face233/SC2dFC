@@ -21,10 +21,13 @@ scdfc split --config configs/default.yaml
 scdfc precompute --config configs/default.yaml --windows 83 42 125
 scdfc train-ae --config configs/default.yaml --window 83
 scdfc train --config configs/default.yaml --window 83 --model tcn
+scdfc train --config configs/default.yaml --window 83 --model tcn --sc-encoder hcp_gcn
 scdfc train --config configs/default.yaml --window 83 --model transformer
 scdfc train --config configs/default.yaml --window 83 --model direct_mlp
 scdfc train --config configs/default.yaml --window 83 --model gcn_gru
 scdfc evaluate --config configs/default.yaml --window 83 --checkpoint outputs/window_83/tcn_full/best.pt
 ```
+
+The default `hybrid` SC encoder combines graph attention with an edge MLP. Use `--sc-encoder hcp_gcn` to compare it against identity ROI features, symmetric adjacency normalization, two GCN layers, and max pooling while keeping the remaining prediction pipeline fixed.
 
 The precomputation step writes chunked Zarr data. Training never computes sliding-window FC online.
