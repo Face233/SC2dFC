@@ -1,4 +1,4 @@
-seed: 20260717
+seed: 42
 paths:
   root: .
   atlas_labels: data/raw/atlas/ROI_MNI_V4.txt
