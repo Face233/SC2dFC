@@ -68,7 +68,7 @@ $$
 同时，SC 上三角被向量化为 4005 条无向边：
 
 $$
-x^{SC}_s=\operatorname{zscore}_{train}(\log(1+SC_{s,upper}))
+x^{SC}_s=\mathrm{zscore}_{\mathrm{train}}(\log(1+SC_{s,\mathrm{upper}}))
 $$
 
 该向量进入独立的 MLP 分支，以保留图消息传递可能平滑掉的全局边模式。训练集保存 `sc_mean` 和 `sc_std`；推理接口在未显式传入边向量时会自动使用它们标准化。
@@ -78,13 +78,13 @@ $$
 程序不会使用工作区中已有的静态 FC CSV 作为监督标签，而是直接从 `data/raw/timeseries_lr` 或 `data/raw/timeseries_rl` 的 ROI BOLD 重新计算 dFC。对第 `k` 个滑窗起点 `a_k=k×5`：
 
 $$
-FC_k=\operatorname{corr}(BOLD[a_k:a_k+83,:])
+FC_k=\mathrm{corr}(BOLD[a_k:a_k+83,:])
 $$
 
 随后取上三角并做 Fisher-z 变换：
 
 $$
-z_k=\operatorname{arctanh}(\operatorname{clip}(FC_{k,upper},-0.999999,0.999999))
+z_k=\mathrm{arctanh}(\mathrm{clip}(FC_{k,\mathrm{upper}},-0.999999,0.999999))
 $$
 
 1200 个 TR 在 83 TR 窗长、5 TR 步长下得到 224 个窗口。第一个窗口 `z_0` 作为 warm-up；`z_1` 到 `z_223` 是模型必须预测的 223 个未来标签。每个窗长独立缓存在：
@@ -137,7 +137,7 @@ FC 自编码器的默认结构为：
 四者拼接后经门控融合：
 
 $$
-c=\operatorname{Linear}(u)\odot\sigma(\operatorname{Linear}(u))
+c=\mathrm{Linear}(u)\odot\sigma(\mathrm{Linear}(u))
 $$
 
 其中 `c` 是条件向量。该设计避免 SC 只在序列开始时起作用；条件向量会进入所有 TCN 层，或作为 Transformer 的 cross-attention memory。
@@ -154,7 +154,7 @@ $$
 时序解码器输出潜轨迹 `q[t]`，FC 解码器将其映射为边空间。最终预测不是直接使用该绝对输出，而是：
 
 $$
-\hat z_t=template_t+static(c)+\left(decoded(q_t)-\operatorname{mean}_t(decoded(q_t))\right)
+\hat z_t=template_t+static(c)+\left(decoded(q_t)-\mathrm{mean}_t(decoded(q_t))\right)
 $$
 
 其中：
