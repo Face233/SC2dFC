@@ -16,10 +16,10 @@ $$
 
 其中：
 
-- `SC_s`：第 `s` 名被试的 `90×90` 加权、对称结构连接矩阵；
-- `FC_{s,1}`：同一 fMRI run 的第一个 dFC 窗口；
-- `run_s`：LR 或 RL run 标记；
-- `\hat{FC}_{s,2:T}`：预测得到的后续完整 `90×90` dFC 矩阵序列。
+- $SC_s$：第 $s$ 名被试的 `90×90` 加权、对称结构连接矩阵；
+- $FC_{s,1}$：同一 fMRI run 的第一个 dFC 窗口；
+- $run_s$：LR 或 RL run 标记；
+- $\hat{FC}_{s,2:T}$：预测得到的后续完整 `90×90` dFC 矩阵序列。
 
 本版本是**确定性条件预测**：同一输入只输出一条后续轨迹。它评估的是 SC 和当前功能状态能否约束后续 dFC，而不是完整建模 $p(dFC\mid SC,FC_1)$。条件扩散、流匹配或状态空间生成模型属于后续扩展。
 
@@ -39,12 +39,12 @@ run (LR/RL) ─ embedding ──────────────────
 模型输出在 Fisher-z 边空间中显式分为：
 
 $$
-\hat{FC}_{s,t}=FC^{group}_t+\Delta FC^{static}_s+\Delta FC^{dynamic}_{s,t}
+\hat{FC}_{s,t}=FC^{\mathrm{group}}_t+\Delta FC^{\mathrm{static}}_s+\Delta FC^{\mathrm{dynamic}}_{s,t}
 $$
 
-- `FC_group` 是训练集中计算的群体模板；
-- `ΔFC_static` 是个体稳定偏差；
-- `ΔFC_dynamic` 是时间均值为零的个体动态残差。
+- $FC^{\mathrm{group}}_t$ 是训练集中计算的群体模板；
+- $\Delta FC^{\mathrm{static}}_s$ 是个体稳定偏差；
+- $\Delta FC^{\mathrm{dynamic}}_{s,t}$ 是时间均值为零的个体动态残差。
 
 这项分解配合“去群体模板后的长时距相关”作为主指标，用于避免模型只输出组平均的平直序列。
 
@@ -170,27 +170,30 @@ $$
 主模型总损失为：
 
 $$
-L=1.0L_{edge}+0.5L_{residual}+0.25L_{diff}+0.25L_{static}+0.25L_{var}+0.1L_{FCD}+0.1L_{contrast}+0.01L_{PSD}
+\begin{aligned}
+L={}&1.0L_{\mathrm{edge}}+0.5L_{\mathrm{residual}}+0.25L_{\mathrm{diff}}+0.25L_{\mathrm{static}}\\
+&+0.25L_{\mathrm{var}}+0.1L_{\mathrm{FCD}}+0.1L_{\mathrm{contrast}}+0.01L_{\mathrm{PSD}}.
+\end{aligned}
 $$
 
-| 损失 | 实现方式 | 目的 |
-| --- | --- | --- |
-| `L_edge` | Fisher-z 边的 Smooth L1 / Huber | 拟合每个窗口的连接边，较 MSE 更抗异常边。 |
-| `L_residual` | 无重叠时距内，预测/真实减群体模板后的 `1-Pearson` | 强制学习个体特异边模式，抑制组均值坍缩。 |
-| `L_diff` | 相邻窗口一阶差分的 Smooth L1 | 拟合 FC 随时间的变化方向与幅度。 |
-| `L_static` | 序列时间均值的 Smooth L1 | 保证预测序列平均 FC 不偏离个体真实平均。 |
-| `L_var` | 每条边时间方差的 Smooth L1 | 防止动态振幅被压缩为近零。 |
-| `L_FCD` | 最多抽样 32 个窗口的归一化边向量 Gram 矩阵 | 近似匹配 FCD，同时避免完整 `T×T` FCD 的高开销。 |
-| `L_contrast` | 批内 InfoNCE，比较预测和真实长时距平均边表征 | 增强预测未来与同一被试真实未来的可辨识性。 |
-| `L_PSD` | 最多抽样 4 个预测窗口的负特征值平方 | 减少非合法相关矩阵，但不以硬投影限制重建能力。 |
+| 损失 | 配置键 | 实现方式 | 目的 |
+| --- | --- | --- | --- |
+| $L_{\mathrm{edge}}$ | `edge` | Fisher-z 边的 Smooth L1 / Huber | 拟合每个窗口的连接边，较 MSE 更抗异常边。 |
+| $L_{\mathrm{residual}}$ | `residual_corr` | 无重叠时距内，预测/真实减群体模板后的 $1-\mathrm{Pearson}$ | 强制学习个体特异边模式，抑制组均值坍缩。 |
+| $L_{\mathrm{diff}}$ | `difference` | 相邻窗口一阶差分的 Smooth L1 | 拟合 FC 随时间的变化方向与幅度。 |
+| $L_{\mathrm{static}}$ | `static` | 序列时间均值的 Smooth L1 | 保证预测序列平均 FC 不偏离个体真实平均。 |
+| $L_{\mathrm{var}}$ | `variance` | 每条边时间方差的 Smooth L1 | 防止动态振幅被压缩为近零。 |
+| $L_{\mathrm{FCD}}$ | `fcd` | 最多抽样 32 个窗口的归一化边向量 Gram 矩阵 | 近似匹配 FCD，同时避免完整 $T\times T$ FCD 的高开销。 |
+| $L_{\mathrm{contrast}}$ | `contrastive` | 批内 InfoNCE，比较预测和真实长时距平均边表征 | 增强预测未来与同一被试真实未来的可辨识性。 |
+| $L_{\mathrm{PSD}}$ | `psd` | 最多抽样 4 个预测窗口的负特征值平方 | 减少非合法相关矩阵，但不以硬投影限制重建能力。 |
 
-对于 83 TR 主窗，理论上第 17 个未来预测步起已不再与首窗共享 BOLD 样本。当前实现采用保守切片 `[:, 17:]`，即从未来标签数组的索引 17（第 18 个未来窗口）开始计算 `L_residual` 与早停主指标；短时距重叠窗口只作为次级结果报告。
+对于 83 TR 主窗，理论上第 17 个未来窗口（未来标签索引 16）起已不再与首窗共享 BOLD 样本。当前实现采用保守切片 `[:, 17:]`，即从未来标签索引 17（第 18 个未来窗口）开始计算 $L_{\mathrm{residual}}$ 与早停主指标；短时距重叠窗口只作为次级结果报告。
 
 ### 2.4 训练、验证与检查点
 
 训练分两阶段：
 
-1. **FC 自编码器阶段**：训练集中每个 subject/run 每 epoch 可复现地抽取 32 个窗口，验证集抽取 8 个窗口；优化目标为 `Huber + 0.1×相关损失 + 0.01×PSD 惩罚`。
+1. **FC 自编码器阶段**：训练集中每个 subject/run 每 epoch 可复现地抽取 32 个窗口，验证集抽取 8 个窗口；优化目标为 $L_{\mathrm{Huber}}+0.1L_{\mathrm{corr}}+0.01L_{\mathrm{PSD}}$。
 2. **序列预测阶段**：每个 batch 包含完整未来序列，不泄漏未来 FC；先冻结 FC 编码器与解码器，20 个 epoch 后仅以较小学习率解冻解码器。
 
 默认优化与稳定策略：
