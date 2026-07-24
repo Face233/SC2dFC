@@ -14,7 +14,7 @@ from .config import resolve_path
 from .connectivity import nonoverlap_horizon
 from .data import DFCSequenceDataset, FCWindowDataset
 from .models import ConditionalSequenceModel, FCAutoencoder
-from .models.baselines import DirectSCMLP, GCNGRUBaseline
+from .models.baselines import CommonInputLSTM, CommonInputMLP, DirectSCMLP, GCNGRUBaseline, PCARidgeBaseline
 from .models.sequence import torch_edges_to_matrix
 
 
@@ -100,11 +100,20 @@ def device_from_arg(name: str | None = None) -> torch.device:
     return torch.device(name or ("cuda" if torch.cuda.is_available() else "cpu"))
 
 
-def autoencoder_checkpoint_path(config: dict[str, Any], window_length: int) -> Path:
+def autoencoder_checkpoint_path(config: dict[str, Any], window_length: int, artifact_path: str | Path | None = None) -> Path:
+    if artifact_path is not None:
+        return Path(artifact_path)
     return resolve_path(config, "output_dir") / f"window_{window_length}" / "fc_autoencoder.pt"
 
 
-def train_autoencoder(config: dict[str, Any], window_length: int, stats_path: Path, device_name: str | None = None) -> Path:
+def train_autoencoder(
+    config: dict[str, Any],
+    window_length: int,
+    stats_path: Path,
+    device_name: str | None = None,
+    output_dir: str | Path | None = None,
+    checkpoint_metadata: dict[str, Any] | None = None,
+) -> Path:
     """先训练 FC 自编码器，并按验证重建损失保存最佳检查点。"""
     seed_everything(int(config["seed"]))
     device = device_from_arg(device_name)
@@ -114,11 +123,18 @@ def train_autoencoder(config: dict[str, Any], window_length: int, stats_path: Pa
     val_sequence = DFCSequenceDataset(config, window_length, "val", stats_path)
     val_dataset = FCWindowDataset(val_sequence, windows_per_run=8, seed=int(config["seed"]) + 1)
     val_loader = DataLoader(val_dataset, batch_size=int(config["training"]["autoencoder_batch_size"]), shuffle=False, num_workers=0)
-    model = FCAutoencoder(4005, int(config["model"]["fc_latent_dim"]), float(config["model"]["dropout"])).to(device)
+    n_nodes = int(config["data"]["n_nodes"])
+    n_edges = n_nodes * (n_nodes - 1) // 2
+    model = FCAutoencoder(n_edges, int(config["model"]["fc_latent_dim"]), float(config["model"]["dropout"])).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=float(config["training"]["learning_rate"]), weight_decay=float(config["training"]["weight_decay"]))
     best = float("inf")
-    checkpoint = autoencoder_checkpoint_path(config, window_length)
+    managed = output_dir is not None
+    output_dir = Path(output_dir) if output_dir is not None else autoencoder_checkpoint_path(config, window_length).parent
+    checkpoint_dir = output_dir / "checkpoints" if managed else output_dir
+    checkpoint = checkpoint_dir / ("best.pt" if managed else "fc_autoencoder.pt")
     checkpoint.parent.mkdir(parents=True, exist_ok=True)
+    log_path = output_dir / "train.log"
+    best_epoch = -1
     stale = 0
     for epoch in range(int(config["training"]["autoencoder_epochs"])):
         model.train()
@@ -126,7 +142,7 @@ def train_autoencoder(config: dict[str, Any], window_length: int, stats_path: Pa
         for edges in loader:
             edges = edges.to(device)
             reconstructed, _ = model(edges)
-            loss = torch.nn.functional.smooth_l1_loss(reconstructed, edges) + 0.1 * correlation_loss(reconstructed, edges) + 0.01 * psd_penalty(reconstructed[:, None])
+            loss = torch.nn.functional.smooth_l1_loss(reconstructed, edges) + 0.1 * correlation_loss(reconstructed, edges) + 0.01 * psd_penalty(reconstructed[:, None], n_nodes)
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), float(config["training"]["gradient_clip"]))
@@ -138,22 +154,33 @@ def train_autoencoder(config: dict[str, Any], window_length: int, stats_path: Pa
             for edges in val_loader:
                 edges = edges.to(device)
                 reconstructed, _ = model(edges)
-                loss = torch.nn.functional.smooth_l1_loss(reconstructed, edges) + 0.1 * correlation_loss(reconstructed, edges) + 0.01 * psd_penalty(reconstructed[:, None])
+                loss = torch.nn.functional.smooth_l1_loss(reconstructed, edges) + 0.1 * correlation_loss(reconstructed, edges) + 0.01 * psd_penalty(reconstructed[:, None], n_nodes)
                 val_total += float(loss) * len(edges)
         epoch_loss = val_total / len(val_dataset)
         if epoch_loss < best:
-            best, stale = epoch_loss, 0
-            torch.save({"model": model.state_dict(), "epoch": epoch, "loss": best, "window_length": window_length}, checkpoint)
+            best, stale, best_epoch = epoch_loss, 0, epoch
+            payload = {"schema_version": 1, "model": model.state_dict(), "epoch": epoch, "loss": best, "window_length": window_length}
+            payload.update(checkpoint_metadata or {})
+            torch.save(payload, checkpoint)
         else:
             stale += 1
             if stale >= int(config["training"]["patience"]):
                 break
+        with log_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"epoch": epoch, "train_loss": total / max(len(dataset), 1), "validation_loss": epoch_loss}) + "\n")
+    (output_dir / "metrics_best.json").write_text(
+        json.dumps({"metrics": {"validation_loss": best}, "best_epoch": best_epoch}, indent=2), encoding="utf-8"
+    )
     return checkpoint
 
 
-def load_autoencoder(config: dict[str, Any], window_length: int, device: torch.device) -> FCAutoencoder:
-    model = FCAutoencoder(4005, int(config["model"]["fc_latent_dim"]), float(config["model"]["dropout"])).to(device)
-    payload = torch.load(autoencoder_checkpoint_path(config, window_length), map_location=device, weights_only=False)
+def load_autoencoder(
+    config: dict[str, Any], window_length: int, device: torch.device, artifact_path: str | Path | None = None
+) -> FCAutoencoder:
+    n_nodes = int(config["data"]["n_nodes"])
+    n_edges = n_nodes * (n_nodes - 1) // 2
+    model = FCAutoencoder(n_edges, int(config["model"]["fc_latent_dim"]), float(config["model"]["dropout"])).to(device)
+    payload = torch.load(autoencoder_checkpoint_path(config, window_length, artifact_path), map_location=device, weights_only=False)
     model.load_state_dict(payload["model"])
     return model
 
@@ -165,17 +192,31 @@ def build_sequence_model(
     stats_path: Path,
     device: torch.device,
     sc_encoder_type: str | None = None,
+    autoencoder_path: str | Path | None = None,
+    checkpoint_payload: dict[str, Any] | None = None,
 ):
     """加载共享 FC 解码器，并按名称构建主模型或学习型基线。"""
-    autoencoder = load_autoencoder(config, window_length, device)
+    autoencoder = load_autoencoder(config, window_length, device, autoencoder_path)
     stats = dict(np.load(stats_path))
     model_cfg = config["model"]
     sc_encoder_type = sc_encoder_type or str(model_cfg.get("sc_encoder", "hybrid"))
     group_template = torch.from_numpy(stats["group_template"])
+    if decoder_type == "pca_ridge":
+        if checkpoint_payload is None:
+            raise ValueError("A fitted checkpoint payload is required to build pca_ridge")
+        dimensions = checkpoint_payload["ridge_dimensions"]
+        return PCARidgeBaseline(
+            autoencoder, group_template, int(dimensions["n_components"]),
+            int(dimensions["sc_edges"]), int(dimensions["latent_dim"]),
+        ).to(device)
     if decoder_type == "direct_mlp":
         return DirectSCMLP(autoencoder, group_template, hidden=512, latent_dim=int(model_cfg["fc_latent_dim"])).to(device)
     if decoder_type == "gcn_gru":
         return GCNGRUBaseline(autoencoder, group_template, n_nodes=int(config["data"]["n_nodes"]), hidden=int(model_cfg["fc_latent_dim"])).to(device)
+    if decoder_type == "mlp":
+        return CommonInputMLP(autoencoder, group_template, hidden=int(model_cfg.get("baseline_hidden_dim", 512))).to(device)
+    if decoder_type == "lstm":
+        return CommonInputLSTM(autoencoder, group_template, hidden=int(model_cfg.get("baseline_hidden_dim", 256))).to(device)
     return ConditionalSequenceModel(
         autoencoder,
         group_template,
@@ -195,6 +236,61 @@ def build_sequence_model(
         hcp_gcn_hidden_dim=int(model_cfg.get("hcp_gcn_hidden_dim", 128)),
         hcp_gcn_output_dim=int(model_cfg.get("hcp_gcn_output_dim", 64)),
     ).to(device)
+
+
+def train_pca_ridge_baseline(
+    config: dict[str, Any], window_length: int, stats_path: Path, output_dir: Path,
+    checkpoint_metadata: dict[str, Any], autoencoder_path: str | Path, device: torch.device,
+) -> Path:
+    """Fit a training-only PCA + multi-output Ridge model in the shared FC latent space."""
+    from sklearn.decomposition import PCA
+    from sklearn.linear_model import Ridge
+
+    train_data = DFCSequenceDataset(config, window_length, "train", stats_path)
+    val_data = DFCSequenceDataset(config, window_length, "val", stats_path)
+    autoencoder = load_autoencoder(config, window_length, device, autoencoder_path)
+    autoencoder.eval()
+    stats = dict(np.load(stats_path))
+    template = torch.from_numpy(stats["group_template"]).to(device)
+    sc_values, warmups, run_values, targets = [], [], [], []
+    with torch.no_grad():
+        for index in range(len(train_data)):
+            sample = train_data[index]
+            sc_values.append(sample["sc_edges"].numpy())
+            warmups.append(autoencoder.encode(sample["fc_warmup"].to(device)[None]).cpu().numpy()[0])
+            run_values.append(np.eye(2, dtype=np.float32)[int(sample["run"])])
+            residual = sample["fc_future"].to(device) - template[: len(sample["fc_future"])]
+            targets.append(autoencoder.encode(residual).cpu().numpy().reshape(-1))
+    sc_array = np.stack(sc_values)
+    n_components = min(int(config["model"].get("ridge_pca_components", 128)), len(sc_array), sc_array.shape[1])
+    pca = PCA(n_components=n_components, random_state=int(config["seed"]))
+    projected = pca.fit_transform(sc_array)
+    features = np.concatenate([projected, np.stack(warmups), np.stack(run_values)], axis=1)
+    ridge = Ridge(alpha=float(config["model"].get("ridge_alpha", 1.0)))
+    ridge.fit(features, np.stack(targets))
+    model = PCARidgeBaseline(autoencoder, template.cpu(), n_components, sc_array.shape[1], len(warmups[0])).to(device)
+    model.pca_mean.copy_(torch.from_numpy(pca.mean_).to(device, dtype=torch.float32))
+    model.pca_components.copy_(torch.from_numpy(pca.components_).to(device, dtype=torch.float32))
+    model.ridge_coef.copy_(torch.from_numpy(ridge.coef_).to(device, dtype=torch.float32))
+    model.ridge_intercept.copy_(torch.from_numpy(ridge.intercept_).to(device, dtype=torch.float32))
+    loader = DataLoader(val_data, batch_size=int(config["training"]["batch_size"]), shuffle=False, num_workers=0)
+    score = validate(model, loader, nonoverlap_horizon(window_length, int(config["data"]["stride"])), device)
+    checkpoint_dir = output_dir / "checkpoints"
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint = checkpoint_dir / "best.pt"
+    payload = {
+        "schema_version": 1, "model": model.state_dict(), "epoch": 0, "score": score,
+        "primary_metric": config["evaluation"]["primary_metric"], "decoder_type": "pca_ridge",
+        "sc_encoder_type": "hybrid", "ablation": "full", "window_length": window_length,
+        "ridge_dimensions": {"n_components": n_components, "sc_edges": sc_array.shape[1], "latent_dim": len(warmups[0])},
+        **checkpoint_metadata,
+    }
+    torch.save(payload, checkpoint)
+    (output_dir / "train.log").write_text(json.dumps({"fit": "pca_ridge", "validation_long_residual_pearson": score}) + "\n", encoding="utf-8")
+    (output_dir / "metrics_best.json").write_text(
+        json.dumps({"metrics": {config["evaluation"]["primary_metric"]: score}, "best_epoch": 0}, indent=2), encoding="utf-8"
+    )
+    return checkpoint
 
 
 @torch.no_grad()
@@ -227,21 +323,31 @@ def train_sequence_model(
     ablation: str = "full",
     device_name: str | None = None,
     sc_encoder_type: str | None = None,
+    output_dir: str | Path | None = None,
+    checkpoint_metadata: dict[str, Any] | None = None,
+    autoencoder_path: str | Path | None = None,
 ) -> Path:
     """训练 TCN、Transformer 或学习型基线，并按主验证指标早停。"""
     seed_everything(int(config["seed"]))
     device = device_from_arg(device_name)
+    if decoder_type == "pca_ridge":
+        if output_dir is None or checkpoint_metadata is None or autoencoder_path is None:
+            raise ValueError("pca_ridge is available only through the managed experiment runner")
+        return train_pca_ridge_baseline(
+            config, window_length, stats_path, Path(output_dir), checkpoint_metadata, autoencoder_path, device
+        )
     train_data = DFCSequenceDataset(config, window_length, "train", stats_path, ablation)
     val_data = DFCSequenceDataset(config, window_length, "val", stats_path, ablation)
     train_loader = DataLoader(train_data, batch_size=int(config["training"]["batch_size"]), shuffle=True, num_workers=int(config["training"]["num_workers"]))
     val_loader = DataLoader(val_data, batch_size=int(config["training"]["batch_size"]), shuffle=False, num_workers=int(config["training"]["num_workers"]))
     requested_sc_encoder_type = sc_encoder_type
     sc_encoder_type = requested_sc_encoder_type or str(config["model"].get("sc_encoder", "hybrid"))
-    if decoder_type in {"direct_mlp", "gcn_gru"} and requested_sc_encoder_type not in {None, "hybrid"}:
+    baseline_types = {"direct_mlp", "gcn_gru", "mlp", "lstm"}
+    if decoder_type in baseline_types and requested_sc_encoder_type not in {None, "hybrid"}:
         raise ValueError("--sc-encoder applies only to the tcn and transformer conditional models")
-    if decoder_type in {"direct_mlp", "gcn_gru"}:
+    if decoder_type in baseline_types:
         sc_encoder_type = "hybrid"
-    model = build_sequence_model(config, window_length, decoder_type, stats_path, device, sc_encoder_type)
+    model = build_sequence_model(config, window_length, decoder_type, stats_path, device, sc_encoder_type, autoencoder_path)
     for parameter in model.fc_autoencoder.encoder.parameters():
         parameter.requires_grad = False
     for parameter in model.fc_autoencoder.decoder.parameters():
@@ -252,12 +358,19 @@ def train_sequence_model(
     criterion = CompositeLoss(config["training"]["loss_weights"], nonoverlap, int(config["data"]["n_nodes"]))
     conditional_name = (
         decoder_type
-        if sc_encoder_type == "hybrid" or decoder_type in {"direct_mlp", "gcn_gru"}
+        if sc_encoder_type == "hybrid" or decoder_type in baseline_types
         else f"{decoder_type}_{sc_encoder_type}"
     )
-    output_dir = resolve_path(config, "output_dir") / f"window_{window_length}" / f"{conditional_name}_{ablation}"
+    managed = output_dir is not None
+    output_dir = Path(output_dir) if output_dir is not None else resolve_path(config, "output_dir") / f"window_{window_length}" / f"{conditional_name}_{ablation}"
     output_dir.mkdir(parents=True, exist_ok=True)
-    checkpoint = output_dir / "best.pt"
+    checkpoint_dir = output_dir / "checkpoints" if managed else output_dir
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint = checkpoint_dir / "best.pt"
+    last_checkpoint = checkpoint_dir / "last.pt"
+    log_path = output_dir / "train.log"
+    primary_metric = str(config.get("evaluation", {}).get("primary_metric", "long_residual_pearson"))
+    best_epoch = -1
     best, stale = -float("inf"), 0
     for epoch in range(int(config["training"]["epochs"])):
         if epoch == int(config["training"]["decoder_frozen_epochs"]):
@@ -274,22 +387,33 @@ def train_sequence_model(
             torch.nn.utils.clip_grad_norm_(model.parameters(), float(config["training"]["gradient_clip"]))
             optimizer.step()
         score = validate(model, val_loader, nonoverlap, device)
+        with log_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"epoch": epoch, "validation_long_residual_pearson": score}) + "\n")
         if score > best:
-            best, stale = score, 0
-            torch.save(
-                {
-                    "model": model.state_dict(),
-                    "epoch": epoch,
-                    "score": score,
-                    "decoder_type": decoder_type,
-                    "sc_encoder_type": sc_encoder_type,
-                    "ablation": ablation,
-                    "window_length": window_length,
-                },
-                checkpoint,
-            )
+            best, stale, best_epoch = score, 0, epoch
+            payload = {
+                "schema_version": 1, "model": model.state_dict(), "epoch": epoch, "score": score,
+                "primary_metric": primary_metric, "decoder_type": decoder_type,
+                "sc_encoder_type": sc_encoder_type, "ablation": ablation, "window_length": window_length,
+            }
+            payload.update(checkpoint_metadata or {})
+            torch.save(payload, checkpoint)
         else:
             stale += 1
             if stale >= int(config["training"]["patience"]):
                 break
+        if int(config.get("experiment", {}).get("level", 0)) >= 2:
+            last_payload = {
+                "schema_version": 1, "model": model.state_dict(), "epoch": epoch, "score": score,
+                "primary_metric": primary_metric, "decoder_type": decoder_type,
+                "sc_encoder_type": sc_encoder_type, "ablation": ablation, "window_length": window_length,
+            }
+            last_payload.update(checkpoint_metadata or {})
+            torch.save(last_payload, last_checkpoint)
+    (output_dir / "metrics_best.json").write_text(
+        json.dumps({"metrics": {primary_metric: best}, "best_epoch": best_epoch}, indent=2), encoding="utf-8"
+    )
+    (output_dir / "metrics_last.json").write_text(
+        json.dumps({"metrics": {primary_metric: score}, "last_epoch": epoch}, indent=2), encoding="utf-8"
+    )
     return checkpoint

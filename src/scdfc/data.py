@@ -52,6 +52,7 @@ def audit_dataset(config: dict[str, Any], sample_limit: int | None = None) -> di
         "errors": [],
         "warnings": [],
     }
+    invalid_subjects: set[str] = set()
     atlas_path = resolve_path(config, "atlas_labels")
     atlas_names = [line.split("\t")[1] for line in atlas_path.read_text(encoding="utf-8").splitlines()]
     if len(atlas_names) < n_nodes:
@@ -59,27 +60,50 @@ def audit_dataset(config: dict[str, Any], sample_limit: int | None = None) -> di
     atlas_names = atlas_names[:n_nodes]
     sc_zero_fractions: list[float] = []
     for subject in found["subjects"][:sample_limit]:
-        sc = pd.read_csv(found["sc"][subject], header=None).to_numpy(dtype=float)
+        try:
+            sc = pd.read_csv(found["sc"][subject], header=None).to_numpy(dtype=float)
+        except Exception as error:
+            report["errors"].append(f"SC {subject} cannot be parsed: {type(error).__name__}: {error}")
+            invalid_subjects.add(subject)
+            continue
         if sc.shape != (n_nodes, n_nodes):
             report["errors"].append(f"SC {subject} shape is {sc.shape}")
+            invalid_subjects.add(subject)
             continue
         if not np.isfinite(sc).all() or np.max(np.abs(sc - sc.T)) > 1e-6:
             report["errors"].append(f"SC {subject} is non-finite or asymmetric")
+            invalid_subjects.add(subject)
         sc_zero_fractions.append(float(np.mean(sc == 0)))
         for run, paths in found["runs"].items():
             if subject not in paths:
                 continue
-            frame = pd.read_csv(paths[subject])
+            try:
+                frame = pd.read_csv(paths[subject])
+            except Exception as error:
+                report["errors"].append(f"BOLD {subject}/{run} cannot be parsed: {type(error).__name__}: {error}")
+                invalid_subjects.add(subject)
+                continue
             if frame.shape != (n_timepoints, n_nodes + 1):
                 report["errors"].append(f"BOLD {subject}/{run} shape is {frame.shape}")
+                invalid_subjects.add(subject)
             if frame.columns[1:].tolist() != atlas_names:
                 report["errors"].append(f"ROI order mismatch for {subject}/{run}")
-            if not np.isfinite(frame.iloc[:, 1:].to_numpy(dtype=float)).all():
-                report["errors"].append(f"Non-finite BOLD values for {subject}/{run}")
+                invalid_subjects.add(subject)
+            try:
+                finite = np.isfinite(frame.iloc[:, 1:].to_numpy(dtype=float)).all()
+            except Exception as error:
+                report["errors"].append(f"BOLD {subject}/{run} contains non-numeric data: {type(error).__name__}: {error}")
+                invalid_subjects.add(subject)
+            else:
+                if not finite:
+                    report["errors"].append(f"Non-finite BOLD values for {subject}/{run}")
+                    invalid_subjects.add(subject)
     if sc_zero_fractions:
         report["sc_zero_fraction"] = {"median": float(np.median(sc_zero_fractions)), "min": float(np.min(sc_zero_fractions)), "max": float(np.max(sc_zero_fractions))}
     if not found["runs"].get("RL"):
         report["warnings"].append("RL timeseries are not available")
+    report["invalid_subjects"] = sorted(invalid_subjects)
+    report["eligible_subjects"] = len(set(found["subjects"]) - invalid_subjects)
     return report
 
 
@@ -141,6 +165,10 @@ def precompute_dfc(config: dict[str, Any], window_length: int, subjects: set[str
     """将每个 subject/run 的滑窗 Fisher-z FC 写入按窗长分组的 Zarr 缓存。"""
     zarr, Blosc = _zarr()
     found = discover_data(config)
+    if subjects is None and config.get("paths", {}).get("split_csv"):
+        split_path = resolve_path(config, "split_csv")
+        if split_path.exists():
+            subjects = set(load_split(split_path)["subject_id"].astype(str))
     stride, n_nodes = int(config["data"]["stride"]), int(config["data"]["n_nodes"])
     fisher_clip = float(config["data"]["fisher_clip"])
     destination = cache_path(config, window_length)

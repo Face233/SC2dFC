@@ -340,6 +340,8 @@ pytest
 
 ## 5. 完整运行流程
 
+> **正式科研实验请先阅读 [`docs/experiment_management.md`](docs/experiment_management.md)。** 当前章节中的旧训练命令仅保留用于 Level 0 调试；需要形成可追溯结果时，应使用 `scdfc experiment create`、`scdfc run`、`scdfc evaluate-run`、`scdfc summarize` 和 `scdfc conclude`。
+
 所有命令都在项目根目录执行。建议先使用 `--window 83` 完成主分析，再单独运行 42 和 125 TR 敏感性分析。
 
 ### 步骤 1：数据审计

@@ -1,0 +1,31 @@
+base: ../default.yaml
+experiment:
+  id: E0002
+  name: fc1_persistence_baseline
+  level: 1
+  task: analytic
+  research_question: 复制首窗FC能够达到怎样的预测性能
+  hypothesis: 个体首窗持续性优于群体均值但不足以预测长时距动态
+  primary_change: 以首窗FC复制整个未来序列
+  baseline: E0001
+  owner: Face88
+  status: planned
+  ablation: full
+paths:
+  split_csv: data/manifests/split_v1.csv
+data:
+  dataset_version: dataset_v1
+  preprocessing_version: preprocess_v1
+  manifest_path: data/manifests/dataset_v1.json
+  manifest_sha256: 4cc9f2fc38fb71cf224f77ccce454750cb7e0458203db28d0b3fbe23585db693
+  split_version: split_v1
+  split_sha256: a06d06d91636f319d0c7939c6eb9b00a66c04d64d7f3d2afb529ad98791086de
+model:
+  name: fc1_persistence
+training:
+  seeds:
+  - 42
+evaluation:
+  primary_metric: long_residual_pearson
+decision_rule:
+  description: Decide after validation aggregation; do not inspect test data

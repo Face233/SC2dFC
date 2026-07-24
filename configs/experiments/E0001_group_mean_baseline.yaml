@@ -1,0 +1,31 @@
+base: ../default.yaml
+experiment:
+  id: E0001
+  name: group_mean_baseline
+  level: 1
+  task: analytic
+  research_question: 群体均值基线在当前任务上有多强
+  hypothesis: 后续学习模型应稳定优于训练集群体均值
+  primary_change: 建立群体均值解析基线
+  baseline: ''
+  owner: Face88
+  status: planned
+  ablation: full
+paths:
+  split_csv: data/manifests/split_v1.csv
+data:
+  dataset_version: dataset_v1
+  preprocessing_version: preprocess_v1
+  manifest_path: data/manifests/dataset_v1.json
+  manifest_sha256: 4cc9f2fc38fb71cf224f77ccce454750cb7e0458203db28d0b3fbe23585db693
+  split_version: split_v1
+  split_sha256: a06d06d91636f319d0c7939c6eb9b00a66c04d64d7f3d2afb529ad98791086de
+model:
+  name: group_mean
+training:
+  seeds:
+  - 42
+evaluation:
+  primary_metric: long_residual_pearson
+decision_rule:
+  description: Decide after validation aggregation; do not inspect test data

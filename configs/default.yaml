@@ -6,7 +6,7 @@ paths:
   timeseries:
     LR: data/raw/timeseries_lr
     RL: data/raw/timeseries_rl
-  split_csv: data/interim/splits.csv
+  split_csv: data/manifests/split_v1.csv
   cache_dir: data/cache/dfc
   output_dir: outputs
 data:
@@ -36,6 +36,9 @@ model:
   transformer_heads: 8
   transformer_ffn_dim: 1024
   dropout: 0.1
+  baseline_hidden_dim: 256
+  ridge_pca_components: 128
+  ridge_alpha: 1.0
 training:
   batch_size: 4
   autoencoder_batch_size: 256
@@ -48,6 +51,7 @@ training:
   gradient_clip: 1.0
   patience: 20
   num_workers: 0
+  seeds: [42]
   loss_weights:
     edge: 1.0
     residual_corr: 0.5
@@ -58,6 +62,7 @@ training:
     contrastive: 0.1
     psd: 0.01
 evaluation:
+  primary_metric: long_residual_pearson
   bootstrap_replicates: 2000
   state_clusters: 5
   projection_epsilon: 1.0e-6

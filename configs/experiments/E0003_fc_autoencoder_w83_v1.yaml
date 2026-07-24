@@ -1,0 +1,32 @@
+base: ../default.yaml
+experiment:
+  id: E0003
+  name: fc_autoencoder_w83_v1
+  level: 1
+  task: autoencoder
+  research_question: FC能否稳定压缩到共享潜空间
+  hypothesis: 256维潜空间能够保持主要FC结构
+  primary_change: 建立83TR窗长的冻结FC自编码器工件
+  baseline: E0001
+  owner: Face88
+  status: planned
+  ablation: full
+  artifact_id: A0003
+paths:
+  split_csv: data/manifests/split_v1.csv
+data:
+  dataset_version: dataset_v1
+  preprocessing_version: preprocess_v1
+  manifest_path: data/manifests/dataset_v1.json
+  manifest_sha256: 4cc9f2fc38fb71cf224f77ccce454750cb7e0458203db28d0b3fbe23585db693
+  split_version: split_v1
+  split_sha256: a06d06d91636f319d0c7939c6eb9b00a66c04d64d7f3d2afb529ad98791086de
+model:
+  name: fc_autoencoder
+training:
+  seeds:
+  - 42
+evaluation:
+  primary_metric: validation_loss
+decision_rule:
+  description: Decide after validation aggregation; do not inspect test data

@@ -4,6 +4,8 @@ Deterministic prediction of a future resting-state dynamic functional-connectivi
 
 中文详细说明请见 [README_CN.md](README_CN.md)。
 
+Evidence-producing experiments must use the managed workflow documented in [docs/experiment_management.md](docs/experiment_management.md). The commands below are retained as legacy Level 0 debugging entry points.
+
 ## Environment
 
 ```powershell

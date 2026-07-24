@@ -124,7 +124,7 @@ def projection_report(z_edges: np.ndarray, n_nodes: int = 90, epsilon: float = 1
 # ======================== 测试集推理与结果导出 ========================
 
 
-def _load_model(config, window_length, checkpoint, stats_path, device):
+def _load_model(config, window_length, checkpoint, stats_path, device, autoencoder_path=None):
     """按检查点记录的模型类型恢复模型和参数。"""
     payload = torch.load(checkpoint, map_location=device, weights_only=False)
     model = build_sequence_model(
@@ -134,6 +134,8 @@ def _load_model(config, window_length, checkpoint, stats_path, device):
         stats_path,
         device,
         payload.get("sc_encoder_type", "hybrid"),
+        autoencoder_path,
+        payload,
     )
     model.load_state_dict(payload["model"])
     model.eval()
@@ -176,11 +178,16 @@ def evaluate_checkpoint(
     baseline_checkpoint: str | Path | None = None,
     save_predictions: bool = False,
     device_name: str | None = None,
+    split_name: str = "test",
+    output_dir: str | Path | None = None,
+    autoencoder_path: str | Path | None = None,
 ) -> Path:
     """在测试集生成完整报告，并可选导出逐样本 FC 矩阵。"""
+    if split_name not in {"train", "val", "test"}:
+        raise ValueError("split_name must be train, val, or test")
     device = device_from_arg(device_name)
-    model, payload = _load_model(config, window_length, checkpoint, Path(stats_path), device)
-    test = DFCSequenceDataset(config, window_length, "test", stats_path, payload.get("ablation", "full"))
+    model, payload = _load_model(config, window_length, checkpoint, Path(stats_path), device, autoencoder_path)
+    test = DFCSequenceDataset(config, window_length, split_name, stats_path, payload.get("ablation", "full"))
     train = DFCSequenceDataset(config, window_length, "train", stats_path)
     loader = DataLoader(test, batch_size=int(config["training"]["batch_size"]), shuffle=False, num_workers=0)
     predictions, targets, subjects, runs = collect_predictions(model, loader, device)
@@ -205,6 +212,7 @@ def evaluate_checkpoint(
     aggregate.update({f"projection_{key}": float(np.mean([row[key] for row in projection_rows])) for key in projection_rows[0]})
     report: dict[str, Any] = {
         "checkpoint": str(Path(checkpoint).resolve()),
+        "split": split_name,
         "window_length": window_length,
         "nonoverlap_horizon": nonoverlap,
         "n_samples": len(subjects),
@@ -213,8 +221,8 @@ def evaluate_checkpoint(
         "per_sample": [{"subject_id": s, "run": r, **m} for s, r, m in zip(subjects, runs, rows)],
     }
     if baseline_checkpoint:
-        baseline_model, baseline_payload = _load_model(config, window_length, baseline_checkpoint, Path(stats_path), device)
-        baseline_test = DFCSequenceDataset(config, window_length, "test", stats_path, baseline_payload.get("ablation", "fc1_only"))
+        baseline_model, baseline_payload = _load_model(config, window_length, baseline_checkpoint, Path(stats_path), device, autoencoder_path)
+        baseline_test = DFCSequenceDataset(config, window_length, split_name, stats_path, baseline_payload.get("ablation", "fc1_only"))
         baseline_loader = DataLoader(baseline_test, batch_size=int(config["training"]["batch_size"]), shuffle=False, num_workers=0)
         baseline_predictions, baseline_targets, baseline_subjects, _ = collect_predictions(baseline_model, baseline_loader, device)
         if subjects != baseline_subjects:
@@ -222,14 +230,60 @@ def evaluate_checkpoint(
         main_scores = np.asarray([row["long_residual_pearson"] for row in rows])
         baseline_scores = np.asarray([sequence_metrics(p, t, template, nonoverlap)["long_residual_pearson"] for p, t in zip(baseline_predictions, baseline_targets)])
         report["success_gate"] = subject_bootstrap_difference(main_scores, baseline_scores, subjects, int(config["evaluation"]["bootstrap_replicates"]), int(config["seed"]))
-    output_dir = Path(checkpoint).resolve().parent
-    report_path = output_dir / "evaluation.json"
+    output_dir = Path(output_dir) if output_dir is not None else Path(checkpoint).resolve().parent
+    report_path = output_dir / f"evaluation_{split_name}.json"
     report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     if save_predictions:
-        prediction_dir = output_dir / "predictions"
-        prediction_dir.mkdir(exist_ok=True)
+        prediction_dir = output_dir / "predictions" / split_name
+        prediction_dir.mkdir(parents=True, exist_ok=True)
         for pred, true, subject, run in zip(predictions, targets, subjects, runs):
             projected, projection = projection_report(pred, int(config["data"]["n_nodes"]), float(config["evaluation"]["projection_epsilon"]))
             raw_fc = edges_to_matrix(np.tanh(pred), int(config["data"]["n_nodes"]))
             np.savez_compressed(prediction_dir / f"{subject}_{'LR' if run == 0 else 'RL'}.npz", predicted_z=pred, target_z=true, raw_fc=raw_fc, projected_fc=projected, projection_metrics=json.dumps(projection))
+    return report_path
+
+
+def evaluate_analytic_baseline(
+    config: dict[str, Any],
+    window_length: int,
+    stats_path: str | Path,
+    baseline: str,
+    split_name: str,
+    output_dir: str | Path,
+) -> Path:
+    """Evaluate group mean or first-window persistence with the common metric protocol."""
+    if baseline not in {"group_mean", "fc1_persistence"}:
+        raise ValueError("baseline must be group_mean or fc1_persistence")
+    dataset = DFCSequenceDataset(config, window_length, split_name, stats_path)
+    stats = dict(np.load(stats_path))
+    template = stats["group_template"]
+    predictions, targets, subjects, runs = [], [], [], []
+    for index in range(len(dataset)):
+        sample = dataset[index]
+        target = sample["fc_future"].numpy()
+        prediction = (
+            template[: len(target)]
+            if baseline == "group_mean"
+            else np.broadcast_to(sample["fc_warmup"].numpy()[None], target.shape)
+        )
+        predictions.append(prediction)
+        targets.append(target)
+        subjects.append(sample["subject_id"])
+        runs.append(int(sample["run"]))
+    nonoverlap = nonoverlap_horizon(window_length, int(config["data"]["stride"]))
+    rows = [sequence_metrics(p, t, template, nonoverlap) for p, t in zip(predictions, targets)]
+    aggregate = {key: float(np.mean([row[key] for row in rows])) for key in rows[0]}
+    aggregate.update(retrieval_metrics(np.stack(predictions), np.stack(targets), template, nonoverlap, subjects))
+    report = {
+        "baseline": baseline, "split": split_name, "window_length": window_length,
+        "n_samples": len(rows), "aggregate": aggregate,
+        "per_sample": [{"subject_id": s, "run": r, **m} for s, r, m in zip(subjects, runs, rows)],
+    }
+    output_dir = Path(output_dir)
+    report_path = output_dir / f"evaluation_{split_name}.json"
+    report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    (output_dir / "metrics_best.json").write_text(
+        json.dumps({"metrics": aggregate, "primary_metric": config["evaluation"]["primary_metric"]}, indent=2),
+        encoding="utf-8",
+    )
     return report_path
