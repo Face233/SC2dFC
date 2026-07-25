@@ -13,14 +13,14 @@ experiment:
   ablation: full
   artifact_id: A0003
 paths:
-  split_csv: data/manifests/split_v1.csv
+  split_csv: data/manifests/split_lr_v1.csv
 data:
-  dataset_version: dataset_v1
-  preprocessing_version: preprocess_v1
-  manifest_path: data/manifests/dataset_v1.json
-  manifest_sha256: 4cc9f2fc38fb71cf224f77ccce454750cb7e0458203db28d0b3fbe23585db693
-  split_version: split_v1
-  split_sha256: a06d06d91636f319d0c7939c6eb9b00a66c04d64d7f3d2afb529ad98791086de
+  dataset_version: dataset_lr_v1
+  preprocessing_version: preprocess_lr_v1
+  manifest_path: data/manifests/dataset_lr_v1.json
+  manifest_sha256: 6ebb22662b4deb3fc7e38d45f2b76fc303d5c3ec973d36e6d7d0e2d3ffc29ac3
+  split_version: split_lr_v1
+  split_sha256: e08cd05e20ed048ba976dcf6487ecab8f6ba4671ea90ed778cbe21176b599862
 model:
   name: fc_autoencoder
 training:

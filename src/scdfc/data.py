@@ -100,8 +100,6 @@ def audit_dataset(config: dict[str, Any], sample_limit: int | None = None) -> di
                     invalid_subjects.add(subject)
     if sc_zero_fractions:
         report["sc_zero_fraction"] = {"median": float(np.median(sc_zero_fractions)), "min": float(np.min(sc_zero_fractions)), "max": float(np.max(sc_zero_fractions))}
-    if not found["runs"].get("RL"):
-        report["warnings"].append("RL timeseries are not available")
     report["invalid_subjects"] = sorted(invalid_subjects)
     report["eligible_subjects"] = len(set(found["subjects"]) - invalid_subjects)
     return report
@@ -309,7 +307,7 @@ class DFCSequenceDataset(Dataset):
             warmup = np.zeros_like(warmup)
         return {
             "subject_id": subject,
-            "run": 0 if run.upper() == "LR" else 1,
+            "run_name": run,
             "sc_matrix": torch.from_numpy(sc_matrix.astype(np.float32)),
             "sc_edges": torch.from_numpy(sc_edges.astype(np.float32)),
             "fc_warmup": torch.from_numpy(warmup),

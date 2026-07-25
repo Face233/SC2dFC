@@ -5,8 +5,7 @@ paths:
   sc_dir: data/raw/sc/HCP_Structure/AAL90
   timeseries:
     LR: data/raw/timeseries_lr
-    RL: data/raw/timeseries_rl
-  split_csv: data/manifests/split_v1.csv
+  split_csv: data/manifests/split_lr_v1.csv
   cache_dir: data/cache/dfc
   output_dir: outputs
 data:
@@ -18,7 +17,6 @@ data:
   sensitivity_windows: [42, 125]
   fisher_clip: 0.999999
   cache_dtype: float32
-  allow_missing_runs: true
 split:
   train: 0.70
   val: 0.15

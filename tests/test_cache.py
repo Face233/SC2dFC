@@ -4,6 +4,13 @@ import numpy as np
 import pandas as pd
 
 from scdfc.data import audit_dataset, iter_cached_samples, precompute_dfc, read_cached
+from scdfc.config import load_config
+
+
+def test_default_config_is_lr_only_and_has_no_direction_switch():
+    config = load_config(Path(__file__).resolve().parents[1] / "configs" / "default.yaml")
+    assert set(config["paths"]["timeseries"]) == {"LR"}
+    assert "allow_missing_runs" not in config["data"]
 
 
 def test_precompute_cache_is_offline_and_reproducible(tmp_path: Path):

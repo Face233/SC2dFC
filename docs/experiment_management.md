@@ -12,14 +12,14 @@
 ```powershell
 scdfc freeze-data `
   --config configs/default.yaml `
-  --dataset-version dataset_v1 `
-  --preprocessing-version preprocess_v1 `
-  --split-version split_v1
+  --dataset-version dataset_lr_v1 `
+  --preprocessing-version preprocess_lr_v1 `
+  --split-version split_lr_v1
 ```
 
 该命令会完整审计数据、计算逐文件 SHA256，并在 `data/manifests/` 生成数据清单、审计报告和被试级划分。该目录包含被试标识，因此不会进入 Git。版本名一旦生成不得覆盖；数据变化后使用 `dataset_v2` 或新的预处理/划分版本。
 
-当前 `dataset_v1` 审计发现 6 名被试的 RL 文件长度或 CSV 结构异常，这些被试已从 `split_v1` 排除，原文件保持不变。
+当前 `dataset_lr_v1` 只读取 LR 时间序列：SC/LR 可配对 1055 名被试，完整审计无错误，`split_lr_v1` 包含 train/val/test 738/158/159 名被试。RL 原始文件仍可保留在本地，但不会进入数据清单、审计、划分、缓存、训练或评价。
 
 生成正式缓存时，`precompute` 会自动只处理冻结划分中的合格被试：
 
@@ -85,7 +85,7 @@ scdfc experiment create `
   --seeds 42
 ```
 
-可选模型包括 `pca_ridge`、`mlp`、`lstm`、`direct_mlp`、`gcn_gru`、`tcn` 和 `transformer`。其中 `direct_mlp` 与 `gcn_gru` 明确保留为 SC-only v1 基线；`mlp`、`lstm` 和 `pca_ridge` 使用与主模型相同的 SC、首窗 FC 和 run 信息。
+可选模型包括 `pca_ridge`、`mlp`、`lstm`、`direct_mlp`、`gcn_gru`、`tcn` 和 `transformer`。其中 `direct_mlp` 与 `gcn_gru` 明确保留为 SC-only v1 基线；`mlp`、`lstm` 和 `pca_ridge` 使用与主模型相同的 SC 与首窗 FC。所有学习型模型均不接收扫描方向编码。
 
 每个 seed 单独提交：
 

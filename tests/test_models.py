@@ -1,3 +1,5 @@
+import inspect
+
 import pytest
 import torch
 import numpy as np
@@ -5,7 +7,7 @@ import numpy as np
 from scdfc.training import CompositeLoss
 from scdfc.evaluation import _load_model
 from scdfc.models import CommonInputLSTM, CommonInputMLP, ConditionalSequenceModel, FCAutoencoder, HCPGCNEncoder, PCARidgeBaseline
-from scdfc.models.baselines import GCNGRUBaseline
+from scdfc.models.baselines import DirectSCMLP, GCNGRUBaseline
 from scdfc.models.sc_encoders import symmetric_normalize_with_self_loops
 
 
@@ -34,7 +36,7 @@ def test_sequence_models_return_full_valid_shape(decoder, sc_encoder):
     sc = (sc + sc.transpose(1, 2)) / 2
     sc[:, torch.arange(nodes), torch.arange(nodes)] = 0
     sc_edges = sc[:, torch.triu_indices(nodes, nodes, 1)[0], torch.triu_indices(nodes, nodes, 1)[1]]
-    result = model(sc, sc_edges, torch.randn(batch, edges), torch.tensor([0, 1]))
+    result = model(sc, sc_edges, torch.randn(batch, edges))
     assert result.fc_z_edges.shape == (batch, steps, edges)
     assert result.fc_matrices.shape == (batch, steps, nodes, nodes)
     torch.testing.assert_close(result.fc_matrices, result.fc_matrices.transpose(-1, -2))
@@ -75,7 +77,7 @@ def test_gcn_gru_baseline_uses_common_prediction_contract():
     autoencoder = FCAutoencoder(4005, latent_dim=16, dropout=0)
     model = GCNGRUBaseline(autoencoder, torch.zeros(4, 4005), hidden=16)
     sc = torch.rand(2, 90, 90)
-    output = model(sc, torch.rand(2, 4005), torch.rand(2, 4005), torch.tensor([0, 1]))
+    output = model(sc, torch.rand(2, 4005), torch.rand(2, 4005))
     assert output.fc_z_edges.shape == (2, 4, 4005)
     assert output.fc_matrices.shape == (2, 4, 90, 90)
 
@@ -85,7 +87,7 @@ def test_common_input_baselines_use_prediction_contract(model_type):
     autoencoder = FCAutoencoder(6, latent_dim=4, dropout=0)
     model = model_type(autoencoder, torch.zeros(3, 6), hidden=8)
     sc = torch.rand(2, 4, 4)
-    result = model(sc, torch.rand(2, 6), torch.rand(2, 6), torch.tensor([0, 1]))
+    result = model(sc, torch.rand(2, 6), torch.rand(2, 6))
     assert result.fc_z_edges.shape == (2, 3, 6)
     assert result.fc_matrices.shape == (2, 3, 4, 4)
 
@@ -95,8 +97,16 @@ def test_pca_ridge_baseline_is_portable_torch_module():
     model = PCARidgeBaseline(autoencoder, torch.zeros(3, 6), n_components=2, sc_edges=6, latent_dim=4)
     model.pca_components.normal_()
     model.ridge_coef.normal_()
-    result = model(torch.rand(2, 4, 4), torch.rand(2, 6), torch.rand(2, 6), torch.tensor([0, 1]))
+    result = model(torch.rand(2, 4, 4), torch.rand(2, 6), torch.rand(2, 6))
     assert result.fc_z_edges.shape == (2, 3, 6)
+
+
+@pytest.mark.parametrize(
+    "model_type",
+    [ConditionalSequenceModel, DirectSCMLP, GCNGRUBaseline, CommonInputMLP, CommonInputLSTM, PCARidgeBaseline],
+)
+def test_model_interfaces_do_not_accept_run_direction(model_type):
+    assert "run" not in inspect.signature(model_type.forward).parameters
 
 
 def test_checkpoint_recovers_without_current_default_config(tmp_path):

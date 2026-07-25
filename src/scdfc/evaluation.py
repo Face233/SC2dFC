@@ -82,7 +82,7 @@ def dynamic_state_metrics(predicted_labels: np.ndarray, true_labels: np.ndarray,
 
 
 def retrieval_metrics(predictions: np.ndarray, targets: np.ndarray, template: np.ndarray, nonoverlap: int, subject_ids: Iterable[str] | None = None) -> dict[str, float]:
-    """检验预测未来是否更接近同一被试的真实未来；LR/RL 视为同一身份。"""
+    """检验预测未来是否更接近同一被试的真实未来。"""
     pred = predictions[:, nonoverlap:].mean(1) - template[nonoverlap:].mean(0)
     true = targets[:, nonoverlap:].mean(1) - template[nonoverlap:].mean(0)
     pred, true = pred - pred.mean(-1, keepdims=True), true - true.mean(-1, keepdims=True)
@@ -162,11 +162,11 @@ def collect_predictions(model, loader, device):
     """批量推理并保持预测与 subject/run 身份一一对应。"""
     predictions, targets, subjects, runs = [], [], [], []
     for batch in loader:
-        result = model(batch["sc_matrix"].to(device), batch["sc_edges"].to(device), batch["fc_warmup"].to(device), batch["run"].to(device))
+        result = model(batch["sc_matrix"].to(device), batch["sc_edges"].to(device), batch["fc_warmup"].to(device))
         predictions.append(result.fc_z_edges.cpu().numpy())
         targets.append(batch["fc_future"].numpy())
         subjects.extend(batch["subject_id"])
-        runs.extend(batch["run"].numpy().tolist())
+        runs.extend(batch["run_name"])
     return np.concatenate(predictions), np.concatenate(targets), subjects, runs
 
 
@@ -239,7 +239,7 @@ def evaluate_checkpoint(
         for pred, true, subject, run in zip(predictions, targets, subjects, runs):
             projected, projection = projection_report(pred, int(config["data"]["n_nodes"]), float(config["evaluation"]["projection_epsilon"]))
             raw_fc = edges_to_matrix(np.tanh(pred), int(config["data"]["n_nodes"]))
-            np.savez_compressed(prediction_dir / f"{subject}_{'LR' if run == 0 else 'RL'}.npz", predicted_z=pred, target_z=true, raw_fc=raw_fc, projected_fc=projected, projection_metrics=json.dumps(projection))
+            np.savez_compressed(prediction_dir / f"{subject}_{run}.npz", predicted_z=pred, target_z=true, raw_fc=raw_fc, projected_fc=projected, projection_metrics=json.dumps(projection))
     return report_path
 
 
@@ -269,7 +269,7 @@ def evaluate_analytic_baseline(
         predictions.append(prediction)
         targets.append(target)
         subjects.append(sample["subject_id"])
-        runs.append(int(sample["run"]))
+        runs.append(sample["run_name"])
     nonoverlap = nonoverlap_horizon(window_length, int(config["data"]["stride"]))
     rows = [sequence_metrics(p, t, template, nonoverlap) for p, t in zip(predictions, targets)]
     aggregate = {key: float(np.mean([row[key] for row in rows])) for key in rows[0]}

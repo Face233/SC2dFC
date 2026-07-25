@@ -77,7 +77,7 @@ class SCGraphEncoder(nn.Module):
 
 
 class ConditionEncoder(nn.Module):
-    """融合可选 SC 编码器、首窗 FC 和 LR/RL run 条件。"""
+    """融合可选 SC 编码器与首窗 FC 条件。"""
 
     def __init__(
         self,
@@ -107,16 +107,15 @@ class ConditionEncoder(nn.Module):
             self.hcp_global_projection = nn.Linear(hcp_gcn_output_dim, 256)
             self.hcp_token_projection = nn.Linear(hcp_gcn_output_dim, hidden_dim)
             self.hcp_summary_projection = nn.Linear(hcp_gcn_output_dim, hidden_dim)
-        self.run_embedding = nn.Embedding(2, 32)
         fc_dim = fc_autoencoder.encoder[-1].normalized_shape[0]
-        combined = 256 + fc_dim + 32
+        combined = 256 + fc_dim
         # 门控融合确保模型可按被试调整各类条件信息的贡献。
         self.value = nn.Linear(combined, hidden_dim)
         self.gate = nn.Sequential(nn.Linear(combined, hidden_dim), nn.Sigmoid())
         self.fc_token_projection = nn.Linear(fc_dim, hidden_dim)
 
     def forward(
-        self, sc_matrix: torch.Tensor, sc_edges: torch.Tensor, fc_warmup: torch.Tensor, run: torch.Tensor
+        self, sc_matrix: torch.Tensor, sc_edges: torch.Tensor, fc_warmup: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
         if self.sc_encoder_type == "hybrid":
             graph_global, graph_tokens = self.graph(sc_matrix)
@@ -130,7 +129,7 @@ class ConditionEncoder(nn.Module):
             sc_tokens = self.hcp_token_projection(hcp_tokens)
             sc_summary = self.hcp_summary_projection(hcp_global)[:, None]
         warmup = self.fc_autoencoder.encode(fc_warmup)
-        combined = torch.cat([sc_global, warmup, self.run_embedding(run)], dim=-1)
+        combined = torch.cat([sc_global, warmup], dim=-1)
         condition = self.value(combined) * self.gate(combined)
         # Transformer 使用所有 token；TCN 虽不读取 memory，也保留统一调用接口。
         memory = torch.cat(
@@ -278,11 +277,10 @@ class ConditionalSequenceModel(nn.Module):
         sc_matrix: torch.Tensor,
         sc_edges: torch.Tensor,
         fc_warmup: torch.Tensor,
-        run: torch.Tensor,
         steps: int | None = None,
     ) -> Prediction:
         steps = steps or self.group_template.shape[0]
-        condition, memory = self.condition_encoder(sc_matrix, sc_edges, fc_warmup, run)
+        condition, memory = self.condition_encoder(sc_matrix, sc_edges, fc_warmup)
         latent = self.temporal(condition, memory, steps)
         decoded = self.fc_autoencoder.decode(latent)
         # 解码后的时间均值移除，确保这一项只表达动态残差。
@@ -294,10 +292,10 @@ class ConditionalSequenceModel(nn.Module):
         return Prediction(fc_z_edges=fc_z, fc_matrices=matrices, latent=latent)
 
     @torch.no_grad()
-    def predict(self, sc: torch.Tensor, fc_warmup: torch.Tensor, run: torch.Tensor, sc_edges: torch.Tensor | None = None) -> torch.Tensor:
+    def predict(self, sc: torch.Tensor, fc_warmup: torch.Tensor, sc_edges: torch.Tensor | None = None) -> torch.Tensor:
         """公开推理接口；未传入边向量时在内部完成 SC 上三角标准化。"""
         if sc_edges is None:
             idx = torch.triu_indices(self.n_nodes, self.n_nodes, 1, device=sc.device)
             sc_edges = torch.log1p(sc[..., idx[0], idx[1]])
             sc_edges = (sc_edges - self.sc_mean) / self.sc_std.clamp_min(1e-6)
-        return self(sc, sc_edges, fc_warmup, run).fc_matrices
+        return self(sc, sc_edges, fc_warmup).fc_matrices

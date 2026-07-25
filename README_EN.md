@@ -13,13 +13,12 @@ conda activate GCN_mri
 python -m pip install -e ".[dev]"
 ```
 
-Place source data under `data/raw/`: atlas labels in `atlas/`, SC files in `sc/`, and ROI time series in `timeseries_lr/` and `timeseries_rl/`. Derived splits and statistics belong in `data/interim/`; regenerable dFC caches belong in `data/cache/`.
+Place source data under `data/raw/`: atlas labels in `atlas/`, SC files in `sc/`, and the currently selected ROI time series in `timeseries_lr/`. RL files may remain local, but the default configuration does not discover or process them. Scan direction is not encoded or passed to any model. Private frozen manifests belong in `data/manifests/`; regenerable dFC caches belong in `data/cache/`.
 
 ## Pipeline
 
 ```powershell
 scdfc audit --config configs/default.yaml
-scdfc split --config configs/default.yaml
 scdfc precompute --config configs/default.yaml --windows 83 42 125
 scdfc train-ae --config configs/default.yaml --window 83
 scdfc train --config configs/default.yaml --window 83 --model tcn

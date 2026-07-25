@@ -52,6 +52,11 @@ def command_split(args):
     split = make_subject_split(subjects, fractions, int(config["seed"]))
     validate_split(split)
     destination = resolve_path(config, "split_csv")
+    if destination.exists():
+        raise FileExistsError(
+            f"Refusing to overwrite existing split: {destination}. "
+            "Use `scdfc freeze-data` with a new split version."
+        )
     destination.parent.mkdir(parents=True, exist_ok=True)
     split.to_csv(destination, index=False)
     print(split.groupby("split").size().to_string())
@@ -158,9 +163,9 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--model", default="tcn", choices=["fc_autoencoder", "group_mean", "fc1_persistence", "pca_ridge", "mlp", "lstm", "direct_mlp", "gcn_gru", "tcn", "transformer"])
     create.add_argument("--ablation", default="full", choices=["full", "fc1_only", "sc_only", "mean_sc", "shuffled_sc"])
     create.add_argument("--seeds", nargs="+", type=int, default=[42])
-    create.add_argument("--dataset-version", default="dataset_v1")
-    create.add_argument("--preprocessing-version", default="preprocess_v1")
-    create.add_argument("--split-version", default="split_v1")
+    create.add_argument("--dataset-version", default="dataset_lr_v1")
+    create.add_argument("--preprocessing-version", default="preprocess_lr_v1")
+    create.add_argument("--split-version", default="split_lr_v1")
     create.add_argument("--primary-metric", default="long_residual_pearson")
     create.add_argument("--decision-rule", default="Decide after validation aggregation; do not inspect test data")
     create.add_argument("--artifact", help="Path to a frozen A#### artifact YAML; required for sequence tasks")

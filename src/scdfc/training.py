@@ -252,20 +252,19 @@ def train_pca_ridge_baseline(
     autoencoder.eval()
     stats = dict(np.load(stats_path))
     template = torch.from_numpy(stats["group_template"]).to(device)
-    sc_values, warmups, run_values, targets = [], [], [], []
+    sc_values, warmups, targets = [], [], []
     with torch.no_grad():
         for index in range(len(train_data)):
             sample = train_data[index]
             sc_values.append(sample["sc_edges"].numpy())
             warmups.append(autoencoder.encode(sample["fc_warmup"].to(device)[None]).cpu().numpy()[0])
-            run_values.append(np.eye(2, dtype=np.float32)[int(sample["run"])])
             residual = sample["fc_future"].to(device) - template[: len(sample["fc_future"])]
             targets.append(autoencoder.encode(residual).cpu().numpy().reshape(-1))
     sc_array = np.stack(sc_values)
     n_components = min(int(config["model"].get("ridge_pca_components", 128)), len(sc_array), sc_array.shape[1])
     pca = PCA(n_components=n_components, random_state=int(config["seed"]))
     projected = pca.fit_transform(sc_array)
-    features = np.concatenate([projected, np.stack(warmups), np.stack(run_values)], axis=1)
+    features = np.concatenate([projected, np.stack(warmups)], axis=1)
     ridge = Ridge(alpha=float(config["model"].get("ridge_alpha", 1.0)))
     ridge.fit(features, np.stack(targets))
     model = PCARidgeBaseline(autoencoder, template.cpu(), n_components, sc_array.shape[1], len(warmups[0])).to(device)
@@ -310,7 +309,7 @@ def validate(model: ConditionalSequenceModel, loader: DataLoader, nonoverlap: in
     model.eval()
     scores = []
     for batch in loader:
-        output = model(batch["sc_matrix"].to(device), batch["sc_edges"].to(device), batch["fc_warmup"].to(device), batch["run"].to(device))
+        output = model(batch["sc_matrix"].to(device), batch["sc_edges"].to(device), batch["fc_warmup"].to(device))
         scores.extend(_long_residual_score(output.fc_z_edges, batch["fc_future"].to(device), model.group_template, nonoverlap).cpu().tolist())
     return float(np.mean(scores))
 
@@ -379,7 +378,7 @@ def train_sequence_model(
             optimizer.add_param_group({"params": model.fc_autoencoder.decoder.parameters(), "lr": float(config["training"]["learning_rate"]) * float(config["training"]["decoder_learning_rate_scale"])})
         model.train()
         for batch in train_loader:
-            output = model(batch["sc_matrix"].to(device), batch["sc_edges"].to(device), batch["fc_warmup"].to(device), batch["run"].to(device))
+            output = model(batch["sc_matrix"].to(device), batch["sc_edges"].to(device), batch["fc_warmup"].to(device))
             target = batch["fc_future"].to(device)
             loss, _ = criterion(output.fc_z_edges, target, model.group_template)
             optimizer.zero_grad(set_to_none=True)

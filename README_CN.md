@@ -11,15 +11,16 @@ SC-dFC 是一个用于静息态 fMRI 的确定性预测框架。给定某名被�
 主任务为：
 
 $$
-(SC_s, FC_{s,1}, run_s) \longrightarrow \hat{FC}_{s,2:T}
+(SC_s, FC_{s,1}) \longrightarrow \hat{FC}_{s,2:T}
 $$
 
 其中：
 
 - $SC_s$：第 $s$ 名被试的 `90×90` 加权、对称结构连接矩阵；
 - $FC_{s,1}$：同一 fMRI run 的第一个 dFC 窗口；
-- $run_s$：LR 或 RL run 标记；
 - $\hat{FC}_{s,2:T}$：预测得到的后续完整 `90×90` dFC 矩阵序列。
+
+当前数据版本只使用 LR 时间序列。`LR` 只是数据来源名称，不会转换为数值、one-hot 或 embedding，也不会作为模型条件。原始 RL 文件可以继续保存在本地，但当前配置、审计、划分、缓存、训练和评价均不会读取它们。
 
 本版本是**确定性条件预测**：同一输入只输出一条后续轨迹。它评估的是 SC 和当前功能状态能否约束后续 dFC，而不是完整建模 $p(dFC\mid SC,FC_1)$。条件扩散、流匹配或状态空间生成模型属于后续扩展。
 
@@ -29,7 +30,6 @@ $$
 SC matrix ──┬─ Graph Transformer ─┐
             └─ edge MLP ──────────┼─ condition encoder ─┐
 FC warm-up ── FC encoder ─────────┘                     │
-run (LR/RL) ─ embedding ─────────────────────────────────┤
                                                          ▼
                      TCN 或 Transformer 轨迹解码器 → FC latent sequence
                                                          ▼
@@ -58,7 +58,7 @@ $$
 | 原始 BOLD | `1200×90` | 矩形滑窗 Pearson 相关；去对角线；Fisher-z | `224×4005` |
 | warm-up/标签 | `224×4005` | 第 1 窗作为条件，其余窗口作为标签 | `FC1: 4005`；未来：`223×4005` |
 | FC 自编码器 | `4005` | 编码、解码 Fisher-z 上三角边 | 潜变量：`256`；重建：`4005` |
-| 主模型 | SC + FC1 + run | 条件编码后并行生成全部未来时距 | 潜轨迹：`223×256` |
+| 主模型 | SC + FC1 | 条件编码后并行生成全部未来时距 | 潜轨迹：`223×256` |
 | 最终输出 | `223×4005` | `tanh`、上下三角填充、单位对角线 | `223×90×90` |
 
 #### SC 处理
@@ -75,7 +75,7 @@ $$
 
 #### BOLD 到 dFC
 
-程序不会使用工作区中已有的静态 FC CSV 作为监督标签，而是直接从 `data/raw/timeseries_lr` 或 `data/raw/timeseries_rl` 的 ROI BOLD 重新计算 dFC。对第 `k` 个滑窗起点 `a_k=k×5`：
+程序不会使用工作区中已有的静态 FC CSV 作为监督标签，而是直接从 `data/raw/timeseries_lr` 的 ROI BOLD 重新计算 dFC。对第 `k` 个滑窗起点 `a_k=k×5`：
 
 $$
 FC_k=\mathrm{corr}(BOLD[a_k:a_k+83,:])
@@ -91,7 +91,7 @@ $$
 
 ```text
 data/cache/dfc/window_83.zarr/
-└── subjects/<subject_id>/<LR_or_RL>/
+└── subjects/<subject_id>/LR/
     ├── fc_z             # [224, 4005]，float32
     └── window_starts    # [224]
 ```
@@ -127,16 +127,14 @@ FC 自编码器的默认结构为：
 
 #### 条件编码器
 
-主模型将四类信息融合为 256 维条件向量：
+主模型将三类信息融合为 256 维条件向量：
 
 1. **SC 图分支**：ROI embedding、节点强度和节点度经过 3 层结构偏置 Graph Attention；正 SC 权重经 `log1p` 加入每个注意力头的 score 偏置。
 2. **SC 边分支**：标准化后的 4005 条 SC 边经过 `4005→512→128` MLP。
 3. **首窗 FC 分支**：`FC1` 经预训练 FC 编码器映射为 256 维状态。
-4. **run 分支**：LR/RL 映射为 32 维 embedding。
+`model.sc_encoder` 控制 SC 编码方式：默认 `hybrid` 使用上述图分支与边分支；`hcp_gcn` 使用单位矩阵 ROI 特征、$D^{-1/2}(A+I)D^{-1/2}$ 对称归一化、两层 `90→128→64` GCN 和 max pooling。两种编码器随后都投影到相同条件维度，并共享 FC1、时序解码器和损失函数，以便公平比较。
 
-`model.sc_encoder` 控制 SC 编码方式：默认 `hybrid` 使用上述图分支与边分支；`hcp_gcn` 使用单位矩阵 ROI 特征、$D^{-1/2}(A+I)D^{-1/2}$ 对称归一化、两层 `90→128→64` GCN 和 max pooling。两种编码器随后都投影到相同条件维度，并共享 FC1、run、时序解码器和损失函数，以便公平比较。
-
-四者拼接后经门控融合：
+三者拼接后经门控融合：
 
 $$
 c=\mathrm{Linear}(u)\odot\sigma(\mathrm{Linear}(u))
@@ -295,8 +293,7 @@ SC2dFC/
 │   ├── raw/
 │   │   ├── atlas/ROI_MNI_V4.txt
 │   │   ├── sc/HCP_Structure/AAL90/<subject_id>.csv
-│   │   ├── timeseries_lr/<subject_id>_AAL90_timeseries.csv
-│   │   └── timeseries_rl/<subject_id>_AAL90_timeseries.csv  # 推荐；可暂缺
+│   │   └── timeseries_lr/<subject_id>_AAL90_timeseries.csv
 │   ├── interim/                         # audit、split、训练集统计量
 │   └── cache/dfc/                        # 可重新计算的 Zarr dFC 缓存
 ├── outputs/                              # checkpoint、预测和评价输出
@@ -313,7 +310,7 @@ SC2dFC/
 
 ### 3.2 BOLD ROI 时间序列
 
-- 文件名：`data/raw/timeseries_lr/<subject_id>_AAL90_timeseries.csv`；RL 文件位于 `data/raw/timeseries_rl/`，规则相同；
+- 文件名：`data/raw/timeseries_lr/<subject_id>_AAL90_timeseries.csv`；
 - 默认形状：`1200×91`，第一列为 `timepoint`，后 90 列为 AAL90 ROI；
 - 要求：ROI 名称与 `ROI_MNI_V4.txt` 前 90 个标签的顺序严格一致；
 - 默认假设 HCP TR 为 0.72 秒，时间序列来自 HCP minimal preprocessing + ICA-FIX；如不符合，请修改配置并记录实际预处理。
@@ -350,17 +347,13 @@ pytest
 scdfc audit --config configs/default.yaml
 ```
 
-审计报告写入 `outputs/audit.json`，包括：SC/时间序列数目、可配对被试数、ROI 顺序、矩阵形状、有限值、SC 对称性和 LR/RL 可用性。
+审计报告写入 `outputs/audit.json`，包括：SC/LR 时间序列数目、可配对被试数、ROI 顺序、矩阵形状、有限值和 SC 对称性。
 
-在执行后续步骤前，应确保 `errors` 为空。`warnings` 中的 RL 缺失应按研究设计处理。
+在执行后续步骤前，应确保 `errors` 为空。当前配置不会检查或要求 RL 数据。
 
-### 步骤 2：生成被试级划分
+### 步骤 2：确认被试级冻结划分
 
-```powershell
-scdfc split --config configs/default.yaml
-```
-
-输出为 `data/interim/splits.csv`，默认比例为 70% 训练、15% 验证、15% 测试。划分以 `subject_id` 为单位，同一被试的 LR/RL 始终属于同一分区；划分由 `seed` 固定，可在配置文件中修改。
+当前默认配置使用 `data/manifests/split_lr_v1.csv`，包含 738/158/159 名 train/val/test 被试。不要用旧 `scdfc split` 重建它；该命令在目标文件已存在时会拒绝覆盖。若数据或划分规则发生变化，应使用 `scdfc freeze-data` 创建新的数据与划分版本，具体命令见实验管理操作手册。
 
 ### 步骤 3：离线计算 dFC 缓存
 
@@ -444,9 +437,9 @@ scdfc train --config configs/default.yaml --window 83 --model tcn --ablation sc_
 
 | 参数 | 含义 |
 | --- | --- |
-| `full` | SC + 首窗 FC + run，主模型 |
-| `fc1_only` | 首窗 FC + run；SC 输入置零 |
-| `sc_only` | SC + run；首窗 FC 置零 |
+| `full` | SC + 首窗 FC，主模型 |
+| `fc1_only` | 仅首窗 FC；SC 输入置零 |
+| `sc_only` | 仅 SC；首窗 FC 置零 |
 | `mean_sc` | 使用训练集平均 SC |
 | `shuffled_sc` | 将 SC 与被试错配 |
 
@@ -490,7 +483,7 @@ scdfc evaluate --config configs/default.yaml --window 83 `
 | `retrieval_top1` / `retrieval_top5` | 预测未来对本人真实未来的检索表现 |
 | `projection_*` | 预测矩阵 PSD 违规比例与投影改变量 |
 
-当提供 `--baseline-checkpoint` 时，报告会额外给出以被试为重采样单位的 2000 次 bootstrap 差异置信区间。若同一被试有 LR/RL，两个 run 会先聚合为该被试的一项差异：
+当提供 `--baseline-checkpoint` 时，报告会额外给出以被试为重采样单位的 2000 次 bootstrap 差异置信区间：
 
 ```json
 "success_gate": {
@@ -528,9 +521,9 @@ scdfc evaluate --config configs/default.yaml --window 83 `
 
 时间序列列名或顺序与 AAL90 标签不一致。不要只重命名列；应确认 SC、ROI BOLD 和 AAL 标签是否来自完全相同的分区定义与节点顺序。
 
-### 没有 RL 数据能否先运行？
+### 为什么当前不读取 RL 数据？
 
-可以。缺少 RL 不会阻止 LR 管线运行，但会降低同一被试重复 run 的评估能力。
+当前正式版本固定为 LR-only，以避免把 HCP 特有的相位编码方向写进模型接口。RL 原始文件不会被删除，但不在 `configs/default.yaml` 中声明，因此不会进入审计、数据清单、划分、缓存、训练或评价。以后若重新纳入 RL，应创建新的数据/划分版本和实验 ID，并先决定它是额外样本、独立复现集还是域变量；不应恢复二值方向编码作为默认模型输入。
 
 ### 模型输出接近组平均、个体差异很弱
 
