@@ -28,6 +28,7 @@ from .management import (
     write_run_provenance,
 )
 from .training import train_autoencoder, train_sequence_model
+from .progress import emit
 
 
 def _root() -> Path:
@@ -41,7 +42,9 @@ def _stats_path(config: dict, window: int) -> Path:
 def _ensure_stats(config: dict, window: int) -> Path:
     path = _stats_path(config, window)
     if not path.exists():
+        emit("training_statistics_started", window_length=window, output_path=str(path))
         fit_training_statistics(config, window, path)
+        emit("training_statistics_finished", window_length=window, output_path=str(path))
     return path
 
 
@@ -145,6 +148,7 @@ def command_run(args) -> None:
     artifact_path = verify_artifact(config)
     context = create_run_context(config, args.seed)
     try:
+        emit("run_started", experiment_id=context.experiment_id, run_id=context.run_id, seed=args.seed, run_dir=str(context.run_dir))
         write_run_provenance(config, context, data_manifest)
         config["seed"] = args.seed
         window = int(config["data"]["window_length"])
@@ -166,9 +170,11 @@ def command_run(args) -> None:
             )
             finish_run(context, "COMPLETED", checkpoint=str(checkpoint))
         print(context.run_id)
+        emit("run_finished", experiment_id=context.experiment_id, run_id=context.run_id, status="COMPLETED")
     except Exception as error:
         if (context.run_dir / "metadata.json").exists():
             finish_run(context, "FAILED", error=f"{type(error).__name__}: {error}")
+        emit("run_failed", experiment_id=context.experiment_id, run_id=context.run_id, error=f"{type(error).__name__}: {error}")
         raise
 
 

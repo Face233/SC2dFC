@@ -16,6 +16,7 @@ from .data import DFCSequenceDataset, FCWindowDataset
 from .models import ConditionalSequenceModel, FCAutoencoder
 from .models.baselines import CommonInputLSTM, CommonInputMLP, DirectSCMLP, GCNGRUBaseline, PCARidgeBaseline
 from .models.sequence import torch_edges_to_matrix
+from .progress import append_jsonl, emit
 
 
 # ======================== 训练损失函数 ========================
@@ -136,6 +137,10 @@ def train_autoencoder(
     log_path = output_dir / "train.log"
     best_epoch = -1
     stale = 0
+    emit(
+        "train_started", task="autoencoder", device=str(device), window_length=window_length,
+        train_samples=len(dataset), validation_samples=len(val_dataset), output_dir=str(output_dir),
+    )
     for epoch in range(int(config["training"]["autoencoder_epochs"])):
         model.train()
         total = 0.0
@@ -157,6 +162,7 @@ def train_autoencoder(
                 loss = torch.nn.functional.smooth_l1_loss(reconstructed, edges) + 0.1 * correlation_loss(reconstructed, edges) + 0.01 * psd_penalty(reconstructed[:, None], n_nodes)
                 val_total += float(loss) * len(edges)
         epoch_loss = val_total / len(val_dataset)
+        improved = epoch_loss < best
         if epoch_loss < best:
             best, stale, best_epoch = epoch_loss, 0, epoch
             payload = {"schema_version": 1, "model": model.state_dict(), "epoch": epoch, "loss": best, "window_length": window_length}
@@ -164,13 +170,18 @@ def train_autoencoder(
             torch.save(payload, checkpoint)
         else:
             stale += 1
-            if stale >= int(config["training"]["patience"]):
-                break
-        with log_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps({"epoch": epoch, "train_loss": total / max(len(dataset), 1), "validation_loss": epoch_loss}) + "\n")
+        append_jsonl(
+            log_path, "epoch_complete", task="autoencoder", epoch=epoch + 1,
+            train_loss=total / max(len(dataset), 1), validation_loss=epoch_loss,
+            best_validation_loss=best, improved=improved, stale_epochs=stale,
+        )
+        if stale >= int(config["training"]["patience"]):
+            emit("early_stopped", task="autoencoder", epoch=epoch + 1, best_epoch=best_epoch + 1, best_validation_loss=best)
+            break
     (output_dir / "metrics_best.json").write_text(
         json.dumps({"metrics": {"validation_loss": best}, "best_epoch": best_epoch}, indent=2), encoding="utf-8"
     )
+    emit("train_finished", task="autoencoder", best_epoch=best_epoch + 1, best_validation_loss=best, checkpoint=str(checkpoint))
     return checkpoint
 
 
@@ -371,12 +382,19 @@ def train_sequence_model(
     primary_metric = str(config.get("evaluation", {}).get("primary_metric", "long_residual_pearson"))
     best_epoch = -1
     best, stale = -float("inf"), 0
+    emit(
+        "train_started", task="sequence", model=decoder_type, ablation=ablation,
+        sc_encoder=sc_encoder_type, device=str(device), window_length=window_length,
+        train_samples=len(train_data), validation_samples=len(val_data), output_dir=str(output_dir),
+    )
     for epoch in range(int(config["training"]["epochs"])):
         if epoch == int(config["training"]["decoder_frozen_epochs"]):
             for parameter in model.fc_autoencoder.decoder.parameters():
                 parameter.requires_grad = True
             optimizer.add_param_group({"params": model.fc_autoencoder.decoder.parameters(), "lr": float(config["training"]["learning_rate"]) * float(config["training"]["decoder_learning_rate_scale"])})
         model.train()
+        train_total = 0.0
+        train_count = 0
         for batch in train_loader:
             output = model(batch["sc_matrix"].to(device), batch["sc_edges"].to(device), batch["fc_warmup"].to(device))
             target = batch["fc_future"].to(device)
@@ -385,9 +403,10 @@ def train_sequence_model(
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), float(config["training"]["gradient_clip"]))
             optimizer.step()
+            train_total += float(loss) * len(target)
+            train_count += len(target)
         score = validate(model, val_loader, nonoverlap, device)
-        with log_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps({"epoch": epoch, "validation_long_residual_pearson": score}) + "\n")
+        improved = score > best
         if score > best:
             best, stale, best_epoch = score, 0, epoch
             payload = {
@@ -399,8 +418,14 @@ def train_sequence_model(
             torch.save(payload, checkpoint)
         else:
             stale += 1
-            if stale >= int(config["training"]["patience"]):
-                break
+        append_jsonl(
+            log_path, "epoch_complete", task="sequence", model=decoder_type, epoch=epoch + 1,
+            train_loss=train_total / max(train_count, 1), validation_long_residual_pearson=score,
+            best_validation_long_residual_pearson=best, improved=improved, stale_epochs=stale,
+        )
+        if stale >= int(config["training"]["patience"]):
+            emit("early_stopped", task="sequence", model=decoder_type, epoch=epoch + 1, best_epoch=best_epoch + 1, best_validation_long_residual_pearson=best)
+            break
         if int(config.get("experiment", {}).get("level", 0)) >= 2:
             last_payload = {
                 "schema_version": 1, "model": model.state_dict(), "epoch": epoch, "score": score,
@@ -415,4 +440,5 @@ def train_sequence_model(
     (output_dir / "metrics_last.json").write_text(
         json.dumps({"metrics": {primary_metric: score}, "last_epoch": epoch}, indent=2), encoding="utf-8"
     )
+    emit("train_finished", task="sequence", model=decoder_type, best_epoch=best_epoch + 1, best_validation_long_residual_pearson=best, checkpoint=str(checkpoint))
     return checkpoint

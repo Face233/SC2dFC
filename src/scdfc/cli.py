@@ -24,6 +24,7 @@ from .managed_cli import (
     command_summarize,
 )
 from .training import autoencoder_checkpoint_path, train_autoencoder, train_sequence_model
+from .progress import emit
 
 
 def stats_path(config, window):
@@ -65,7 +66,15 @@ def command_split(args):
 def command_precompute(args):
     config = load_config(args.config)
     for window in args.windows:
-        print(window, precompute_dfc(config, window, overwrite=args.overwrite))
+        emit("precompute_started", window_length=window, overwrite=args.overwrite)
+        result = precompute_dfc(
+            config, window, overwrite=args.overwrite,
+            progress=lambda done, total, subject, run, action: emit(
+                "precompute_progress", window_length=window, completed=done, total=total,
+                subject_id=subject, run=run, action=action,
+            ),
+        )
+        emit("precompute_finished", window_length=window, **result)
 
 
 def command_train_ae(args):

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 
 import numpy as np
 import pandas as pd
@@ -159,7 +159,10 @@ def cache_path(config: dict[str, Any], window_length: int) -> Path:
     return resolve_path(config, "cache_dir") / f"window_{window_length}.zarr"
 
 
-def precompute_dfc(config: dict[str, Any], window_length: int, subjects: set[str] | None = None, overwrite: bool = False) -> dict[str, int]:
+def precompute_dfc(
+    config: dict[str, Any], window_length: int, subjects: set[str] | None = None,
+    overwrite: bool = False, progress: Callable[[int, int, str, str, str], None] | None = None,
+) -> dict[str, int]:
     """将每个 subject/run 的滑窗 Fisher-z FC 写入按窗长分组的 Zarr 缓存。"""
     zarr, Blosc = _zarr()
     found = discover_data(config)
@@ -178,14 +181,20 @@ def precompute_dfc(config: dict[str, Any], window_length: int, subjects: set[str
         raise ValueError("Existing cache was generated with different settings; use --overwrite")
     root.attrs.update({**settings, "config_hash": settings_hash})
     compressor = Blosc(cname="zstd", clevel=5, shuffle=Blosc.BITSHUFFLE)
+    candidates = [
+        (subject, run, path)
+        for run, paths in found["runs"].items()
+        for subject, path in sorted(paths.items())
+        if subject in found["sc"] and (subjects is None or subject in subjects)
+    ]
     written = skipped = 0
-    for run, paths in found["runs"].items():
-        for subject, path in sorted(paths.items()):
-            if subject not in found["sc"] or (subjects is not None and subject not in subjects):
-                continue
+    total = len(candidates)
+    for index, (subject, run, path) in enumerate(candidates, start=1):
             key = f"subjects/{subject}/{run}"
             if key in root and not overwrite:
                 skipped += 1
+                if progress is not None and (index == 1 or index % 25 == 0 or index == total):
+                    progress(index, total, subject, run, "skipped")
                 continue
             values = pd.read_csv(path).iloc[:, 1:].to_numpy(dtype=np.float64)
             fc_z, starts = sliding_window_fc(values, window_length, stride, fisher_clip)
@@ -196,6 +205,8 @@ def precompute_dfc(config: dict[str, Any], window_length: int, subjects: set[str
             group.create_dataset("window_starts", data=starts, chunks=(len(starts),), compressor=compressor)
             group.attrs.update({"subject_id": subject, "run": run, "source": str(path.resolve())})
             written += 1
+            if progress is not None and (index == 1 or index % 25 == 0 or index == total):
+                progress(index, total, subject, run, "written")
     return {"written": written, "skipped": skipped}
 
 
