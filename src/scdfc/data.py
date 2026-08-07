@@ -7,7 +7,7 @@ from typing import Any, Callable, Iterator
 import numpy as np
 import pandas as pd
 
-from .config import resolve_path
+from .config import DEFAULT_SEED, resolve_path
 from .connectivity import config_hash, edges_to_matrix, matrix_to_edges, sliding_window_fc
 
 try:
@@ -113,7 +113,7 @@ def write_audit(report: dict[str, Any], path: str | Path) -> None:
 
 
 # ======================== 被试级数据划分 ========================
-def make_subject_split(subjects: list[str], fractions: tuple[float, float, float] = (0.70, 0.15, 0.15), seed: int = 20260717) -> pd.DataFrame:
+def make_subject_split(subjects: list[str], fractions: tuple[float, float, float] = (0.70, 0.15, 0.15), seed: int = DEFAULT_SEED) -> pd.DataFrame:
     """按被试随机且可复现地生成 train/val/test 划分。"""
     if not np.isclose(sum(fractions), 1.0):
         raise ValueError("Split fractions must sum to one")
@@ -329,7 +329,7 @@ class DFCSequenceDataset(Dataset):
 
 class FCWindowDataset(Dataset):
     """从 dFC 序列中可复现地抽取窗口，用于 FC 自编码器训练。"""
-    def __init__(self, sequence_dataset: DFCSequenceDataset, windows_per_run: int = 32, seed: int = 0) -> None:
+    def __init__(self, sequence_dataset: DFCSequenceDataset, windows_per_run: int = 32, seed: int = DEFAULT_SEED) -> None:
         self.sequence_dataset = sequence_dataset
         self.windows_per_run = windows_per_run
         self.seed = seed

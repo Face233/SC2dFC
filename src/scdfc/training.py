@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 from pathlib import Path
 from typing import Any
@@ -10,7 +11,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from .config import resolve_path
+from .config import DEFAULT_SEED, resolve_path
 from .connectivity import nonoverlap_horizon
 from .data import DFCSequenceDataset, FCWindowDataset
 from .models import ConditionalSequenceModel, FCAutoencoder
@@ -88,13 +89,33 @@ class CompositeLoss:
 # ======================== 训练与早停 ========================
 
 
-def seed_everything(seed: int) -> None:
+def seed_everything(seed: int = DEFAULT_SEED) -> None:
     """固定 Python、NumPy 与 PyTorch 随机源，保证实验可复现。"""
+    seed = int(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cuda.matmul.allow_tf32 = False
+    torch.backends.cudnn.allow_tf32 = False
+    torch.use_deterministic_algorithms(True, warn_only=True)
+
+
+def _seed_worker(_worker_id: int) -> None:
+    worker_seed = torch.initial_seed() % (2**32)
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+
+
+def _loader_generator(seed: int) -> torch.Generator:
+    generator = torch.Generator()
+    generator.manual_seed(int(seed))
+    return generator
 
 
 def device_from_arg(name: str | None = None) -> torch.device:
@@ -116,14 +137,29 @@ def train_autoencoder(
     checkpoint_metadata: dict[str, Any] | None = None,
 ) -> Path:
     """先训练 FC 自编码器，并按验证重建损失保存最佳检查点。"""
-    seed_everything(int(config["seed"]))
+    seed = int(config["seed"])
+    seed_everything(seed)
     device = device_from_arg(device_name)
     sequence = DFCSequenceDataset(config, window_length, "train", stats_path)
-    dataset = FCWindowDataset(sequence, windows_per_run=32, seed=int(config["seed"]))
-    loader = DataLoader(dataset, batch_size=int(config["training"]["autoencoder_batch_size"]), shuffle=True, num_workers=0)
+    dataset = FCWindowDataset(sequence, windows_per_run=32, seed=seed)
+    loader = DataLoader(
+        dataset,
+        batch_size=int(config["training"]["autoencoder_batch_size"]),
+        shuffle=True,
+        num_workers=0,
+        generator=_loader_generator(seed),
+        worker_init_fn=_seed_worker,
+    )
     val_sequence = DFCSequenceDataset(config, window_length, "val", stats_path)
-    val_dataset = FCWindowDataset(val_sequence, windows_per_run=8, seed=int(config["seed"]) + 1)
-    val_loader = DataLoader(val_dataset, batch_size=int(config["training"]["autoencoder_batch_size"]), shuffle=False, num_workers=0)
+    val_dataset = FCWindowDataset(val_sequence, windows_per_run=8, seed=seed)
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=int(config["training"]["autoencoder_batch_size"]),
+        shuffle=False,
+        num_workers=0,
+        generator=_loader_generator(seed),
+        worker_init_fn=_seed_worker,
+    )
     n_nodes = int(config["data"]["n_nodes"])
     n_edges = n_nodes * (n_nodes - 1) // 2
     model = FCAutoencoder(n_edges, int(config["model"]["fc_latent_dim"]), float(config["model"]["dropout"])).to(device)
@@ -338,7 +374,8 @@ def train_sequence_model(
     autoencoder_path: str | Path | None = None,
 ) -> Path:
     """训练 TCN、Transformer 或学习型基线，并按主验证指标早停。"""
-    seed_everything(int(config["seed"]))
+    seed = int(config["seed"])
+    seed_everything(seed)
     device = device_from_arg(device_name)
     if decoder_type == "pca_ridge":
         if output_dir is None or checkpoint_metadata is None or autoencoder_path is None:
@@ -348,8 +385,23 @@ def train_sequence_model(
         )
     train_data = DFCSequenceDataset(config, window_length, "train", stats_path, ablation)
     val_data = DFCSequenceDataset(config, window_length, "val", stats_path, ablation)
-    train_loader = DataLoader(train_data, batch_size=int(config["training"]["batch_size"]), shuffle=True, num_workers=int(config["training"]["num_workers"]))
-    val_loader = DataLoader(val_data, batch_size=int(config["training"]["batch_size"]), shuffle=False, num_workers=int(config["training"]["num_workers"]))
+    num_workers = int(config["training"]["num_workers"])
+    train_loader = DataLoader(
+        train_data,
+        batch_size=int(config["training"]["batch_size"]),
+        shuffle=True,
+        num_workers=num_workers,
+        generator=_loader_generator(seed),
+        worker_init_fn=_seed_worker,
+    )
+    val_loader = DataLoader(
+        val_data,
+        batch_size=int(config["training"]["batch_size"]),
+        shuffle=False,
+        num_workers=num_workers,
+        generator=_loader_generator(seed),
+        worker_init_fn=_seed_worker,
+    )
     requested_sc_encoder_type = sc_encoder_type
     sc_encoder_type = requested_sc_encoder_type or str(config["model"].get("sc_encoder", "hybrid"))
     baseline_types = {"direct_mlp", "gcn_gru", "mlp", "lstm"}

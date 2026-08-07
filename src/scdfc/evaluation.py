@@ -10,10 +10,10 @@ from scipy.stats import pearsonr, rankdata, wasserstein_distance
 from sklearn.cluster import MiniBatchKMeans
 from torch.utils.data import DataLoader
 
-from .config import resolve_path
+from .config import DEFAULT_SEED, resolve_path
 from .connectivity import edges_to_matrix, inverse_fisher_z, nearest_correlation, nonoverlap_horizon
 from .data import DFCSequenceDataset, read_cached
-from .training import build_sequence_model, device_from_arg
+from .training import build_sequence_model, device_from_arg, seed_everything
 
 
 # ======================== 测试指标与统计检验 ========================
@@ -95,7 +95,7 @@ def retrieval_metrics(predictions: np.ndarray, targets: np.ndarray, template: np
     return {"retrieval_top1": float(np.mean(ranks == 1)), "retrieval_top5": float(np.mean(ranks <= 5)), "retrieval_mean_rank": float(ranks.mean())}
 
 
-def subject_bootstrap_difference(main_scores: np.ndarray, baseline_scores: np.ndarray, subject_ids: Iterable[str], replicates: int = 2000, seed: int = 20260717) -> dict[str, float]:
+def subject_bootstrap_difference(main_scores: np.ndarray, baseline_scores: np.ndarray, subject_ids: Iterable[str], replicates: int = 2000, seed: int = DEFAULT_SEED) -> dict[str, float]:
     """先聚合同一被试的多个 run，再进行被试级 bootstrap。"""
     subject_ids = np.asarray(list(subject_ids))
     subjects = np.unique(subject_ids)
@@ -185,6 +185,7 @@ def evaluate_checkpoint(
     """在测试集生成完整报告，并可选导出逐样本 FC 矩阵。"""
     if split_name not in {"train", "val", "test"}:
         raise ValueError("split_name must be train, val, or test")
+    seed_everything(int(config["seed"]))
     device = device_from_arg(device_name)
     model, payload = _load_model(config, window_length, checkpoint, Path(stats_path), device, autoencoder_path)
     test = DFCSequenceDataset(config, window_length, split_name, stats_path, payload.get("ablation", "full"))
@@ -254,6 +255,7 @@ def evaluate_analytic_baseline(
     """Evaluate group mean or first-window persistence with the common metric protocol."""
     if baseline not in {"group_mean", "fc1_persistence"}:
         raise ValueError("baseline must be group_mean or fc1_persistence")
+    seed_everything(int(config["seed"]))
     dataset = DFCSequenceDataset(config, window_length, split_name, stats_path)
     stats = dict(np.load(stats_path))
     template = stats["group_template"]

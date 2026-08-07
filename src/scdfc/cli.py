@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from .config import load_config, resolve_path
+from .config import DEFAULT_SEED, load_config, resolve_path
 from .data import (
     audit_dataset,
     discover_data,
@@ -171,7 +171,7 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--owner", required=True)
     create.add_argument("--model", default="tcn", choices=["fc_autoencoder", "group_mean", "fc1_persistence", "pca_ridge", "mlp", "lstm", "direct_mlp", "gcn_gru", "tcn", "transformer"])
     create.add_argument("--ablation", default="full", choices=["full", "fc1_only", "sc_only", "mean_sc", "shuffled_sc"])
-    create.add_argument("--seeds", nargs="+", type=int, default=[42])
+    create.add_argument("--seeds", nargs="+", type=int, default=[DEFAULT_SEED])
     create.add_argument("--dataset-version", default="dataset_lr_v1")
     create.add_argument("--preprocessing-version", default="preprocess_lr_v1")
     create.add_argument("--split-version", default="split_lr_v1")

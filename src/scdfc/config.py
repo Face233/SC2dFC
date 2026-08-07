@@ -7,6 +7,9 @@ from typing import Any
 import yaml
 
 
+DEFAULT_SEED = 42
+
+
 def _merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     result = deepcopy(base)
     for key, value in override.items():
