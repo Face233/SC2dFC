@@ -1,0 +1,30 @@
+{
+  "E0001": {
+    "run_id": "E0001-s42-20260808T095042Z-c01cdc8",
+    "primary_metric": "long_residual_pearson",
+    "metrics": {
+      "long_residual_pearson": 0.0,
+      "raw_edge_pearson": 0.5237354966281336,
+      "mse": 0.1912887206749071,
+      "mae": 0.34761346801172327,
+      "difference_mse": 0.009461661069830762,
+      "variance_mae": 0.1288346893896785,
+      "dynamic_amplitude_mae": 0.09347855139382277,
+      "fcd_wasserstein": 0.5503702180846741
+    }
+  },
+  "E0002": {
+    "run_id": "E0002-s42-20260808T094653Z-c01cdc8",
+    "primary_metric": "long_residual_pearson",
+    "metrics": {
+      "long_residual_pearson": 0.16656506479912309,
+      "raw_edge_pearson": 0.40962875285480593,
+      "mse": 0.28627956781206254,
+      "mae": 0.42129614402221727,
+      "difference_mse": 0.009449609083748317,
+      "variance_mae": 0.13037349434593057,
+      "dynamic_amplitude_mae": 0.09712783086903487,
+      "fcd_wasserstein": 0.5602171133226821
+    }
+  }
+}
