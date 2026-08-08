@@ -66,9 +66,12 @@ def test_composite_loss_backpropagates():
     prediction = torch.randn(3, 30, 4005, requires_grad=True)
     target = torch.randn_like(prediction)
     template = torch.zeros(30, 4005)
-    weights = {"edge": 1, "residual_corr": 0.5, "difference": 0.25, "static": 0.25, "variance": 0.25, "fcd": 0.1, "contrastive": 0.1, "psd": 0.01}
+    weights = {"edge": 1.0, "difference": 0.25}
     loss, components = CompositeLoss(weights, 17)(prediction, target, template)
     assert set(components) == set(weights)
+    assert len(components) <= 3
+    with pytest.raises(ValueError, match="At most three"):
+        CompositeLoss({**weights, "residual_corr": 0.5, "static": 0.25}, 17)
     loss.backward()
     assert torch.isfinite(prediction.grad).all()
 

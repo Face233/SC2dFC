@@ -64,26 +64,49 @@ def psd_penalty(z_edges: torch.Tensor, n_nodes: int = 90, max_windows: int = 4) 
 
 
 class CompositeLoss:
-    """将边重建、个体化、动态性和 PSD 约束按配置权重组合。"""
+    """按配置组合预测损失；默认只启用边重建和时间差分两项。"""
+
+    _SUPPORTED = {"edge", "residual_corr", "difference", "static", "variance", "fcd", "contrastive", "psd"}
 
     def __init__(self, weights: dict[str, float], nonoverlap_start: int, n_nodes: int = 90) -> None:
-        self.weights = weights
+        unknown = set(weights) - self._SUPPORTED
+        if unknown:
+            raise ValueError(f"Unknown loss components: {sorted(unknown)}")
+        self.weights = {name: float(value) for name, value in weights.items() if float(value) != 0.0}
+        if not self.weights:
+            raise ValueError("At least one loss component must have a non-zero weight")
+        if len(self.weights) > 3:
+            raise ValueError("At most three loss components may be enabled")
         self.nonoverlap_start = nonoverlap_start
         self.n_nodes = n_nodes
 
     def __call__(self, prediction: torch.Tensor, target: torch.Tensor, group_template: torch.Tensor) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-        template = group_template[: target.shape[1]][None]
-        components = {
-            "edge": F.smooth_l1_loss(prediction, target),
-            "residual_corr": correlation_loss(prediction[:, self.nonoverlap_start :] - template[:, self.nonoverlap_start :], target[:, self.nonoverlap_start :] - template[:, self.nonoverlap_start :]),
-            "difference": F.smooth_l1_loss(prediction[:, 1:] - prediction[:, :-1], target[:, 1:] - target[:, :-1]),
-            "static": F.smooth_l1_loss(prediction.mean(1), target.mean(1)),
-            "variance": variance_loss(prediction, target),
-            "fcd": fcd_gram_loss(prediction, target),
-            "contrastive": contrastive_loss(prediction, target, self.nonoverlap_start),
-            "psd": psd_penalty(prediction, self.n_nodes),
-        }
-        return sum(self.weights[name] * value for name, value in components.items()), components
+        components: dict[str, torch.Tensor] = {}
+        if "edge" in self.weights:
+            components["edge"] = F.smooth_l1_loss(prediction, target)
+        if "residual_corr" in self.weights:
+            template = group_template[: target.shape[1]][None]
+            components["residual_corr"] = correlation_loss(
+                prediction[:, self.nonoverlap_start :] - template[:, self.nonoverlap_start :],
+                target[:, self.nonoverlap_start :] - template[:, self.nonoverlap_start :],
+            )
+        if "difference" in self.weights:
+            components["difference"] = F.smooth_l1_loss(
+                prediction[:, 1:] - prediction[:, :-1],
+                target[:, 1:] - target[:, :-1],
+            )
+        if "static" in self.weights:
+            components["static"] = F.smooth_l1_loss(prediction.mean(1), target.mean(1))
+        if "variance" in self.weights:
+            components["variance"] = variance_loss(prediction, target)
+        if "fcd" in self.weights:
+            components["fcd"] = fcd_gram_loss(prediction, target)
+        if "contrastive" in self.weights:
+            components["contrastive"] = contrastive_loss(prediction, target, self.nonoverlap_start)
+        if "psd" in self.weights:
+            components["psd"] = psd_penalty(prediction, self.n_nodes)
+        total = sum((self.weights[name] * value for name, value in components.items()), prediction.new_zeros(()))
+        return total, components
 
 
 # ======================== 训练与早停 ========================

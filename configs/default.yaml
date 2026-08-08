@@ -50,15 +50,10 @@ training:
   patience: 20
   num_workers: 0
   seeds: [42]
+  # 默认预测损失只保留两项：边重建、时间差分。
   loss_weights:
     edge: 1.0
-    residual_corr: 0.5
     difference: 0.25
-    static: 0.25
-    variance: 0.25
-    fcd: 0.1
-    contrastive: 0.1
-    psd: 0.01
 evaluation:
   primary_metric: long_residual_pearson
   bootstrap_replicates: 2000
