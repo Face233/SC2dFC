@@ -6,7 +6,8 @@ scikit-learn>=1.4
 PyYAML>=6.0
 
 # Model training
-torch>=2.2
+# Keep this version aligned with the server's CUDA 12.4-compatible PyTorch build.
+torch==2.6.0
 
 # Offline dFC cache storage (the project uses the Zarr 2.x API)
 zarr>=2.18,<3
