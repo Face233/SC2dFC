@@ -50,6 +50,9 @@ training:
   patience: 20
   num_workers: 0
   seeds: [42]
+  # FC 自编码器重建损失。后续若比较其他约束，应在新的实验配置中显式覆盖。
+  autoencoder_loss_weights:
+    edge: 1.0
   # 默认预测损失只保留两项：边重建、时间差分。
   loss_weights:
     edge: 1.0

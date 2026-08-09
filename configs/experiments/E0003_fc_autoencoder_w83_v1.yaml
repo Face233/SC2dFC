@@ -26,6 +26,9 @@ model:
 training:
   seeds:
   - 42
+  # 初始自编码器基线：仅逐边 Smooth L1 重建。
+  autoencoder_loss_weights:
+    edge: 1.0
 evaluation:
   primary_metric: validation_loss
 decision_rule:

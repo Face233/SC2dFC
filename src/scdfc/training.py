@@ -109,6 +109,32 @@ class CompositeLoss:
         return total, components
 
 
+class AutoencoderLoss:
+    """Configurable FC autoencoder reconstruction loss."""
+
+    _SUPPORTED = {"edge", "correlation", "psd"}
+
+    def __init__(self, weights: dict[str, float], n_nodes: int = 90) -> None:
+        unknown = set(weights) - self._SUPPORTED
+        if unknown:
+            raise ValueError(f"Unknown autoencoder loss components: {sorted(unknown)}")
+        self.weights = {name: float(value) for name, value in weights.items() if float(value) != 0.0}
+        if not self.weights:
+            raise ValueError("At least one autoencoder loss component must have a non-zero weight")
+        self.n_nodes = n_nodes
+
+    def __call__(self, prediction: torch.Tensor, target: torch.Tensor) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        components: dict[str, torch.Tensor] = {}
+        if "edge" in self.weights:
+            components["edge"] = F.smooth_l1_loss(prediction, target)
+        if "correlation" in self.weights:
+            components["correlation"] = correlation_loss(prediction, target)
+        if "psd" in self.weights:
+            components["psd"] = psd_penalty(prediction[:, None], self.n_nodes)
+        total = sum((self.weights[name] * value for name, value in components.items()), prediction.new_zeros(()))
+        return total, components
+
+
 # ======================== 训练与早停 ========================
 
 
@@ -187,6 +213,7 @@ def train_autoencoder(
     n_edges = n_nodes * (n_nodes - 1) // 2
     model = FCAutoencoder(n_edges, int(config["model"]["fc_latent_dim"]), float(config["model"]["dropout"])).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=float(config["training"]["learning_rate"]), weight_decay=float(config["training"]["weight_decay"]))
+    criterion = AutoencoderLoss(config["training"]["autoencoder_loss_weights"], n_nodes)
     best = float("inf")
     managed = output_dir is not None
     output_dir = Path(output_dir) if output_dir is not None else autoencoder_checkpoint_path(config, window_length).parent
@@ -206,7 +233,7 @@ def train_autoencoder(
         for edges in loader:
             edges = edges.to(device)
             reconstructed, _ = model(edges)
-            loss = torch.nn.functional.smooth_l1_loss(reconstructed, edges) + 0.1 * correlation_loss(reconstructed, edges) + 0.01 * psd_penalty(reconstructed[:, None], n_nodes)
+            loss, _ = criterion(reconstructed, edges)
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), float(config["training"]["gradient_clip"]))
@@ -218,7 +245,7 @@ def train_autoencoder(
             for edges in val_loader:
                 edges = edges.to(device)
                 reconstructed, _ = model(edges)
-                loss = torch.nn.functional.smooth_l1_loss(reconstructed, edges) + 0.1 * correlation_loss(reconstructed, edges) + 0.01 * psd_penalty(reconstructed[:, None], n_nodes)
+                loss, _ = criterion(reconstructed, edges)
                 val_total += float(loss) * len(edges)
         epoch_loss = val_total / len(val_dataset)
         improved = epoch_loss < best

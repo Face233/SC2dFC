@@ -4,11 +4,20 @@ import pytest
 import torch
 import numpy as np
 
-from scdfc.training import CompositeLoss
+from scdfc.training import AutoencoderLoss, CompositeLoss
 from scdfc.evaluation import _load_model
 from scdfc.models import CommonInputLSTM, CommonInputMLP, ConditionalSequenceModel, FCAutoencoder, HCPGCNEncoder, PCARidgeBaseline
 from scdfc.models.baselines import DirectSCMLP, GCNGRUBaseline
 from scdfc.models.sc_encoders import symmetric_normalize_with_self_loops
+
+
+def test_autoencoder_edge_only_loss_is_smooth_l1():
+    prediction = torch.tensor([[0.0, 2.0, -2.0]])
+    target = torch.zeros_like(prediction)
+    loss, components = AutoencoderLoss({"edge": 1.0})(prediction, target)
+
+    assert set(components) == {"edge"}
+    assert torch.allclose(loss, torch.nn.functional.smooth_l1_loss(prediction, target))
 
 
 @pytest.mark.parametrize("decoder", ["tcn", "transformer"])
