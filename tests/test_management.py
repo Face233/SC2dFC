@@ -106,9 +106,19 @@ def test_summary_and_human_conclusion_update_registry(tmp_path: Path):
     run_dir = tmp_path / "outputs" / "E0001" / "runs" / "E0001-s42-now-aaaaaaa"
     run_dir.mkdir(parents=True)
     (run_dir / "metadata.json").write_text(json.dumps({"run_id": run_dir.name, "status": "COMPLETED"}), encoding="utf-8")
+    (run_dir / "config_resolved.yaml").write_text(yaml.safe_dump({
+        "paths": {"cache_dir": "data/cache/dfc"},
+        "data": {
+            "dataset_version": "dataset_v1", "preprocessing_version": "preprocess_v1", "split_version": "split_v1",
+            "window_length": 83, "stride": 5, "tr_seconds": 0.72, "n_timepoints": 1200,
+            "n_nodes": 90, "fisher_clip": 0.999999,
+        },
+    }), encoding="utf-8")
     (run_dir / "metrics_best.json").write_text(json.dumps({"metrics": {"mse": 0.25}}), encoding="utf-8")
     summary = summarize_experiment(tmp_path, "E0001")
     assert summary["mean"] == 0.25
+    assert summary["preprocessing"]["window_length_tr"] == 83
+    assert summary["preprocessing"]["n_dfc_windows_per_run"] == 224
     conclude_experiment(tmp_path, "E0001", "KEEP", "useful", "run L2")
     row = next(csv.DictReader(registry.open("r", encoding="utf-8-sig")))
     assert row["status"] == "KEEP"

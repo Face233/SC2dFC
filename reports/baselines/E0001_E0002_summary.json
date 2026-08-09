@@ -1,4 +1,17 @@
 {
+  "preprocessing": {
+    "window_length_tr": 83,
+    "stride_tr": 5,
+    "tr_seconds": 0.72,
+    "window_length_seconds": 59.76,
+    "stride_seconds": 3.6,
+    "n_timepoints": 1200,
+    "n_dfc_windows_per_run": 224,
+    "n_nodes": 90,
+    "estimator": "rectangular_pearson",
+    "fc_representation": "Fisher-z transformed upper-triangle edges",
+    "cache_path": "data/cache/dfc/window_83.zarr"
+  },
   "E0001": {
     "run_id": "E0001-s42-20260808T095042Z-c01cdc8",
     "primary_metric": "long_residual_pearson",

@@ -406,6 +406,38 @@ def find_run(root: str | Path, run_id: str) -> Path:
     return matches[0]
 
 
+def _preprocessing_summary(config: dict[str, Any]) -> dict[str, Any] | None:
+    """Extract the dFC settings that must accompany a result summary."""
+    data = config.get("data", {})
+    required = ("window_length", "stride", "tr_seconds", "n_timepoints", "n_nodes")
+    if any(key not in data for key in required):
+        return None
+    window_length = int(data["window_length"])
+    stride = int(data["stride"])
+    n_timepoints = int(data["n_timepoints"])
+    tr_seconds = float(data["tr_seconds"])
+    if stride < 1 or window_length > n_timepoints:
+        raise ValueError("Invalid window_length/stride in resolved run configuration")
+    cache_dir = Path(config.get("paths", {}).get("cache_dir", "data/cache/dfc"))
+    return {
+        "dataset_version": data.get("dataset_version"),
+        "preprocessing_version": data.get("preprocessing_version"),
+        "split_version": data.get("split_version"),
+        "window_length_tr": window_length,
+        "stride_tr": stride,
+        "tr_seconds": tr_seconds,
+        "window_length_seconds": window_length * tr_seconds,
+        "stride_seconds": stride * tr_seconds,
+        "n_timepoints": n_timepoints,
+        "n_dfc_windows_per_run": (n_timepoints - window_length) // stride + 1,
+        "n_nodes": int(data["n_nodes"]),
+        "fisher_clip": data.get("fisher_clip"),
+        "estimator": "rectangular_pearson",
+        "fc_representation": "Fisher-z transformed upper-triangle edges",
+        "cache_path": (cache_dir / f"window_{window_length}.zarr").as_posix(),
+    }
+
+
 def summarize_experiment(root: str | Path, experiment_id: str) -> dict[str, Any]:
     root = Path(root)
     path = registry_path(root)
@@ -417,12 +449,26 @@ def summarize_experiment(root: str | Path, experiment_id: str) -> dict[str, Any]
     values: list[float] = []
     failed = 0
     run_records = []
+    preprocessing: dict[str, Any] | None = None
     for run_dir in sorted((root / "outputs" / experiment_id / "runs").glob("*")):
         metadata_path = run_dir / "metadata.json"
         if not metadata_path.exists():
             continue
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         run_records.append(metadata)
+        config_path = run_dir / "config_resolved.yaml"
+        if config_path.exists():
+            current_preprocessing = _preprocessing_summary(
+                yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+            )
+            if current_preprocessing is not None:
+                if preprocessing is None:
+                    preprocessing = current_preprocessing
+                elif preprocessing != current_preprocessing:
+                    raise RuntimeError(
+                        f"{experiment_id} contains runs with different preprocessing settings; "
+                        "summarize them as separate experiments"
+                    )
         if metadata.get("status") != "COMPLETED":
             failed += 1
             continue
@@ -437,7 +483,7 @@ def summarize_experiment(root: str | Path, experiment_id: str) -> dict[str, Any]
         "experiment_id": experiment_id, "primary_metric": metric, "completed_runs": len(values),
         "failed_runs": failed, "mean": float(np.mean(values)) if values else None,
         "std": float(np.std(values, ddof=1)) if len(values) > 1 else (0.0 if values else None),
-        "runs": run_records, "generated_at": utc_now(),
+        "preprocessing": preprocessing, "runs": run_records, "generated_at": utc_now(),
     }
     summary_path = root / "reports" / "experiment_notes" / f"{experiment_id}_summary.json"
     summary_path.parent.mkdir(parents=True, exist_ok=True)
