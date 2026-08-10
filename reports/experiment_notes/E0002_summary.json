@@ -1,0 +1,29 @@
+{
+  "experiment_id": "E0002",
+  "primary_metric": "long_residual_pearson",
+  "completed_runs": 1,
+  "failed_runs": 0,
+  "mean": 0.16656506479912309,
+  "std": 0.0,
+  "runs": [
+    {
+      "schema_version": 1,
+      "experiment_id": "E0002",
+      "run_id": "E0002-s42-20260808T094653Z-c01cdc8",
+      "seed": 42,
+      "level": 1,
+      "status": "COMPLETED",
+      "started_at": "2026-08-08T09:46:54Z",
+      "config_sha256": "a34f903ef0c4c4df41cc5b20555396e1ddfde6b0fb278b973eb7273a50225e01",
+      "git": {
+        "commit": "c01cdc8281facd58fa5900e0e150c0a25cb19278",
+        "branch": "main",
+        "remote": "https://github.com/Face233/SC2dFC.git",
+        "dirty": false,
+        "status": []
+      },
+      "ended_at": "2026-08-08T09:48:43Z"
+    }
+  ],
+  "generated_at": "2026-08-08T09:52:27Z"
+}
