@@ -1,0 +1,47 @@
+{
+  "experiment_id": "E0007",
+  "primary_metric": "objective_loss",
+  "completed_runs": 1,
+  "failed_runs": 0,
+  "mean": 0.09458097044741028,
+  "std": 0.0,
+  "preprocessing": {
+    "dataset_version": "dataset_lr_v1",
+    "preprocessing_version": "preprocess_lr_v1",
+    "split_version": "split_lr_v1",
+    "window_length_tr": 83,
+    "stride_tr": 5,
+    "tr_seconds": 0.72,
+    "window_length_seconds": 59.76,
+    "stride_seconds": 3.5999999999999996,
+    "n_timepoints": 1200,
+    "n_dfc_windows_per_run": 224,
+    "n_nodes": 90,
+    "fisher_clip": 0.999999,
+    "estimator": "rectangular_pearson",
+    "fc_representation": "Fisher-z transformed upper-triangle edges",
+    "cache_path": "data/cache/dfc/window_83.zarr"
+  },
+  "runs": [
+    {
+      "schema_version": 1,
+      "experiment_id": "E0007",
+      "run_id": "E0007-s42-20260812T093450Z-b6dff41",
+      "seed": 42,
+      "level": 1,
+      "status": "COMPLETED",
+      "started_at": "2026-08-12T09:34:52Z",
+      "config_sha256": "067ac43ae60c660bef7c1b9a9402427c4054909a40b251b039f1b74263b6e7d8",
+      "git": {
+        "commit": "b6dff4171f2feb0a83d43546621b35590cfd64f2",
+        "branch": "main",
+        "remote": "https://github.com/Face233/SC2dFC.git",
+        "dirty": false,
+        "status": []
+      },
+      "ended_at": "2026-08-12T09:45:03Z",
+      "checkpoint": "/XYAIFS00/HOME/sysu_linying/sysu_linying_1/HuangZW/HCP_New/outputs/E0007/runs/E0007-s42-20260812T093450Z-b6dff41/checkpoints/best.pt"
+    }
+  ],
+  "generated_at": "2026-08-12T10:03:37Z"
+}
