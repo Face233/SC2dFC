@@ -27,26 +27,15 @@ $$
 ## 2. 方法概览
 
 ```text
-SC matrix ──┬─ Graph Transformer ─┐
-            └─ edge MLP ──────────┼─ condition encoder ─┐
-FC warm-up ── FC encoder ─────────┘                     │
-                                                         ▼
-                     TCN 或 Transformer 轨迹解码器 → FC latent sequence
-                                                         ▼
-                          FC decoder → Fisher-z edges → 完整 90×90 FC 序列
+SC matrix ── GCN 或 Hybrid(Attention + edge MLP) ─┐
+FC warm-up ── frozen E0003 FC encoder ────────────┼─ 256-d global condition
+                                                   ▼
+                                  GRU 或时间 Transformer → FC latent sequence
+                                                   ▼
+               frozen E0003 reconstruction decoder → Fisher-z edges → 完整 90×90 FC 序列
 ```
 
-模型输出在 Fisher-z 边空间中显式分为：
-
-$$
-\hat{FC}_{s,t}=FC^{\mathrm{group}}_t+\Delta FC^{\mathrm{static}}_s+\Delta FC^{\mathrm{dynamic}}_{s,t}
-$$
-
-- $FC^{\mathrm{group}}_t$ 是训练集中计算的群体模板；
-- $\Delta FC^{\mathrm{static}}_s$ 是个体稳定偏差；
-- $\Delta FC^{\mathrm{dynamic}}_{s,t}$ 是时间均值为零的个体动态残差。
-
-这项分解配合“去群体模板后的长时距相关”作为主指标，用于避免模型只输出组平均的平直序列。
+E0004–E0007 不再叠加群体模板或额外的 4005 维 static head；最终 Fisher-z FC 直接来自冻结的 E0003 reconstruction decoder。这样后续比较 `direct_edge_linear` decoder 时，唯一变化就是输出映射。
 
 ### 2.1 从原始文件到训练批次：形状与处理方法
 
@@ -123,7 +112,7 @@ FC 自编码器的默认结构为：
      → Linear(4005)
 ```
 
-它先在训练窗口上预训练，用于把高维 FC 边模式压缩为 256 维潜变量。主模型训练时，FC 编码器始终冻结；FC 解码器前 20 个 epoch 冻结，随后以主学习率的 0.1 倍微调。这样可以先稳定学习“FC 空间”，再学习 SC 条件下的时间轨迹。
+它先在训练窗口上预训练，用于把高维 FC 边模式压缩为 256 维潜变量。E0004–E0007 训练时，E0003 的 FC encoder 和 reconstruction decoder 全程冻结并保持 eval 状态；只训练 SC encoder、条件融合和时序模型。
 
 #### 条件编码器
 
@@ -140,28 +129,22 @@ $$
 c=\mathrm{Linear}(u)\odot\sigma(\mathrm{Linear}(u))
 $$
 
-其中 `c` 是条件向量。该设计避免 SC 只在序列开始时起作用；条件向量会进入所有 TCN 层，或作为 Transformer 的 cross-attention memory。
+其中 `c` 是统一的 256 维全局条件。它用于 GRU 的时间输入和初始 hidden state，或加到 Transformer 的每个未来时间 query。
 
 #### 两种并列时序解码器
 
-- **TCN**：为每个未来时距设置可学习 query，经过 dilation 为 `1,2,4,8,16,32` 的 6 个 FiLM 调制残差卷积块。FiLM 根据条件 `c` 生成缩放与偏移，使每一层都受 SC/FC1 条件控制。
-- **Transformer**：为每个未来时距设置 query，使用 4 层、256 维、8 头的 Transformer Decoder。query 自注意力建模不同未来窗口的关系，并 cross-attention 到 ROI 图 token、SC 边 token、FC1 token 与全局条件 token。
+- **GRU**：2 层、hidden size 256；对可学习的未来时间 query 进行序列建模。
+- **Transformer**：4 层、256 维、8 头、FFN 1024；对未来时间 query 做时间 self-attention，不使用 SC token cross-attention。
 
 两者均为**非自回归**：一次性输出全部未来窗口，不把真实未来 FC 输入给模型，不使用 teacher forcing 或 scheduled sampling，因此训练和测试条件完全一致。
 
 #### 从潜轨迹恢复 FC
 
-时序解码器输出潜轨迹 `q[t]`，FC 解码器将其映射为边空间。最终预测不是直接使用该绝对输出，而是：
+时序模型输出潜轨迹 `q[t]`，冻结的 E0003 reconstruction decoder 将其直接映射为边空间：
 
 $$
-\hat z_t=template_t+static(c)+\left(decoded(q_t)-\mathrm{mean}_t(decoded(q_t))\right)
+\hat z_t=decoder_{E0003}(q_t)
 $$
-
-其中：
-
-- `template_t`：群体共同时间模板；
-- `static(c)`：由个体条件预测的稳定边偏差；
-- 最后一项：时间中心化的动态残差。
 
 最后经 `tanh` 回到相关系数范围，再填充上下三角并将对角线固定为 1。输出始终对称且对角为 1；但不强制严格 PSD，而是在损失中软约束，并在评价阶段提供最近相关矩阵投影版。
 
@@ -391,17 +374,16 @@ scdfc train-ae --config configs/default.yaml --window 83
 outputs/window_83/fc_autoencoder.pt
 ```
 
-训练 dFC 时，FC 编码器被冻结；FC 解码器在默认前 20 个 epoch 冻结，之后以更小学习率微调。
+E0004–E0007 训练 dFC 时，FC encoder 和 reconstruction decoder 均全程冻结。
 
 ### 步骤 5：训练主模型与学习型基线
 
 ```powershell
-# 主模型
-scdfc train --config configs/default.yaml --window 83 --model tcn
-scdfc train --config configs/default.yaml --window 83 --model transformer
-
-# HCP_GCN 风格的 SC 编码器基线
-scdfc train --config configs/default.yaml --window 83 --model tcn --sc-encoder hcp_gcn
+# 主模型（正式运行建议使用下方 E0004–E0007 受管理配置）
+scdfc train --config configs/default.yaml --window 83 --model gru --sc-encoder hcp_gcn
+scdfc train --config configs/default.yaml --window 83 --model gru --sc-encoder hybrid
+scdfc train --config configs/default.yaml --window 83 --model transformer --sc-encoder hcp_gcn
+scdfc train --config configs/default.yaml --window 83 --model transformer --sc-encoder hybrid
 
 # 学习型基线
 scdfc train --config configs/default.yaml --window 83 --model direct_mlp
@@ -461,21 +443,24 @@ scdfc evaluate --config configs/default.yaml --window 83 `
 
 ## 6. 评价指标与结果解释
 
-主指标为 `long_residual_pearson`：
+E0004–E0007 的 checkpoint 主指标为验证集 `objective_loss`，越小越好：
 
-1. 只取首窗与目标窗口不再共享 BOLD 样本的长时距区间；
-2. 分别从预测和真实序列中减去训练集群体模板；
-3. 计算每个窗口的边模式 Pearson 相关并平均。
+$$
+L_{objective}=L_{Huber(edge)}+0.25L_{Huber(first\ difference)}
+$$
 
-因此，单纯复制群体平均 dFC 不会取得高主指标分数。
+`long_residual_pearson` 继续报告，但不参与反向传播或 checkpoint 选择。
 
 `evaluation.json` 同时包含：
 
 | 指标 | 含义 |
 | --- | --- |
+| `objective_loss` | checkpoint 选择指标：边 Huber + 0.25 × 一阶差分 Huber |
+| `edge_huber` / `difference_huber` | 两个训练目标分量 |
 | `mse` / `mae` | Fisher-z 上三角边的重建误差 |
 | `raw_edge_pearson` / `raw_edge_spearman` | 未去除群体模板的边模式相关 |
-| `long_residual_pearson` | 主指标，个体化长时距边相关 |
+| `long_residual_pearson` | 诊断指标，个体化长时距边相关 |
+| `node_strength_pearson` / `node_strength_mae` | 节点强度拓扑一致性 |
 | `difference_mse` | 相邻窗口变化量误差 |
 | `variance_mae` | 各边时间方差差异 |
 | `fcd_pearson` / `fcd_wasserstein` | FCD 矩阵与其分布的相似性 |
@@ -508,7 +493,9 @@ scdfc evaluate --config configs/default.yaml --window 83 `
 | `model.sc_encoder` | `hybrid` | SC 编码器：`hybrid` 或 `hcp_gcn` |
 | `model.hcp_gcn_hidden_dim` | 128 | HCP_GCN 第一层隐藏维度 |
 | `model.hcp_gcn_output_dim` | 64 | HCP_GCN 池化前节点表示维度 |
-| `model.tcn_dilations` | 1–32 | TCN 膨胀卷积感受野设置 |
+| `model.gru_layers` | 2 | GRU 层数 |
+| `model.transformer_layers/heads` | 4/8 | 时间 Transformer 深度与头数 |
+| `model.output_head` | `e0003_reconstruction_decoder` | E0004–E0007 的冻结输出 decoder |
 | `training.batch_size` | 4 | dFC 序列训练批大小 |
 | `training.patience` | 20 | 验证集早停耐心值 |
 | `evaluation.bootstrap_replicates` | 2000 | 被试 bootstrap 次数 |
@@ -538,7 +525,7 @@ scdfc evaluate --config configs/default.yaml --window 83 `
 
 ### 显存不足
 
-先将 `training.batch_size` 从 4 减到 2 或 1；不要修改 FC 边数或 AAL90 节点顺序。也可先训练 TCN，再训练 Transformer。默认 90 节点、83 TR 主分析在单张 8 GB GPU 上设计为可运行。
+先将 `training.batch_size` 从 4 减到 2 或 1；不要修改 FC 边数或 AAL90 节点顺序。可先训练 GRU，再训练 Transformer。
 
 ## 9. 开发与测试
 
@@ -549,7 +536,7 @@ conda activate GCN_mri
 pytest
 ```
 
-测试覆盖矩阵上三角往返、滑窗 FC 计算、相关矩阵投影、被试级划分、Zarr 缓存、TCN/Transformer 输出形状、复合损失反传、动态评价与检索逻辑。
+测试覆盖矩阵上三角往返、滑窗 FC 计算、相关矩阵投影、被试级划分、Zarr 缓存、GRU/Transformer 输出形状、Huber 加一阶差分损失、动态评价与检索逻辑。
 
 ## 10. 当前边界与后续工作
 

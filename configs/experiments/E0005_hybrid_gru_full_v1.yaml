@@ -1,0 +1,55 @@
+base: ../default.yaml
+experiment:
+  id: E0005
+  name: hybrid_gru_full_v1
+  level: 1
+  task: sequence
+  research_question: 在GRU固定时，Hybrid SC encoder是否优于GCN encoder
+  hypothesis: 图注意力全局表示与edge MLP表示互补，能够改善未来dFC预测
+  primary_change: 将E0004的SC encoder由GCN替换为Attention加edge MLP的Hybrid encoder
+  baseline: E0004
+  owner: Face88
+  status: planned
+  ablation: full
+paths:
+  split_csv: data/manifests/split_lr_v1.csv
+data:
+  dataset_version: dataset_lr_v1
+  preprocessing_version: preprocess_lr_v1
+  manifest_path: data/manifests/dataset_lr_v1.json
+  manifest_sha256: 6ebb22662b4deb3fc7e38d45f2b76fc303d5c3ec973d36e6d7d0e2d3ffc29ac3
+  split_version: split_lr_v1
+  split_sha256: e08cd05e20ed048ba976dcf6487ecab8f6ba4671ea90ed778cbe21176b599862
+model:
+  name: gru
+  sc_encoder: hybrid
+  output_head: e0003_reconstruction_decoder
+  fc_latent_dim: 256
+  hidden_dim: 256
+  sc_graph_layers: 3
+  sc_graph_heads: 4
+  gru_layers: 2
+  dropout: 0.1
+training:
+  seeds: [42]
+  batch_size: 4
+  epochs: 200
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  gradient_clip: 1.0
+  patience: 20
+  num_workers: 0
+  huber_beta: 1.0
+  finetune_fc_decoder: false
+  loss_weights:
+    edge: 1.0
+    difference: 0.25
+evaluation:
+  primary_metric: objective_loss
+decision_rule:
+  description: 仅按验证集objective_loss最小选择检查点，不查看测试集
+artifacts:
+  fc_autoencoder:
+    id: A0003
+    path: outputs/E0003/runs/E0003-s42-20260810T064954Z-4d4337d/checkpoints/best.pt
+    sha256: 2228c6d742c1eb3225eb550ae3839b7be55cbaac8a9bfafa018780a0d961ec97

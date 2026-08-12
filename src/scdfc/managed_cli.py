@@ -96,6 +96,16 @@ def command_experiment_create(args) -> None:
     if task == "autoencoder":
         document["experiment"]["artifact_id"] = f"A{experiment_id[1:]}"
         document["evaluation"]["primary_metric"] = "validation_loss"
+    elif task == "sequence":
+        document["model"]["sc_encoder"] = args.sc_encoder
+        document["model"]["output_head"] = "e0003_reconstruction_decoder"
+        if args.model == "gru":
+            document["model"]["gru_layers"] = args.gru_layers
+        document["training"].update({
+            "huber_beta": args.huber_beta,
+            "finetune_fc_decoder": args.finetune_fc_decoder,
+            "loss_weights": {"edge": 1.0, "difference": args.difference_weight},
+        })
     artifact = _artifact_reference(root, args.artifact)
     if artifact:
         document["artifacts"] = {"fc_autoencoder": artifact}

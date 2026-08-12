@@ -109,18 +109,22 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
     allowed_models = {
         "analytic": {"group_mean", "fc1_persistence"},
         "autoencoder": {"fc_autoencoder"},
-        "sequence": {"pca_ridge", "mlp", "lstm", "direct_mlp", "gcn_gru", "tcn", "transformer"},
+        "sequence": {"pca_ridge", "mlp", "lstm", "direct_mlp", "gcn_gru", "gru", "tcn", "transformer"},
     }
     if model_name not in allowed_models[task]:
         raise ValueError(f"model.name {model_name!r} is not valid for task {task!r}")
     primary_metric = str(config["evaluation"]["primary_metric"])
-    if task == "sequence" and primary_metric != "long_residual_pearson":
-        raise ValueError("Current sequence training selects checkpoints by long_residual_pearson")
+    if task == "sequence" and primary_metric not in {"objective_loss", "long_residual_pearson"}:
+        raise ValueError("Sequence primary_metric must be objective_loss or long_residual_pearson")
     if task == "autoencoder" and primary_metric != "validation_loss":
         raise ValueError("Autoencoder experiments must use validation_loss as the primary metric")
     if not config.get("decision_rule", {}).get("description"):
         raise ValueError("Managed configs require decision_rule.description")
     if task == "sequence":
+        if model_name in {"gru", "tcn", "transformer"} and config.get("model", {}).get("sc_encoder") not in {"hybrid", "hcp_gcn"}:
+            raise ValueError("Conditional sequence models require model.sc_encoder to be hybrid or hcp_gcn")
+        if model_name in {"gru", "tcn", "transformer"} and config.get("model", {}).get("output_head") != "e0003_reconstruction_decoder":
+            raise ValueError("Conditional sequence models currently require model.output_head=e0003_reconstruction_decoder")
         artifact = config.get("artifacts", {}).get("fc_autoencoder", {})
         for field in ["id", "path", "sha256"]:
             if not artifact.get(field):

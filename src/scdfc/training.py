@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import time
 from pathlib import Path
 from typing import Any
 
@@ -68,7 +69,9 @@ class CompositeLoss:
 
     _SUPPORTED = {"edge", "residual_corr", "difference", "static", "variance", "fcd", "contrastive", "psd"}
 
-    def __init__(self, weights: dict[str, float], nonoverlap_start: int, n_nodes: int = 90) -> None:
+    def __init__(
+        self, weights: dict[str, float], nonoverlap_start: int, n_nodes: int = 90, huber_beta: float = 1.0
+    ) -> None:
         unknown = set(weights) - self._SUPPORTED
         if unknown:
             raise ValueError(f"Unknown loss components: {sorted(unknown)}")
@@ -79,11 +82,17 @@ class CompositeLoss:
             raise ValueError("At most three loss components may be enabled")
         self.nonoverlap_start = nonoverlap_start
         self.n_nodes = n_nodes
+        self.huber_beta = float(huber_beta)
+        if self.huber_beta <= 0:
+            raise ValueError("huber_beta must be positive")
+
+    def _huber(self, prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        return F.smooth_l1_loss(prediction, target, beta=self.huber_beta)
 
     def __call__(self, prediction: torch.Tensor, target: torch.Tensor, group_template: torch.Tensor) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         components: dict[str, torch.Tensor] = {}
         if "edge" in self.weights:
-            components["edge"] = F.smooth_l1_loss(prediction, target)
+            components["edge"] = self._huber(prediction, target)
         if "residual_corr" in self.weights:
             template = group_template[: target.shape[1]][None]
             components["residual_corr"] = correlation_loss(
@@ -91,12 +100,12 @@ class CompositeLoss:
                 target[:, self.nonoverlap_start :] - template[:, self.nonoverlap_start :],
             )
         if "difference" in self.weights:
-            components["difference"] = F.smooth_l1_loss(
+            components["difference"] = self._huber(
                 prediction[:, 1:] - prediction[:, :-1],
                 target[:, 1:] - target[:, :-1],
             )
         if "static" in self.weights:
-            components["static"] = F.smooth_l1_loss(prediction.mean(1), target.mean(1))
+            components["static"] = self._huber(prediction.mean(1), target.mean(1))
         if "variance" in self.weights:
             components["variance"] = variance_loss(prediction, target)
         if "fcd" in self.weights:
@@ -171,6 +180,12 @@ def device_from_arg(name: str | None = None) -> torch.device:
     return torch.device(name or ("cuda" if torch.cuda.is_available() else "cpu"))
 
 
+def _synchronize(device: torch.device) -> None:
+    """Synchronize asynchronous CUDA work before recording wall-clock timings."""
+    if device.type == "cuda":
+        torch.cuda.synchronize(device)
+
+
 def autoencoder_checkpoint_path(config: dict[str, Any], window_length: int, artifact_path: str | Path | None = None) -> Path:
     if artifact_path is not None:
         return Path(artifact_path)
@@ -223,11 +238,17 @@ def train_autoencoder(
     log_path = output_dir / "train.log"
     best_epoch = -1
     stale = 0
+    epoch_durations: list[float] = []
+    max_epochs = int(config["training"]["autoencoder_epochs"])
     emit(
         "train_started", task="autoencoder", device=str(device), window_length=window_length,
         train_samples=len(dataset), validation_samples=len(val_dataset), output_dir=str(output_dir),
     )
-    for epoch in range(int(config["training"]["autoencoder_epochs"])):
+    for epoch in range(max_epochs):
+        _synchronize(device)
+        epoch_started = time.perf_counter()
+        if device.type == "cuda":
+            torch.cuda.reset_peak_memory_stats(device)
         model.train()
         total = 0.0
         for edges in loader:
@@ -239,6 +260,9 @@ def train_autoencoder(
             torch.nn.utils.clip_grad_norm_(model.parameters(), float(config["training"]["gradient_clip"]))
             optimizer.step()
             total += float(loss) * len(edges)
+        _synchronize(device)
+        train_seconds = time.perf_counter() - epoch_started
+        validation_started = time.perf_counter()
         model.eval()
         val_total = 0.0
         with torch.no_grad():
@@ -247,6 +271,8 @@ def train_autoencoder(
                 reconstructed, _ = model(edges)
                 loss, _ = criterion(reconstructed, edges)
                 val_total += float(loss) * len(edges)
+        _synchronize(device)
+        validation_seconds = time.perf_counter() - validation_started
         epoch_loss = val_total / len(val_dataset)
         improved = epoch_loss < best
         if epoch_loss < best:
@@ -256,10 +282,21 @@ def train_autoencoder(
             torch.save(payload, checkpoint)
         else:
             stale += 1
+        _synchronize(device)
+        epoch_seconds = time.perf_counter() - epoch_started
+        epoch_durations.append(epoch_seconds)
+        mean_epoch_seconds = float(np.mean(epoch_durations))
+        peak_memory_gb = torch.cuda.max_memory_allocated(device) / (1024**3) if device.type == "cuda" else 0.0
         append_jsonl(
             log_path, "epoch_complete", task="autoencoder", epoch=epoch + 1,
             train_loss=total / max(len(dataset), 1), validation_loss=epoch_loss,
             best_validation_loss=best, improved=improved, stale_epochs=stale,
+            train_seconds=train_seconds, validation_seconds=validation_seconds,
+            epoch_seconds=epoch_seconds, mean_epoch_seconds=mean_epoch_seconds,
+            estimated_seconds_to_max_epochs=mean_epoch_seconds * (max_epochs - epoch - 1),
+            estimated_seconds_if_no_more_improvement=mean_epoch_seconds * max(int(config["training"]["patience"]) - stale, 0),
+            train_samples_per_second=len(dataset) / max(train_seconds, 1e-9),
+            gpu_peak_memory_gb=peak_memory_gb,
         )
         if stale >= int(config["training"]["patience"]):
             emit("early_stopped", task="autoencoder", epoch=epoch + 1, best_epoch=best_epoch + 1, best_validation_loss=best)
@@ -291,12 +328,17 @@ def build_sequence_model(
     sc_encoder_type: str | None = None,
     autoencoder_path: str | Path | None = None,
     checkpoint_payload: dict[str, Any] | None = None,
+    ablation: str | None = None,
 ):
     """加载共享 FC 解码器，并按名称构建主模型或学习型基线。"""
     autoencoder = load_autoencoder(config, window_length, device, autoencoder_path)
     stats = dict(np.load(stats_path))
     model_cfg = config["model"]
     sc_encoder_type = sc_encoder_type or str(model_cfg.get("sc_encoder", "hybrid"))
+    ablation = ablation or (checkpoint_payload or {}).get("ablation", "full")
+    output_head = str(model_cfg.get("output_head", "e0003_reconstruction_decoder"))
+    if decoder_type in {"gru", "tcn", "transformer"} and output_head != "e0003_reconstruction_decoder":
+        raise ValueError(f"Unsupported conditional output head: {output_head}")
     group_template = torch.from_numpy(stats["group_template"])
     if decoder_type == "pca_ridge":
         if checkpoint_payload is None:
@@ -325,6 +367,7 @@ def build_sequence_model(
         transformer_layers=int(model_cfg["transformer_layers"]),
         transformer_heads=int(model_cfg["transformer_heads"]),
         transformer_ffn_dim=int(model_cfg["transformer_ffn_dim"]),
+        gru_layers=int(model_cfg.get("gru_layers", 2)),
         tcn_dilations=tuple(model_cfg["tcn_dilations"]),
         dropout=float(model_cfg["dropout"]),
         sc_mean=torch.from_numpy(stats["sc_mean"]),
@@ -332,6 +375,7 @@ def build_sequence_model(
         sc_encoder_type=sc_encoder_type,
         hcp_gcn_hidden_dim=int(model_cfg.get("hcp_gcn_hidden_dim", 128)),
         hcp_gcn_output_dim=int(model_cfg.get("hcp_gcn_output_dim", 64)),
+        ablation=ablation,
     ).to(device)
 
 
@@ -411,6 +455,38 @@ def validate(model: ConditionalSequenceModel, loader: DataLoader, nonoverlap: in
     return float(np.mean(scores))
 
 
+@torch.no_grad()
+def validate_sequence(
+    model: ConditionalSequenceModel,
+    loader: DataLoader,
+    criterion: CompositeLoss,
+    nonoverlap: int,
+    device: torch.device,
+) -> dict[str, float]:
+    """一次验证前向同时计算组合 Huber 目标、各分量与长时距诊断指标。"""
+    model.eval()
+    total = 0.0
+    component_totals: dict[str, float] = {name: 0.0 for name in criterion.weights}
+    count = 0
+    residual_scores = []
+    for batch in loader:
+        output = model(batch["sc_matrix"].to(device), batch["sc_edges"].to(device), batch["fc_warmup"].to(device))
+        target = batch["fc_future"].to(device)
+        loss, components = criterion(output.fc_z_edges, target, model.group_template)
+        batch_size = len(target)
+        total += float(loss) * batch_size
+        for name, value in components.items():
+            component_totals[name] += float(value) * batch_size
+        count += batch_size
+        residual_scores.extend(_long_residual_score(output.fc_z_edges, target, model.group_template, nonoverlap).cpu().tolist())
+    metrics = {
+        "objective_loss": total / max(count, 1),
+        "long_residual_pearson": float(np.mean(residual_scores)),
+    }
+    metrics.update({f"validation_{name}_loss": value / max(count, 1) for name, value in component_totals.items()})
+    return metrics
+
+
 def train_sequence_model(
     config: dict[str, Any],
     window_length: int,
@@ -423,7 +499,7 @@ def train_sequence_model(
     checkpoint_metadata: dict[str, Any] | None = None,
     autoencoder_path: str | Path | None = None,
 ) -> Path:
-    """训练 TCN、Transformer 或学习型基线，并按主验证指标早停。"""
+    """训练条件序列模型或学习型基线，并按声明的主验证指标早停。"""
     seed = int(config["seed"])
     seed_everything(seed)
     device = device_from_arg(device_name)
@@ -456,10 +532,12 @@ def train_sequence_model(
     sc_encoder_type = requested_sc_encoder_type or str(config["model"].get("sc_encoder", "hybrid"))
     baseline_types = {"direct_mlp", "gcn_gru", "mlp", "lstm"}
     if decoder_type in baseline_types and requested_sc_encoder_type not in {None, "hybrid"}:
-        raise ValueError("--sc-encoder applies only to the tcn and transformer conditional models")
+        raise ValueError("--sc-encoder applies only to the gru, tcn, and transformer conditional models")
     if decoder_type in baseline_types:
         sc_encoder_type = "hybrid"
-    model = build_sequence_model(config, window_length, decoder_type, stats_path, device, sc_encoder_type, autoencoder_path)
+    model = build_sequence_model(
+        config, window_length, decoder_type, stats_path, device, sc_encoder_type, autoencoder_path, ablation=ablation
+    )
     for parameter in model.fc_autoencoder.encoder.parameters():
         parameter.requires_grad = False
     for parameter in model.fc_autoencoder.decoder.parameters():
@@ -467,7 +545,10 @@ def train_sequence_model(
     main_parameters = [p for name, p in model.named_parameters() if p.requires_grad and not name.startswith("fc_autoencoder.decoder")]
     optimizer = torch.optim.AdamW(main_parameters, lr=float(config["training"]["learning_rate"]), weight_decay=float(config["training"]["weight_decay"]))
     nonoverlap = nonoverlap_horizon(window_length, int(config["data"]["stride"]))
-    criterion = CompositeLoss(config["training"]["loss_weights"], nonoverlap, int(config["data"]["n_nodes"]))
+    criterion = CompositeLoss(
+        config["training"]["loss_weights"], nonoverlap, int(config["data"]["n_nodes"]),
+        float(config["training"].get("huber_beta", 1.0)),
+    )
     conditional_name = (
         decoder_type
         if sc_encoder_type == "hybrid" or decoder_type in baseline_types
@@ -482,65 +563,108 @@ def train_sequence_model(
     last_checkpoint = checkpoint_dir / "last.pt"
     log_path = output_dir / "train.log"
     primary_metric = str(config.get("evaluation", {}).get("primary_metric", "long_residual_pearson"))
+    if primary_metric not in {"objective_loss", "long_residual_pearson"}:
+        raise ValueError("Sequence primary_metric must be objective_loss or long_residual_pearson")
+    minimize = primary_metric == "objective_loss"
+    finetune_fc_decoder = bool(config["training"].get("finetune_fc_decoder", False))
     best_epoch = -1
-    best, stale = -float("inf"), 0
+    best, stale = (float("inf") if minimize else -float("inf")), 0
+    best_validation_metrics: dict[str, float] = {}
+    epoch_durations: list[float] = []
+    max_epochs = int(config["training"]["epochs"])
     emit(
         "train_started", task="sequence", model=decoder_type, ablation=ablation,
         sc_encoder=sc_encoder_type, device=str(device), window_length=window_length,
         train_samples=len(train_data), validation_samples=len(val_data), output_dir=str(output_dir),
     )
-    for epoch in range(int(config["training"]["epochs"])):
-        if epoch == int(config["training"]["decoder_frozen_epochs"]):
+    for epoch in range(max_epochs):
+        _synchronize(device)
+        epoch_started = time.perf_counter()
+        if device.type == "cuda":
+            torch.cuda.reset_peak_memory_stats(device)
+        if finetune_fc_decoder and epoch == int(config["training"]["decoder_frozen_epochs"]):
             for parameter in model.fc_autoencoder.decoder.parameters():
                 parameter.requires_grad = True
             optimizer.add_param_group({"params": model.fc_autoencoder.decoder.parameters(), "lr": float(config["training"]["learning_rate"]) * float(config["training"]["decoder_learning_rate_scale"])})
         model.train()
+        # 冻结权重还不够；必须同时关闭 E0003 encoder/decoder 内的 Dropout。
+        model.fc_autoencoder.encoder.eval()
+        decoder_trainable = finetune_fc_decoder and epoch >= int(config["training"]["decoder_frozen_epochs"])
+        if not decoder_trainable:
+            model.fc_autoencoder.decoder.eval()
         train_total = 0.0
+        train_components = {name: 0.0 for name in criterion.weights}
         train_count = 0
         for batch in train_loader:
             output = model(batch["sc_matrix"].to(device), batch["sc_edges"].to(device), batch["fc_warmup"].to(device))
             target = batch["fc_future"].to(device)
-            loss, _ = criterion(output.fc_z_edges, target, model.group_template)
+            loss, components = criterion(output.fc_z_edges, target, model.group_template)
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), float(config["training"]["gradient_clip"]))
             optimizer.step()
             train_total += float(loss) * len(target)
+            for name, value in components.items():
+                train_components[name] += float(value) * len(target)
             train_count += len(target)
-        score = validate(model, val_loader, nonoverlap, device)
-        improved = score > best
-        if score > best:
+        _synchronize(device)
+        train_seconds = time.perf_counter() - epoch_started
+        validation_started = time.perf_counter()
+        validation_metrics = validate_sequence(model, val_loader, criterion, nonoverlap, device)
+        _synchronize(device)
+        validation_seconds = time.perf_counter() - validation_started
+        score = validation_metrics[primary_metric]
+        improved = score < best if minimize else score > best
+        if improved:
             best, stale, best_epoch = score, 0, epoch
+            best_validation_metrics = validation_metrics
             payload = {
                 "schema_version": 1, "model": model.state_dict(), "epoch": epoch, "score": score,
                 "primary_metric": primary_metric, "decoder_type": decoder_type,
                 "sc_encoder_type": sc_encoder_type, "ablation": ablation, "window_length": window_length,
+                "validation_metrics": validation_metrics, "output_head": "e0003_reconstruction_decoder",
+                "fc_reconstruction_decoder_frozen": not finetune_fc_decoder,
             }
             payload.update(checkpoint_metadata or {})
             torch.save(payload, checkpoint)
         else:
             stale += 1
+        _synchronize(device)
+        epoch_seconds = time.perf_counter() - epoch_started
+        epoch_durations.append(epoch_seconds)
+        mean_epoch_seconds = float(np.mean(epoch_durations))
+        peak_memory_gb = torch.cuda.max_memory_allocated(device) / (1024**3) if device.type == "cuda" else 0.0
+        train_metrics = {f"train_{name}_loss": value / max(train_count, 1) for name, value in train_components.items()}
         append_jsonl(
             log_path, "epoch_complete", task="sequence", model=decoder_type, epoch=epoch + 1,
-            train_loss=train_total / max(train_count, 1), validation_long_residual_pearson=score,
-            best_validation_long_residual_pearson=best, improved=improved, stale_epochs=stale,
+            train_loss=train_total / max(train_count, 1), **train_metrics, **validation_metrics,
+            primary_metric=primary_metric, primary_value=score, best_primary_value=best,
+            improved=improved, stale_epochs=stale,
+            train_seconds=train_seconds, validation_seconds=validation_seconds,
+            epoch_seconds=epoch_seconds, mean_epoch_seconds=mean_epoch_seconds,
+            estimated_seconds_to_max_epochs=mean_epoch_seconds * (max_epochs - epoch - 1),
+            estimated_seconds_if_no_more_improvement=mean_epoch_seconds * max(int(config["training"]["patience"]) - stale, 0),
+            train_samples_per_second=train_count / max(train_seconds, 1e-9),
+            gpu_peak_memory_gb=peak_memory_gb,
         )
         if stale >= int(config["training"]["patience"]):
-            emit("early_stopped", task="sequence", model=decoder_type, epoch=epoch + 1, best_epoch=best_epoch + 1, best_validation_long_residual_pearson=best)
+            emit("early_stopped", task="sequence", model=decoder_type, epoch=epoch + 1, best_epoch=best_epoch + 1, primary_metric=primary_metric, best_primary_value=best)
             break
         if int(config.get("experiment", {}).get("level", 0)) >= 2:
             last_payload = {
                 "schema_version": 1, "model": model.state_dict(), "epoch": epoch, "score": score,
                 "primary_metric": primary_metric, "decoder_type": decoder_type,
                 "sc_encoder_type": sc_encoder_type, "ablation": ablation, "window_length": window_length,
+                "validation_metrics": validation_metrics, "output_head": "e0003_reconstruction_decoder",
+                "fc_reconstruction_decoder_frozen": not finetune_fc_decoder,
             }
             last_payload.update(checkpoint_metadata or {})
             torch.save(last_payload, last_checkpoint)
     (output_dir / "metrics_best.json").write_text(
-        json.dumps({"metrics": {primary_metric: best}, "best_epoch": best_epoch}, indent=2), encoding="utf-8"
+        json.dumps({"metrics": best_validation_metrics, "primary_metric": primary_metric, "best_epoch": best_epoch}, indent=2), encoding="utf-8"
     )
     (output_dir / "metrics_last.json").write_text(
-        json.dumps({"metrics": {primary_metric: score}, "last_epoch": epoch}, indent=2), encoding="utf-8"
+        json.dumps({"metrics": validation_metrics, "primary_metric": primary_metric, "last_epoch": epoch}, indent=2), encoding="utf-8"
     )
-    emit("train_finished", task="sequence", model=decoder_type, best_epoch=best_epoch + 1, best_validation_long_residual_pearson=best, checkpoint=str(checkpoint))
+    emit("train_finished", task="sequence", model=decoder_type, best_epoch=best_epoch + 1, primary_metric=primary_metric, best_primary_value=best, checkpoint=str(checkpoint))
     return checkpoint

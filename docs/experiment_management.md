@@ -72,25 +72,26 @@ scdfc experiment create `
 
 ```powershell
 scdfc experiment create `
-  --name tcn_full_v1 `
+  --name gcn_gru_full_v1 `
   --level 1 `
   --task sequence `
-  --model tcn `
+  --model gru `
+  --sc-encoder hcp_gcn `
   --artifact configs/artifacts/A0003.yaml `
   --research-question "SC 是否为首窗 FC 提供增量预测信息" `
-  --hypothesis "完整 TCN 在长时距残差相关上优于 FC1-only" `
-  --primary-change "加入个体 SC 条件" `
+  --hypothesis "完整 GCN+GRU 在验证集目标上优于 FC1 persistence" `
+  --primary-change "建立 GCN+GRU 主模型" `
   --baseline E0002 `
   --owner researcher_name `
   --seeds 42
 ```
 
-可选模型包括 `pca_ridge`、`mlp`、`lstm`、`direct_mlp`、`gcn_gru`、`tcn` 和 `transformer`。其中 `direct_mlp` 与 `gcn_gru` 明确保留为 SC-only v1 基线；`mlp`、`lstm` 和 `pca_ridge` 使用与主模型相同的 SC 与首窗 FC。所有学习型模型均不接收扫描方向编码。
+可选条件模型包括 `gru`、`tcn` 和 `transformer`。当前 E0004–E0007 使用 `gru` 或 `transformer`、`hybrid` 或 `hcp_gcn` SC encoder，并固定 `e0003_reconstruction_decoder` 输出头。其他名称保留用于历史基线。所有学习型模型均不接收扫描方向编码。
 
 每个 seed 单独提交：
 
 ```powershell
-scdfc run --experiment configs/experiments/E0004_tcn_full_v1.yaml --seed 42 --device cuda
+scdfc run --experiment configs/experiments/E0004_gcn_gru_full_v1.yaml --seed 42 --device cuda
 ```
 
 ## 4. 评价、汇总和科研结论

@@ -77,7 +77,7 @@ class SCGraphEncoder(nn.Module):
 
 
 class ConditionEncoder(nn.Module):
-    """融合可选 SC 编码器与首窗 FC 条件。"""
+    """将 SC 与首窗 FC 分别编码为 256 维，再融合成共享全局条件。"""
 
     def __init__(
         self,
@@ -91,57 +91,55 @@ class ConditionEncoder(nn.Module):
         sc_encoder_type: str = "hybrid",
         hcp_gcn_hidden_dim: int = 128,
         hcp_gcn_output_dim: int = 64,
+        ablation: str = "full",
     ) -> None:
         super().__init__()
         if sc_encoder_type not in {"hybrid", "hcp_gcn"}:
             raise ValueError("sc_encoder_type must be 'hybrid' or 'hcp_gcn'")
+        if ablation not in {"full", "fc1_only", "sc_only", "mean_sc", "shuffled_sc"}:
+            raise ValueError(f"Unknown ablation: {ablation}")
         self.fc_autoencoder = fc_autoencoder
         self.sc_encoder_type = sc_encoder_type
+        self.ablation = ablation
         if sc_encoder_type == "hybrid":
             self.graph = SCGraphEncoder(n_nodes, 128, graph_layers, graph_heads, dropout)
             self.edge_mlp = nn.Sequential(nn.Linear(n_edges, 512), nn.GELU(), nn.Dropout(dropout), nn.Linear(512, 128))
-            self.graph_token_projection = nn.Linear(128, hidden_dim)
-            self.edge_token_projection = nn.Linear(128, hidden_dim)
         else:
             self.hcp_gcn = HCPGCNEncoder(n_nodes, hcp_gcn_hidden_dim, hcp_gcn_output_dim)
             self.hcp_global_projection = nn.Linear(hcp_gcn_output_dim, 256)
-            self.hcp_token_projection = nn.Linear(hcp_gcn_output_dim, hidden_dim)
-            self.hcp_summary_projection = nn.Linear(hcp_gcn_output_dim, hidden_dim)
+        self.sc_norm = nn.LayerNorm(256)
         fc_dim = fc_autoencoder.encoder[-1].normalized_shape[0]
         combined = 256 + fc_dim
         # 门控融合确保模型可按被试调整各类条件信息的贡献。
         self.value = nn.Linear(combined, hidden_dim)
         self.gate = nn.Sequential(nn.Linear(combined, hidden_dim), nn.Sigmoid())
-        self.fc_token_projection = nn.Linear(fc_dim, hidden_dim)
+        self.condition_norm = nn.LayerNorm(hidden_dim)
 
-    def forward(
+    def encode_modalities(
         self, sc_matrix: torch.Tensor, sc_edges: torch.Tensor, fc_warmup: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
         if self.sc_encoder_type == "hybrid":
-            graph_global, graph_tokens = self.graph(sc_matrix)
+            graph_global, _ = self.graph(sc_matrix)
             edge_global = self.edge_mlp(sc_edges)
             sc_global = torch.cat([graph_global, edge_global], dim=-1)
-            sc_tokens = self.graph_token_projection(graph_tokens)
-            sc_summary = self.edge_token_projection(edge_global)[:, None]
         else:
-            hcp_global, hcp_tokens = self.hcp_gcn(sc_matrix)
+            hcp_global, _ = self.hcp_gcn(sc_matrix)
             sc_global = self.hcp_global_projection(hcp_global)
-            sc_tokens = self.hcp_token_projection(hcp_tokens)
-            sc_summary = self.hcp_summary_projection(hcp_global)[:, None]
         warmup = self.fc_autoencoder.encode(fc_warmup)
+        return self.sc_norm(sc_global), warmup
+
+    def forward(
+        self, sc_matrix: torch.Tensor, sc_edges: torch.Tensor, fc_warmup: torch.Tensor
+    ) -> torch.Tensor:
+        sc_global, warmup = self.encode_modalities(sc_matrix, sc_edges, fc_warmup)
+        # 信息消融必须发生在编码后，避免零原始输入通过 bias/ROI embedding 产生伪条件。
+        if self.ablation == "fc1_only":
+            sc_global = torch.zeros_like(sc_global)
+        elif self.ablation == "sc_only":
+            warmup = torch.zeros_like(warmup)
         combined = torch.cat([sc_global, warmup], dim=-1)
         condition = self.value(combined) * self.gate(combined)
-        # Transformer 使用所有 token；TCN 虽不读取 memory，也保留统一调用接口。
-        memory = torch.cat(
-            [
-                sc_tokens,
-                sc_summary,
-                self.fc_token_projection(warmup)[:, None],
-                condition[:, None],
-            ],
-            dim=1,
-        )
-        return condition, memory
+        return self.condition_norm(condition)
 
 
 # ======================== 未来潜轨迹解码 ========================
@@ -177,7 +175,7 @@ class TCNDecoder(nn.Module):
         self.blocks = nn.ModuleList([FiLMTCNBlock(dim, dilation, dropout) for dilation in dilations])
         self.norm = nn.LayerNorm(dim)
 
-    def forward(self, condition: torch.Tensor, memory: torch.Tensor, steps: int) -> torch.Tensor:
+    def forward(self, condition: torch.Tensor, steps: int) -> torch.Tensor:
         if steps > len(self.queries):
             raise ValueError(f"Requested {steps} steps, maximum is {len(self.queries)}")
         x = self.queries[:steps][None].expand(condition.shape[0], -1, -1) + condition[:, None]
@@ -187,23 +185,45 @@ class TCNDecoder(nn.Module):
 
 
 class TransformerTrajectoryDecoder(nn.Module):
-    """让每个未来时距 query 交叉注意 SC/首窗 FC 条件 token 的解码器。"""
+    """在统一全局条件下，用时间 self-attention 预测完整未来潜轨迹。"""
 
     def __init__(
         self, dim: int = 256, max_steps: int = 256, layers: int = 4, heads: int = 8, ffn_dim: int = 1024, dropout: float = 0.1
     ) -> None:
         super().__init__()
         self.queries = nn.Parameter(torch.randn(max_steps, dim) * 0.02)
-        layer = nn.TransformerDecoderLayer(
+        layer = nn.TransformerEncoderLayer(
             d_model=dim, nhead=heads, dim_feedforward=ffn_dim, dropout=dropout, activation="gelu", batch_first=True, norm_first=True
         )
-        self.decoder = nn.TransformerDecoder(layer, num_layers=layers, norm=nn.LayerNorm(dim))
+        self.encoder = nn.TransformerEncoder(layer, num_layers=layers, norm=nn.LayerNorm(dim))
 
-    def forward(self, condition: torch.Tensor, memory: torch.Tensor, steps: int) -> torch.Tensor:
+    def forward(self, condition: torch.Tensor, steps: int) -> torch.Tensor:
         if steps > len(self.queries):
             raise ValueError(f"Requested {steps} steps, maximum is {len(self.queries)}")
         query = self.queries[:steps][None].expand(condition.shape[0], -1, -1) + condition[:, None]
-        return self.decoder(query, memory)
+        return self.encoder(query)
+
+
+class GRUTrajectoryDecoder(nn.Module):
+    """在与 Transformer 相同的全局条件下预测完整未来潜轨迹。"""
+
+    def __init__(self, dim: int = 256, max_steps: int = 256, layers: int = 2, dropout: float = 0.1) -> None:
+        super().__init__()
+        if layers < 1:
+            raise ValueError("GRU layers must be positive")
+        self.layers = layers
+        self.queries = nn.Parameter(torch.randn(max_steps, dim) * 0.02)
+        self.initial = nn.Linear(dim, layers * dim)
+        self.gru = nn.GRU(dim, dim, num_layers=layers, batch_first=True, dropout=dropout if layers > 1 else 0.0)
+        self.norm = nn.LayerNorm(dim)
+
+    def forward(self, condition: torch.Tensor, steps: int) -> torch.Tensor:
+        if steps > len(self.queries):
+            raise ValueError(f"Requested {steps} steps, maximum is {len(self.queries)}")
+        sequence = self.queries[:steps][None].expand(condition.shape[0], -1, -1) + condition[:, None]
+        initial = self.initial(condition).view(condition.shape[0], self.layers, -1).transpose(0, 1).contiguous()
+        output, _ = self.gru(sequence, initial)
+        return self.norm(output)
 
 
 def torch_edges_to_matrix(edges: torch.Tensor, n_nodes: int = 90) -> torch.Tensor:
@@ -234,6 +254,7 @@ class ConditionalSequenceModel(nn.Module):
         transformer_layers: int = 4,
         transformer_heads: int = 8,
         transformer_ffn_dim: int = 1024,
+        gru_layers: int = 2,
         tcn_dilations=(1, 2, 4, 8, 16, 32),
         dropout: float = 0.1,
         sc_mean: torch.Tensor | None = None,
@@ -241,10 +262,17 @@ class ConditionalSequenceModel(nn.Module):
         sc_encoder_type: str = "hybrid",
         hcp_gcn_hidden_dim: int = 128,
         hcp_gcn_output_dim: int = 64,
+        ablation: str = "full",
     ) -> None:
         super().__init__()
         self.n_nodes = n_nodes
         self.n_edges = n_nodes * (n_nodes - 1) // 2
+        fc_latent_dim = int(fc_autoencoder.decoder[0].in_features)
+        if hidden_dim != fc_latent_dim:
+            raise ValueError(
+                "hidden_dim must equal the frozen FC autoencoder latent dimension "
+                f"({fc_latent_dim}), got {hidden_dim}"
+            )
         self.fc_autoencoder = fc_autoencoder
         self.condition_encoder = ConditionEncoder(
             fc_autoencoder,
@@ -257,6 +285,7 @@ class ConditionalSequenceModel(nn.Module):
             sc_encoder_type,
             hcp_gcn_hidden_dim,
             hcp_gcn_output_dim,
+            ablation,
         )
         if decoder_type == "tcn":
             self.temporal = TCNDecoder(hidden_dim, 256, tcn_dilations, dropout)
@@ -264,9 +293,10 @@ class ConditionalSequenceModel(nn.Module):
             self.temporal = TransformerTrajectoryDecoder(
                 hidden_dim, 256, transformer_layers, transformer_heads, transformer_ffn_dim, dropout
             )
+        elif decoder_type == "gru":
+            self.temporal = GRUTrajectoryDecoder(hidden_dim, 256, gru_layers, dropout)
         else:
-            raise ValueError("decoder_type must be 'tcn' or 'transformer'")
-        self.static_head = nn.Linear(hidden_dim, self.n_edges)
+            raise ValueError("decoder_type must be 'gru', 'tcn', or 'transformer'")
         # 模板与 SC 标准化参数随检查点保存，但不参与梯度更新。
         self.register_buffer("group_template", group_template.float())
         self.register_buffer("sc_mean", torch.zeros(self.n_edges) if sc_mean is None else sc_mean.float())
@@ -280,14 +310,12 @@ class ConditionalSequenceModel(nn.Module):
         steps: int | None = None,
     ) -> Prediction:
         steps = steps or self.group_template.shape[0]
-        condition, memory = self.condition_encoder(sc_matrix, sc_edges, fc_warmup)
-        latent = self.temporal(condition, memory, steps)
+        condition = self.condition_encoder(sc_matrix, sc_edges, fc_warmup)
+        latent = self.temporal(condition, steps)
         decoded = self.fc_autoencoder.decode(latent)
-        # 解码后的时间均值移除，确保这一项只表达动态残差。
-        dynamic = decoded - decoded.mean(dim=1, keepdim=True)
-        static = self.static_head(condition)[:, None]
-        template = self.group_template[:steps][None]
-        fc_z = template + static + dynamic
+        # E0004--E0007 只允许冻结的 E0003 reconstruction decoder 映射回 FC；
+        # 不使用额外的 4005 维旁路，后续 direct edge head 才是独立 decoder 对照。
+        fc_z = decoded
         matrices = torch_edges_to_matrix(torch.tanh(fc_z), self.n_nodes)
         return Prediction(fc_z_edges=fc_z, fc_matrices=matrices, latent=latent)
 

@@ -20,7 +20,7 @@ def test_autoencoder_edge_only_loss_is_smooth_l1():
     assert torch.allclose(loss, torch.nn.functional.smooth_l1_loss(prediction, target))
 
 
-@pytest.mark.parametrize("decoder", ["tcn", "transformer"])
+@pytest.mark.parametrize("decoder", ["gru", "tcn", "transformer"])
 @pytest.mark.parametrize("sc_encoder", ["hybrid", "hcp_gcn"])
 def test_sequence_models_return_full_valid_shape(decoder, sc_encoder):
     torch.manual_seed(0)
@@ -37,6 +37,7 @@ def test_sequence_models_return_full_valid_shape(decoder, sc_encoder):
         transformer_layers=1,
         transformer_heads=4,
         transformer_ffn_dim=64,
+        gru_layers=2,
         tcn_dilations=(1, 2),
         dropout=0,
         sc_encoder_type=sc_encoder,
@@ -48,9 +49,42 @@ def test_sequence_models_return_full_valid_shape(decoder, sc_encoder):
     result = model(sc, sc_edges, torch.randn(batch, edges))
     assert result.fc_z_edges.shape == (batch, steps, edges)
     assert result.fc_matrices.shape == (batch, steps, nodes, nodes)
+    torch.testing.assert_close(result.fc_z_edges, autoencoder.decode(result.latent))
     torch.testing.assert_close(result.fc_matrices, result.fc_matrices.transpose(-1, -2))
     torch.testing.assert_close(torch.diagonal(result.fc_matrices, dim1=-2, dim2=-1), torch.ones(batch, steps, nodes))
     assert result.fc_matrices.abs().max() <= 1
+
+
+@pytest.mark.parametrize(
+    ("ablation", "zero_slice"),
+    [("fc1_only", slice(0, 256)), ("sc_only", slice(256, None))],
+)
+def test_information_ablation_zeros_embeddings_after_encoding(ablation, zero_slice):
+    autoencoder = FCAutoencoder(6, latent_dim=4, dropout=0)
+    model = ConditionalSequenceModel(
+        autoencoder,
+        torch.zeros(3, 6),
+        decoder_type="gru",
+        n_nodes=4,
+        hidden_dim=4,
+        graph_layers=1,
+        graph_heads=4,
+        gru_layers=1,
+        dropout=0,
+        ablation=ablation,
+    )
+    captured = {}
+
+    def capture_combined(_module, arguments):
+        captured["combined"] = arguments[0].detach()
+
+    handle = model.condition_encoder.value.register_forward_pre_hook(capture_combined)
+    sc = torch.rand(2, 4, 4)
+    sc = (sc + sc.transpose(1, 2)) / 2
+    edges = sc[:, torch.triu_indices(4, 4, 1)[0], torch.triu_indices(4, 4, 1)[1]]
+    model(sc, edges, torch.rand(2, 6))
+    handle.remove()
+    assert torch.count_nonzero(captured["combined"][:, zero_slice]) == 0
 
 
 def test_hcp_gcn_encoder_normalizes_and_backpropagates():
@@ -83,6 +117,16 @@ def test_composite_loss_backpropagates():
         CompositeLoss({**weights, "residual_corr": 0.5, "static": 0.25}, 17)
     loss.backward()
     assert torch.isfinite(prediction.grad).all()
+
+
+def test_composite_loss_uses_configured_huber_for_edge_and_difference():
+    prediction = torch.tensor([[[0.0], [2.0]]], requires_grad=True)
+    target = torch.zeros_like(prediction)
+    criterion = CompositeLoss({"edge": 1.0, "difference": 0.25}, 1, huber_beta=1.0)
+    loss, components = criterion(prediction, target, torch.zeros_like(target[0]))
+    assert components["edge"].item() == pytest.approx(0.75)
+    assert components["difference"].item() == pytest.approx(1.5)
+    assert loss.item() == pytest.approx(1.125)
 
 
 def test_gcn_gru_baseline_uses_common_prediction_contract():
