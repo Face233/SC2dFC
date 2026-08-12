@@ -1,0 +1,12 @@
+schema_version: 1
+id: A0003
+type: fc_autoencoder
+path: outputs/E0003/runs/E0003-s42-20260810T064954Z-4d4337d/checkpoints/best.pt
+sha256: 2228c6d742c1eb3225eb550ae3839b7be55cbaac8a9bfafa018780a0d961ec97
+experiment_id: E0003
+run_id: E0003-s42-20260810T064954Z-4d4337d
+config_sha256: 7ac0efe2e2e01f9b3a52ad028853400eb022c1a4387005ad03f941a5830389c4
+created_at: '2026-08-11T11:23:15Z'
+dataset_version: dataset_lr_v1
+split_version: split_lr_v1
+window_length: 83

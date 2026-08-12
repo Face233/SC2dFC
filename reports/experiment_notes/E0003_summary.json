@@ -1,0 +1,65 @@
+{
+  "experiment_id": "E0003",
+  "primary_metric": "validation_loss",
+  "completed_runs": 1,
+  "failed_runs": 1,
+  "mean": 0.02410417597127866,
+  "std": 0.0,
+  "preprocessing": {
+    "dataset_version": "dataset_lr_v1",
+    "preprocessing_version": "preprocess_lr_v1",
+    "split_version": "split_lr_v1",
+    "window_length_tr": 83,
+    "stride_tr": 5,
+    "tr_seconds": 0.72,
+    "window_length_seconds": 59.76,
+    "stride_seconds": 3.5999999999999996,
+    "n_timepoints": 1200,
+    "n_dfc_windows_per_run": 224,
+    "n_nodes": 90,
+    "fisher_clip": 0.999999,
+    "estimator": "rectangular_pearson",
+    "fc_representation": "Fisher-z transformed upper-triangle edges",
+    "cache_path": "data/cache/dfc/window_83.zarr"
+  },
+  "runs": [
+    {
+      "schema_version": 1,
+      "experiment_id": "E0003",
+      "run_id": "E0003-s42-20260810T061621Z-4d4337d",
+      "seed": 42,
+      "level": 1,
+      "status": "RUNNING",
+      "started_at": "2026-08-10T06:16:23Z",
+      "config_sha256": "7ac0efe2e2e01f9b3a52ad028853400eb022c1a4387005ad03f941a5830389c4",
+      "git": {
+        "commit": "4d4337d982b85c3f75852ca79e203b4fbf0c8dcf",
+        "branch": "main",
+        "remote": "https://github.com/Face233/SC2dFC.git",
+        "dirty": false,
+        "status": []
+      }
+    },
+    {
+      "schema_version": 1,
+      "experiment_id": "E0003",
+      "run_id": "E0003-s42-20260810T064954Z-4d4337d",
+      "seed": 42,
+      "level": 1,
+      "status": "COMPLETED",
+      "started_at": "2026-08-10T06:49:55Z",
+      "config_sha256": "7ac0efe2e2e01f9b3a52ad028853400eb022c1a4387005ad03f941a5830389c4",
+      "git": {
+        "commit": "4d4337d982b85c3f75852ca79e203b4fbf0c8dcf",
+        "branch": "main",
+        "remote": "https://github.com/Face233/SC2dFC.git",
+        "dirty": false,
+        "status": []
+      },
+      "ended_at": "2026-08-11T11:23:15Z",
+      "checkpoint": "/XYAIFS00/HOME/sysu_linying/sysu_linying_1/HuangZW/HCP_New/outputs/E0003/runs/E0003-s42-20260810T064954Z-4d4337d/checkpoints/best.pt",
+      "artifact_manifest": "/XYAIFS00/HOME/sysu_linying/sysu_linying_1/HuangZW/HCP_New/configs/artifacts/A0003.yaml"
+    }
+  ],
+  "generated_at": "2026-08-12T01:50:30Z"
+}
