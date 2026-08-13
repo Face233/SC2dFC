@@ -114,7 +114,7 @@ Huber 不是套在 MSE 外面，而是替代纯平方误差：小误差区间保
 
 `future hidden (256) -> trainable Linear(256, 4005) -> predicted FC edges`
 
-该实验使用 `output_head=direct_edge_linear`，替换 E0003 reconstruction decoder；其余输入、SC encoder、时序模型、split、seed、训练损失和早停规则全部保持不变。E0003 encoder 仍可用于编码 FC1，变化仅限于输出 decoder。
+该实验使用 `output_head=direct_edge_linear`，替换 E0003 reconstruction decoder；其余输入、SC encoder、时序模型、split、seed、训练损失和早停规则全部保持不变。E0003 encoder 仍可用于编码 FC1，变化仅限于输出 decoder。该计划现已登记为 `E0008_gcn_gru_direct_edge_v1`，以 E0004 为唯一基线。
 
 如果 direct head 在验证集带来稳定改善，再把它扩展到其余架构，形成完整的 decoder 因子比较。当前版本只记录该计划，尚未实现或创建 direct-head 实验配置，避免未经验证就扩大实验数量。
 

@@ -98,7 +98,7 @@ def command_experiment_create(args) -> None:
         document["evaluation"]["primary_metric"] = "validation_loss"
     elif task == "sequence":
         document["model"]["sc_encoder"] = args.sc_encoder
-        document["model"]["output_head"] = "e0003_reconstruction_decoder"
+        document["model"]["output_head"] = args.output_head
         if args.model == "gru":
             document["model"]["gru_layers"] = args.gru_layers
         document["training"].update({

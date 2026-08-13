@@ -263,6 +263,7 @@ class ConditionalSequenceModel(nn.Module):
         hcp_gcn_hidden_dim: int = 128,
         hcp_gcn_output_dim: int = 64,
         ablation: str = "full",
+        output_head: str = "e0003_reconstruction_decoder",
     ) -> None:
         super().__init__()
         self.n_nodes = n_nodes
@@ -274,6 +275,9 @@ class ConditionalSequenceModel(nn.Module):
                 f"({fc_latent_dim}), got {hidden_dim}"
             )
         self.fc_autoencoder = fc_autoencoder
+        if output_head not in {"e0003_reconstruction_decoder", "direct_edge_linear"}:
+            raise ValueError(f"Unsupported output_head: {output_head}")
+        self.output_head = output_head
         self.condition_encoder = ConditionEncoder(
             fc_autoencoder,
             n_nodes,
@@ -297,6 +301,7 @@ class ConditionalSequenceModel(nn.Module):
             self.temporal = GRUTrajectoryDecoder(hidden_dim, 256, gru_layers, dropout)
         else:
             raise ValueError("decoder_type must be 'gru', 'tcn', or 'transformer'")
+        self.direct_edge_head = nn.Linear(hidden_dim, self.n_edges) if output_head == "direct_edge_linear" else None
         # 模板与 SC 标准化参数随检查点保存，但不参与梯度更新。
         self.register_buffer("group_template", group_template.float())
         self.register_buffer("sc_mean", torch.zeros(self.n_edges) if sc_mean is None else sc_mean.float())
@@ -312,7 +317,7 @@ class ConditionalSequenceModel(nn.Module):
         steps = steps or self.group_template.shape[0]
         condition = self.condition_encoder(sc_matrix, sc_edges, fc_warmup)
         latent = self.temporal(condition, steps)
-        decoded = self.fc_autoencoder.decode(latent)
+        decoded = self.fc_autoencoder.decode(latent) if self.direct_edge_head is None else self.direct_edge_head(latent)
         # E0004--E0007 只允许冻结的 E0003 reconstruction decoder 映射回 FC；
         # 不使用额外的 4005 维旁路，后续 direct edge head 才是独立 decoder 对照。
         fc_z = decoded

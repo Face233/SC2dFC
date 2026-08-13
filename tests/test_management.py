@@ -73,6 +73,15 @@ def test_managed_gru_experiment_accepts_objective_loss(tmp_path: Path):
     assert validate_experiment_config(config)["model"]["name"] == "gru"
 
 
+def test_managed_gru_experiment_accepts_direct_edge_head(tmp_path: Path):
+    config = managed_config(tmp_path)
+    config["experiment"]["task"] = "sequence"
+    config["model"] = {"name": "gru", "sc_encoder": "hcp_gcn", "output_head": "direct_edge_linear"}
+    config["evaluation"]["primary_metric"] = "objective_loss"
+    config["artifacts"] = {"fc_autoencoder": {"id": "A0003", "path": "best.pt", "sha256": "abc"}}
+    assert validate_experiment_config(config)["model"]["output_head"] == "direct_edge_linear"
+
+
 def test_data_manifest_and_split_checksums_are_enforced(tmp_path: Path):
     config = managed_config(tmp_path)
     data = tmp_path / "data"

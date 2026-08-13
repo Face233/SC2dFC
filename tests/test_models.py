@@ -22,7 +22,8 @@ def test_autoencoder_edge_only_loss_is_smooth_l1():
 
 @pytest.mark.parametrize("decoder", ["gru", "tcn", "transformer"])
 @pytest.mark.parametrize("sc_encoder", ["hybrid", "hcp_gcn"])
-def test_sequence_models_return_full_valid_shape(decoder, sc_encoder):
+@pytest.mark.parametrize("output_head", ["e0003_reconstruction_decoder", "direct_edge_linear"])
+def test_sequence_models_return_full_valid_shape(decoder, sc_encoder, output_head):
     torch.manual_seed(0)
     batch, nodes, edges, steps = 2, 90, 4005, 5
     autoencoder = FCAutoencoder(edges, latent_dim=32, dropout=0)
@@ -41,6 +42,7 @@ def test_sequence_models_return_full_valid_shape(decoder, sc_encoder):
         tcn_dilations=(1, 2),
         dropout=0,
         sc_encoder_type=sc_encoder,
+        output_head=output_head,
     )
     sc = torch.rand(batch, nodes, nodes)
     sc = (sc + sc.transpose(1, 2)) / 2
@@ -49,7 +51,8 @@ def test_sequence_models_return_full_valid_shape(decoder, sc_encoder):
     result = model(sc, sc_edges, torch.randn(batch, edges))
     assert result.fc_z_edges.shape == (batch, steps, edges)
     assert result.fc_matrices.shape == (batch, steps, nodes, nodes)
-    torch.testing.assert_close(result.fc_z_edges, autoencoder.decode(result.latent))
+    if output_head == "e0003_reconstruction_decoder":
+        torch.testing.assert_close(result.fc_z_edges, autoencoder.decode(result.latent))
     torch.testing.assert_close(result.fc_matrices, result.fc_matrices.transpose(-1, -2))
     torch.testing.assert_close(torch.diagonal(result.fc_matrices, dim1=-2, dim2=-1), torch.ones(batch, steps, nodes))
     assert result.fc_matrices.abs().max() <= 1

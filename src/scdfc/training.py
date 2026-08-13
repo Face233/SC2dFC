@@ -337,7 +337,7 @@ def build_sequence_model(
     sc_encoder_type = sc_encoder_type or str(model_cfg.get("sc_encoder", "hybrid"))
     ablation = ablation or (checkpoint_payload or {}).get("ablation", "full")
     output_head = str(model_cfg.get("output_head", "e0003_reconstruction_decoder"))
-    if decoder_type in {"gru", "tcn", "transformer"} and output_head != "e0003_reconstruction_decoder":
+    if decoder_type in {"gru", "tcn", "transformer"} and output_head not in {"e0003_reconstruction_decoder", "direct_edge_linear"}:
         raise ValueError(f"Unsupported conditional output head: {output_head}")
     group_template = torch.from_numpy(stats["group_template"])
     if decoder_type == "pca_ridge":
@@ -376,6 +376,7 @@ def build_sequence_model(
         hcp_gcn_hidden_dim=int(model_cfg.get("hcp_gcn_hidden_dim", 128)),
         hcp_gcn_output_dim=int(model_cfg.get("hcp_gcn_output_dim", 64)),
         ablation=ablation,
+        output_head=output_head,
     ).to(device)
 
 
@@ -622,7 +623,7 @@ def train_sequence_model(
                 "schema_version": 1, "model": model.state_dict(), "epoch": epoch, "score": score,
                 "primary_metric": primary_metric, "decoder_type": decoder_type,
                 "sc_encoder_type": sc_encoder_type, "ablation": ablation, "window_length": window_length,
-                "validation_metrics": validation_metrics, "output_head": "e0003_reconstruction_decoder",
+                "validation_metrics": validation_metrics, "output_head": str(config["model"].get("output_head", "e0003_reconstruction_decoder")),
                 "fc_reconstruction_decoder_frozen": not finetune_fc_decoder,
             }
             payload.update(checkpoint_metadata or {})
@@ -655,7 +656,7 @@ def train_sequence_model(
                 "schema_version": 1, "model": model.state_dict(), "epoch": epoch, "score": score,
                 "primary_metric": primary_metric, "decoder_type": decoder_type,
                 "sc_encoder_type": sc_encoder_type, "ablation": ablation, "window_length": window_length,
-                "validation_metrics": validation_metrics, "output_head": "e0003_reconstruction_decoder",
+                "validation_metrics": validation_metrics, "output_head": str(config["model"].get("output_head", "e0003_reconstruction_decoder")),
                 "fc_reconstruction_decoder_frozen": not finetune_fc_decoder,
             }
             last_payload.update(checkpoint_metadata or {})

@@ -123,8 +123,8 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
     if task == "sequence":
         if model_name in {"gru", "tcn", "transformer"} and config.get("model", {}).get("sc_encoder") not in {"hybrid", "hcp_gcn"}:
             raise ValueError("Conditional sequence models require model.sc_encoder to be hybrid or hcp_gcn")
-        if model_name in {"gru", "tcn", "transformer"} and config.get("model", {}).get("output_head") != "e0003_reconstruction_decoder":
-            raise ValueError("Conditional sequence models currently require model.output_head=e0003_reconstruction_decoder")
+        if model_name in {"gru", "tcn", "transformer"} and config.get("model", {}).get("output_head") not in {"e0003_reconstruction_decoder", "direct_edge_linear"}:
+            raise ValueError("Conditional sequence models require model.output_head=e0003_reconstruction_decoder or direct_edge_linear")
         artifact = config.get("artifacts", {}).get("fc_autoencoder", {})
         for field in ["id", "path", "sha256"]:
             if not artifact.get(field):
