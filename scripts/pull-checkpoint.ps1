@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [ValidatePattern("^E\\d{4}$")]
+    [ValidatePattern('^E\d{4}$')]
     [string]$ExperimentId,
 
     [string]$RunId,
