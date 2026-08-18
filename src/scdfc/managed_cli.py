@@ -8,7 +8,7 @@ import torch
 
 from .config import load_config, resolve_path
 from .data import fit_training_statistics
-from .evaluation import evaluate_analytic_baseline, evaluate_checkpoint
+from .evaluation import dynamic_audit_checkpoint, evaluate_analytic_baseline, evaluate_checkpoint
 from .management import (
     allocate_experiment_id,
     conclude_experiment,
@@ -101,10 +101,13 @@ def command_experiment_create(args) -> None:
         document["model"]["output_head"] = args.output_head
         if args.model == "gru":
             document["model"]["gru_layers"] = args.gru_layers
+        loss_weights = {"edge": 1.0, "difference": args.difference_weight}
+        if float(args.variance_weight) != 0.0:
+            loss_weights["variance"] = float(args.variance_weight)
         document["training"].update({
             "huber_beta": args.huber_beta,
             "finetune_fc_decoder": args.finetune_fc_decoder,
-            "loss_weights": {"edge": 1.0, "difference": args.difference_weight},
+            "loss_weights": loss_weights,
         })
     artifact = _artifact_reference(root, args.artifact)
     if artifact:
@@ -229,6 +232,33 @@ def command_evaluate_run(args) -> None:
     )
     if lock is not None:
         lock.write_text(json.dumps({"run_id": args.run_id, "completed_at": utc_now(), "config_sha256": metadata["config_sha256"]}, indent=2), encoding="utf-8")
+    print(report_path)
+
+
+def command_dynamic_audit(args) -> None:
+    """Run the validation-only dynamic calibration report for a managed sequence run."""
+    root = _root()
+    run_dir = find_run(root, args.run_id)
+    metadata = json.loads((run_dir / "metadata.json").read_text(encoding="utf-8"))
+    config = load_config(run_dir / "config_resolved.yaml")
+    if config_sha256(config) != metadata["config_sha256"]:
+        raise RuntimeError("Resolved config no longer matches the run metadata")
+    # Managed runs may have been trained on another machine with an absolute root.
+    # Preserve the frozen config for provenance, but resolve local data/artifacts from this checkout.
+    config["paths"]["root"] = str(root)
+    if config["experiment"].get("task") != "sequence":
+        raise ValueError("Dynamic audit is available only for sequence-model runs")
+    verify_data_bindings(config)
+    artifact = verify_artifact(config)
+    checkpoint = run_dir / "checkpoints" / "best.pt"
+    payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
+    for key, expected in {"experiment_id": metadata["experiment_id"], "run_id": args.run_id, "config_sha256": metadata["config_sha256"]}.items():
+        if payload.get(key) != expected:
+            raise RuntimeError(f"Checkpoint {key} does not match run metadata")
+    report_path = dynamic_audit_checkpoint(
+        config, int(config["data"]["window_length"]), checkpoint, _stats_path(config, int(config["data"]["window_length"])),
+        split_name=args.split, output_dir=run_dir, device_name=args.device, autoencoder_path=artifact,
+    )
     print(report_path)
 
 

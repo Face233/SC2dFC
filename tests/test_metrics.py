@@ -1,6 +1,6 @@
 import numpy as np
 
-from scdfc.evaluation import dynamic_state_metrics, retrieval_metrics, sequence_metrics, subject_bootstrap_difference
+from scdfc.evaluation import dynamic_calibration_metrics, dynamic_state_metrics, retrieval_metrics, sequence_metrics, subject_bootstrap_difference
 
 
 def test_metrics_are_best_for_exact_prediction():
@@ -35,3 +35,13 @@ def test_state_metrics_exact():
     labels = np.array([0, 0, 1, 1, 0, 2, 2])
     metrics = dynamic_state_metrics(labels, labels, 3)
     assert all(value == 0 for value in metrics.values())
+
+
+def test_dynamic_calibration_reports_expected_amplitude_and_power_ratios():
+    time = np.arange(64, dtype=float)
+    target = np.stack([np.sin(2 * np.pi * time / 20), np.cos(2 * np.pi * time / 28)], axis=1)
+    metrics = dynamic_calibration_metrics(target * 0.5, target, sample_interval_seconds=3.6)
+    assert np.isclose(metrics["temporal_std_ratio"], 0.5)
+    assert np.isclose(metrics["difference_std_ratio"], 0.5)
+    assert metrics["difference_temporal_pearson"] > 0.999
+    assert np.isclose(metrics["low_band_power_ratio"], 0.25, atol=0.02)

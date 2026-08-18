@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 from pathlib import Path
 from typing import Any, Iterable
@@ -79,6 +80,86 @@ def sequence_metrics(
         "node_strength_mae": float(np.mean(np.abs(pred_strength - target_strength))),
         "fcd_pearson": float(pearsonr(pred_fcd[tri], true_fcd[tri]).statistic),
         "fcd_wasserstein": float(wasserstein_distance(pred_fcd[tri], true_fcd[tri])),
+    }
+
+
+_DYNAMIC_AUDIT_BANDS_HZ = {
+    "low": (0.003, 0.017),
+    "mid": (0.017, 0.033),
+}
+
+
+def _median_ratio(numerator: np.ndarray, denominator: np.ndarray, eps: float) -> tuple[float, int]:
+    """Return a robust ratio across valid edges and how many edges contributed."""
+    valid = denominator > eps
+    if not np.any(valid):
+        return float("nan"), 0
+    return float(np.median(numerator[valid] / denominator[valid])), int(valid.sum())
+
+
+def _median_temporal_correlation(prediction: np.ndarray, target: np.ndarray, eps: float) -> tuple[float, int]:
+    prediction = prediction - prediction.mean(0, keepdims=True)
+    target = target - target.mean(0, keepdims=True)
+    denominator = np.linalg.norm(prediction, axis=0) * np.linalg.norm(target, axis=0)
+    valid = denominator > eps
+    if not np.any(valid):
+        return float("nan"), 0
+    correlations = (prediction[:, valid] * target[:, valid]).sum(0) / denominator[valid]
+    return float(np.median(correlations)), int(valid.sum())
+
+
+def _band_power_ratios(prediction: np.ndarray, target: np.ndarray, sample_interval_seconds: float, eps: float) -> dict[str, tuple[float, int]]:
+    """Compare Hann-windowed temporal power while deliberately discarding phase."""
+    steps = prediction.shape[0]
+    window = np.hanning(steps)[:, None]
+    prediction_power = np.abs(np.fft.rfft((prediction - prediction.mean(0, keepdims=True)) * window, axis=0)) ** 2
+    target_power = np.abs(np.fft.rfft((target - target.mean(0, keepdims=True)) * window, axis=0)) ** 2
+    frequencies = np.fft.rfftfreq(steps, d=sample_interval_seconds)
+    result: dict[str, tuple[float, int]] = {}
+    for name, (lower, upper) in _DYNAMIC_AUDIT_BANDS_HZ.items():
+        bins = (frequencies >= lower) & (frequencies < upper)
+        if not np.any(bins):
+            result[name] = (float("nan"), 0)
+            continue
+        predicted_band = prediction_power[bins].mean(0)
+        target_band = target_power[bins].mean(0)
+        valid = target_band > eps
+        if not np.any(valid):
+            result[name] = (float("nan"), 0)
+            continue
+        # Geometric median avoids a few low-power edges dominating a raw ratio.
+        ratio = np.exp(np.median(np.log((predicted_band[valid] + eps) / (target_band[valid] + eps))))
+        result[name] = (float(ratio), int(valid.sum()))
+    return result
+
+
+def dynamic_calibration_metrics(
+    prediction: np.ndarray,
+    target: np.ndarray,
+    sample_interval_seconds: float,
+    eps: float = 1e-6,
+) -> dict[str, float]:
+    """Measure dFC amplitude and spectral calibration for one [time, edge] sequence."""
+    if prediction.shape != target.shape or prediction.ndim != 2:
+        raise ValueError("prediction and target must have matching [time, edge] shapes")
+    if prediction.shape[0] < 4:
+        raise ValueError("Dynamic calibration requires at least four time windows")
+    temporal_ratio, temporal_count = _median_ratio(prediction.std(0), target.std(0), eps)
+    prediction_diff, target_diff = np.diff(prediction, axis=0), np.diff(target, axis=0)
+    difference_ratio, difference_count = _median_ratio(prediction_diff.std(0), target_diff.std(0), eps)
+    difference_corr, correlation_count = _median_temporal_correlation(prediction_diff, target_diff, eps)
+    powers = _band_power_ratios(prediction, target, sample_interval_seconds, eps)
+    return {
+        "temporal_std_ratio": temporal_ratio,
+        "difference_std_ratio": difference_ratio,
+        "difference_temporal_pearson": difference_corr,
+        "low_band_power_ratio": powers["low"][0],
+        "mid_band_power_ratio": powers["mid"][0],
+        "valid_temporal_edges": float(temporal_count),
+        "valid_difference_edges": float(difference_count),
+        "valid_difference_correlation_edges": float(correlation_count),
+        "valid_low_band_edges": float(powers["low"][1]),
+        "valid_mid_band_edges": float(powers["mid"][1]),
     }
 
 
@@ -189,12 +270,125 @@ def collect_predictions(model, loader, device):
     """批量推理并保持预测与 subject/run 身份一一对应。"""
     predictions, targets, subjects, runs = [], [], [], []
     for batch in loader:
-        result = model(batch["sc_matrix"].to(device), batch["sc_edges"].to(device), batch["fc_warmup"].to(device))
+        target = batch["fc_future"]
+        result = model(
+            batch["sc_matrix"].to(device), batch["sc_edges"].to(device), batch["fc_warmup"].to(device),
+            steps=target.shape[1],
+        )
         predictions.append(result.fc_z_edges.cpu().numpy())
-        targets.append(batch["fc_future"].numpy())
+        targets.append(target.numpy())
         subjects.extend(batch["subject_id"])
         runs.extend(batch["run_name"])
     return np.concatenate(predictions), np.concatenate(targets), subjects, runs
+
+
+def _dynamic_audit_aggregate(rows: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
+    metric_names = [
+        "temporal_std_ratio", "difference_std_ratio", "difference_temporal_pearson",
+        "low_band_power_ratio", "mid_band_power_ratio",
+    ]
+    aggregate: dict[str, dict[str, float]] = {}
+    for name in metric_names:
+        values = np.asarray([row[name] for row in rows], dtype=float)
+        values = values[np.isfinite(values)]
+        if not len(values):
+            aggregate[name] = {"median": float("nan"), "iqr": float("nan"), "n": 0.0}
+            continue
+        summary = {
+            "median": float(np.median(values)),
+            "iqr": float(np.quantile(values, 0.75) - np.quantile(values, 0.25)),
+            "n": float(len(values)),
+        }
+        if name.endswith("_ratio"):
+            summary["fraction_below_one"] = float(np.mean(values < 1.0))
+        aggregate[name] = summary
+    return aggregate
+
+
+def dynamic_audit_checkpoint(
+    config: dict[str, Any],
+    window_length: int,
+    checkpoint: str | Path,
+    stats_path: str | Path,
+    split_name: str = "val",
+    output_dir: str | Path | None = None,
+    device_name: str | None = None,
+    autoencoder_path: str | Path | None = None,
+) -> Path:
+    """Create a validation-only dynamic calibration audit for one managed checkpoint."""
+    if split_name not in {"train", "val"}:
+        raise ValueError("Dynamic audit is restricted to train or val splits")
+    seed_everything(int(config["seed"]))
+    device = device_from_arg(device_name)
+    model, _payload = _load_model(config, window_length, checkpoint, Path(stats_path), device, autoencoder_path)
+    dataset = DFCSequenceDataset(config, window_length, split_name, stats_path)
+    loader = DataLoader(dataset, batch_size=int(config["training"]["batch_size"]), shuffle=False, num_workers=0)
+    prediction, target, subjects, runs = collect_predictions(model, loader, device)
+    template = model.group_template.cpu().numpy()[: target.shape[1]]
+    warmup = np.stack([dataset[index]["fc_warmup"].numpy() for index in range(len(dataset))])
+    model_name = str(config.get("experiment", {}).get("id", "model"))
+    methods = {
+        model_name: prediction,
+        "group_mean": np.broadcast_to(template[None], target.shape),
+        "fc1_persistence": np.broadcast_to(warmup[:, None], target.shape),
+    }
+    nonoverlap = nonoverlap_horizon(window_length, int(config["data"]["stride"]))
+    interval = float(config["data"]["stride"]) * float(config["data"]["tr_seconds"])
+    per_sample: list[dict[str, Any]] = []
+    method_summaries: dict[str, dict[str, dict[str, float]]] = {}
+    for name, predicted in methods.items():
+        rows = []
+        for index, (pred, true, subject, run) in enumerate(zip(predicted, target, subjects, runs)):
+            full = dynamic_calibration_metrics(pred, true, interval)
+            long = dynamic_calibration_metrics(pred[nonoverlap:], true[nonoverlap:], interval)
+            row = {
+                "method": name, "subject_id": subject, "run": run, "sample_index": index,
+                **{f"full_{key}": value for key, value in full.items()},
+                **{f"nonoverlap_{key}": value for key, value in long.items()},
+            }
+            rows.append({key.removeprefix("full_"): value for key, value in row.items() if key.startswith("full_")})
+            per_sample.append(row)
+        method_summaries[name] = {
+            "full": _dynamic_audit_aggregate(rows),
+            "nonoverlap": _dynamic_audit_aggregate([
+                {key.removeprefix("nonoverlap_"): value for key, value in row.items() if key.startswith("nonoverlap_")}
+                for row in per_sample if row["method"] == name
+            ]),
+        }
+    model_delta = np.asarray([
+        row["full_difference_std_ratio"] for row in per_sample if row["method"] == model_name
+    ], dtype=float)
+    model_delta = model_delta[np.isfinite(model_delta)]
+    confirmed = bool(len(model_delta) and np.median(model_delta) < 0.80 and np.mean(model_delta < 1.0) >= 0.75)
+    destination = Path(output_dir) if output_dir is not None else Path(checkpoint).resolve().parent
+    destination = destination / f"dynamic_audit_{split_name}"
+    destination.mkdir(parents=True, exist_ok=True)
+    csv_path = destination / "per_sample.csv"
+    fieldnames = list(per_sample[0])
+    with csv_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(per_sample)
+    summary = {
+        "schema_version": 1,
+        "checkpoint": str(Path(checkpoint).resolve()),
+        "split": split_name,
+        "n_samples": len(subjects),
+        "window_length": window_length,
+        "sample_interval_seconds": interval,
+        "nonoverlap_horizon": nonoverlap,
+        "frequency_bands_hz": _DYNAMIC_AUDIT_BANDS_HZ,
+        "methods": method_summaries,
+        "decision": {
+            "criterion": f"{model_name} full difference_std_ratio median < 0.80 and fraction_below_one >= 0.75",
+            "passes": confirmed,
+            "recommended_next_step": "run variance loss experiment A1" if confirmed else "review phase/frequency diagnostics before variance loss",
+        },
+        "per_sample_csv": str(csv_path.resolve()),
+    }
+    summary_path = destination / "summary.json"
+    summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
+    return summary_path
 
 
 def evaluate_checkpoint(

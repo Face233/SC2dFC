@@ -17,6 +17,7 @@ from .data import (
 from .evaluation import evaluate_checkpoint
 from .managed_cli import (
     command_conclude,
+    command_dynamic_audit,
     command_evaluate_run,
     command_experiment_create,
     command_freeze_data,
@@ -179,6 +180,7 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--primary-metric", default="objective_loss")
     create.add_argument("--huber-beta", type=float, default=1.0)
     create.add_argument("--difference-weight", type=float, default=0.25)
+    create.add_argument("--variance-weight", type=float, default=0.0)
     create.add_argument("--output-head", choices=["e0003_reconstruction_decoder", "direct_edge_linear"], default="e0003_reconstruction_decoder")
     create.add_argument("--gru-layers", type=int, default=2)
     create.add_argument("--finetune-fc-decoder", action="store_true")
@@ -198,6 +200,12 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate_run.add_argument("--final-test", action="store_true")
     evaluate_run.add_argument("--device")
     evaluate_run.set_defaults(function=command_evaluate_run)
+
+    dynamic_audit = subparsers.add_parser("dynamic-audit", help="Audit dynamic amplitude and temporal power on train/validation data")
+    dynamic_audit.add_argument("--run-id", required=True)
+    dynamic_audit.add_argument("--split", choices=["train", "val"], default="val")
+    dynamic_audit.add_argument("--device")
+    dynamic_audit.set_defaults(function=command_dynamic_audit)
 
     summarize = subparsers.add_parser("summarize")
     summarize.add_argument("--experiment", required=True)
