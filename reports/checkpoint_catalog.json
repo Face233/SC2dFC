@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "purpose": "Index of optional full checkpoints. These files are intentionally absent from main and live on the checkpoint-archive Git LFS branch.",
+  "archive_remote": "origin",
+  "archive_branch": "checkpoint-archive",
+  "archive_commit": "609e07f4d4eea2bb922f986b908e7f0ec870e77d",
+  "checkpoints": [
+    {
+      "experiment_id": "E0003",
+      "run_id": "E0003-s42-20260810T064954Z-4d4337d",
+      "archive_path": "outputs/E0003/runs/E0003-s42-20260810T064954Z-4d4337d/checkpoints/best.pt",
+      "lfs_oid": "sha256:2228c6d742c1eb3225eb550ae3839b7be55cbaac8a9bfafa018780a0d961ec97",
+      "size_bytes": 38114246
+    },
+    {
+      "experiment_id": "E0004",
+      "run_id": "E0004-s42-20260812T062236Z-b1bf06d",
+      "archive_path": "outputs/E0004/runs/E0004-s42-20260812T062236Z-b1bf06d/checkpoints/best.pt",
+      "lfs_oid": "sha256:8da675933439da01412d8a6468c1c132f24b46ca26e75cd473a34098acbaf35a",
+      "size_bytes": 46880008
+    },
+    {
+      "experiment_id": "E0005",
+      "run_id": "E0005-s42-20260812T071223Z-b824210",
+      "archive_path": "outputs/E0005/runs/E0005-s42-20260812T071223Z-b824210/checkpoints/best.pt",
+      "lfs_oid": "sha256:b9dde95e305ae8182d4bbcbf5492e3ed7a81b9bb4bc7424ea36d0142152a7813",
+      "size_bytes": 57643328
+    },
+    {
+      "experiment_id": "E0006",
+      "run_id": "E0006-s42-20260812T075113Z-caeb70b",
+      "archive_path": "outputs/E0006/runs/E0006-s42-20260812T075113Z-caeb70b/checkpoints/best.pt",
+      "lfs_oid": "sha256:cd2b27b8242cab6d944ada08296f80f33dbe4ef0485d55703b7a3c0f9144bc46",
+      "size_bytes": 55845178
+    },
+    {
+      "experiment_id": "E0007",
+      "run_id": "E0007-s42-20260812T093450Z-b6dff41",
+      "archive_path": "outputs/E0007/runs/E0007-s42-20260812T093450Z-b6dff41/checkpoints/best.pt",
+      "lfs_oid": "sha256:473334efe1f64a26c588af0f0ca554459b3b9adfc03c604a58a0105e053a207e",
+      "size_bytes": 66608594
+    },
+    {
+      "experiment_id": "E0009",
+      "run_id": "E0009-s42-20260818T073202Z-f875e65",
+      "archive_path": "outputs/E0009/runs/E0009-s42-20260818T073202Z-f875e65/checkpoints/best.pt",
+      "lfs_oid": "sha256:df6793eec6bbb12d32f2991829d4ad0bfca38c635bf0fcc9737a7b068eff7404",
+      "size_bytes": 46880463
+    },
+    {
+      "experiment_id": "E0010",
+      "run_id": "E0010-s42-20260818T075122Z-f073db0",
+      "archive_path": "outputs/E0010/runs/E0010-s42-20260818T075122Z-f073db0/checkpoints/best.pt",
+      "lfs_oid": "sha256:333125d13557cb5f61dec3706907a23cf0d65c5f848ff1a6e42cbcac1d9a58c5",
+      "size_bytes": 46880463
+    },
+    {
+      "experiment_id": "E0011",
+      "run_id": "E0011-s42-20260818T083706Z-febe983",
+      "archive_path": "outputs/E0011/runs/E0011-s42-20260818T083706Z-febe983/checkpoints/best.pt",
+      "lfs_oid": "sha256:334652b4c177193d70119ab88cc2d5af12414c90d978c136a7a42e35be1bb2cc",
+      "size_bytes": 46880463
+    }
+  ]
+}
