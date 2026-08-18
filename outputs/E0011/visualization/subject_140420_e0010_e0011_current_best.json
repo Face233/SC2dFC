@@ -1,0 +1,15 @@
+{
+  "subject": "140420",
+  "edge_names": [
+    "Calcarine_L – Postcentral_R",
+    "Lingual_L – Postcentral_R",
+    "Occipital_Inf_R – Parietal_Sup_L",
+    "Calcarine_R – Postcentral_R",
+    "Calcarine_L – Temporal_Sup_R",
+    "Occipital_Inf_L – Occipital_Inf_R"
+  ],
+  "temporal_std_ratio": {
+    "E0010": 0.44250792264938354,
+    "E0011": 0.41489383578300476
+  }
+}
