@@ -1,6 +1,6 @@
 import numpy as np
 
-from scdfc.evaluation import dynamic_calibration_metrics, dynamic_state_metrics, retrieval_metrics, sequence_metrics, subject_bootstrap_difference
+from scdfc.evaluation import _dynamic_audit_horizons, dynamic_calibration_metrics, dynamic_state_metrics, retrieval_metrics, sequence_metrics, subject_bootstrap_difference
 
 
 def test_metrics_are_best_for_exact_prediction():
@@ -45,3 +45,12 @@ def test_dynamic_calibration_reports_expected_amplitude_and_power_ratios():
     assert np.isclose(metrics["difference_std_ratio"], 0.5)
     assert metrics["difference_temporal_pearson"] > 0.999
     assert np.isclose(metrics["low_band_power_ratio"], 0.25, atol=0.02)
+
+
+def test_dynamic_audit_horizons_cover_context_and_long_horizon_without_gaps():
+    horizons = _dynamic_audit_horizons(222, 17, 3.6)
+    assert [segment["name"] for segment in horizons] == ["overlap_context", "early_long", "middle_long", "late_long"]
+    assert [segment["n_windows"] for segment in horizons] == [17, 68, 68, 69]
+    assert horizons[0]["start_index"] == 0
+    assert horizons[-1]["stop_index_exclusive"] == 222
+    assert all(left["stop_index_exclusive"] == right["start_index"] for left, right in zip(horizons, horizons[1:]))

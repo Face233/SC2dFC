@@ -305,6 +305,30 @@ def _dynamic_audit_aggregate(rows: list[dict[str, Any]]) -> dict[str, dict[str, 
     return aggregate
 
 
+def _dynamic_audit_horizons(steps: int, nonoverlap: int, sample_interval_seconds: float) -> list[dict[str, float | int | str]]:
+    """Split the future into the overlap-context segment and three long-horizon segments."""
+    if steps < 4:
+        raise ValueError("Dynamic audit horizons require at least four time windows")
+    boundary = min(max(int(nonoverlap), 4), steps - 3)
+    long_boundaries = np.linspace(boundary, steps, num=4, dtype=int)
+    segments = [("overlap_context", 0, boundary)]
+    segments.extend(
+        (name, int(start), int(stop))
+        for name, start, stop in zip(("early_long", "middle_long", "late_long"), long_boundaries[:-1], long_boundaries[1:])
+    )
+    return [
+        {
+            "name": name,
+            "start_index": start,
+            "stop_index_exclusive": stop,
+            "n_windows": stop - start,
+            "start_minutes": float(start * sample_interval_seconds / 60.0),
+            "stop_minutes": float(stop * sample_interval_seconds / 60.0),
+        }
+        for name, start, stop in segments
+    ]
+
+
 def dynamic_audit_checkpoint(
     config: dict[str, Any],
     window_length: int,
@@ -335,9 +359,13 @@ def dynamic_audit_checkpoint(
     nonoverlap = nonoverlap_horizon(window_length, int(config["data"]["stride"]))
     interval = float(config["data"]["stride"]) * float(config["data"]["tr_seconds"])
     per_sample: list[dict[str, Any]] = []
+    horizon_per_sample: list[dict[str, Any]] = []
     method_summaries: dict[str, dict[str, dict[str, float]]] = {}
+    horizons = _dynamic_audit_horizons(target.shape[1], nonoverlap, interval)
+    horizon_summaries: dict[str, dict[str, dict[str, dict[str, float]]]] = {}
     for name, predicted in methods.items():
         rows = []
+        horizon_rows: dict[str, list[dict[str, float]]] = {str(segment["name"]): [] for segment in horizons}
         for index, (pred, true, subject, run) in enumerate(zip(predicted, target, subjects, runs)):
             full = dynamic_calibration_metrics(pred, true, interval)
             long = dynamic_calibration_metrics(pred[nonoverlap:], true[nonoverlap:], interval)
@@ -348,12 +376,25 @@ def dynamic_audit_checkpoint(
             }
             rows.append({key.removeprefix("full_"): value for key, value in row.items() if key.startswith("full_")})
             per_sample.append(row)
+            for segment in horizons:
+                start, stop = int(segment["start_index"]), int(segment["stop_index_exclusive"])
+                metrics = dynamic_calibration_metrics(pred[start:stop], true[start:stop], interval)
+                horizon_row = {
+                    "method": name, "subject_id": subject, "run": run, "sample_index": index,
+                    **segment, **metrics,
+                }
+                horizon_rows[str(segment["name"])].append(metrics)
+                horizon_per_sample.append(horizon_row)
         method_summaries[name] = {
             "full": _dynamic_audit_aggregate(rows),
             "nonoverlap": _dynamic_audit_aggregate([
                 {key.removeprefix("nonoverlap_"): value for key, value in row.items() if key.startswith("nonoverlap_")}
                 for row in per_sample if row["method"] == name
             ]),
+        }
+        horizon_summaries[name] = {
+            segment_name: _dynamic_audit_aggregate(segment_rows)
+            for segment_name, segment_rows in horizon_rows.items()
         }
     model_delta = np.asarray([
         row["full_difference_std_ratio"] for row in per_sample if row["method"] == model_name
@@ -369,8 +410,13 @@ def dynamic_audit_checkpoint(
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(per_sample)
+    horizon_csv_path = destination / "horizon_per_sample.csv"
+    with horizon_csv_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(horizon_per_sample[0]))
+        writer.writeheader()
+        writer.writerows(horizon_per_sample)
     summary = {
-        "schema_version": 1,
+        "schema_version": 2,
         "checkpoint": str(Path(checkpoint).resolve()),
         "split": split_name,
         "n_samples": len(subjects),
@@ -379,12 +425,15 @@ def dynamic_audit_checkpoint(
         "nonoverlap_horizon": nonoverlap,
         "frequency_bands_hz": _DYNAMIC_AUDIT_BANDS_HZ,
         "methods": method_summaries,
+        "horizon_segments": horizons,
+        "horizon_methods": horizon_summaries,
         "decision": {
             "criterion": f"{model_name} full difference_std_ratio median < 0.80 and fraction_below_one >= 0.75",
             "passes": confirmed,
             "recommended_next_step": "run variance loss experiment A1" if confirmed else "review phase/frequency diagnostics before variance loss",
         },
         "per_sample_csv": str(csv_path.resolve()),
+        "horizon_per_sample_csv": str(horizon_csv_path.resolve()),
     }
     summary_path = destination / "summary.json"
     summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
