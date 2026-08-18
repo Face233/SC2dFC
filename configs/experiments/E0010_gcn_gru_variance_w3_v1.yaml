@@ -1,0 +1,45 @@
+base: ../default.yaml
+experiment:
+  id: E0010
+  name: gcn_gru_variance_w3_v1
+  level: 1
+  task: sequence
+  research_question: 在保持E0009全部设置不变时，将逐边时间方差损失权重由1.0提高至3.0能否进一步缓解dFC动态振幅坍缩
+  hypothesis: 更强的方差约束会进一步提高验证集差分标准差比和频段功率比，同时将边重建恶化控制在可接受范围内
+  primary_change: 仅将E0009的variance损失权重由1.0提高至3.0
+  baseline: E0009
+  owner: Face88
+  status: planned
+  ablation: full
+paths:
+  split_csv: data/manifests/split_lr_v1.csv
+data:
+  dataset_version: dataset_lr_v1
+  preprocessing_version: preprocess_lr_v1
+  manifest_path: data/manifests/dataset_lr_v1.json
+  manifest_sha256: 6ebb22662b4deb3fc7e38d45f2b76fc303d5c3ec973d36e6d7d0e2d3ffc29ac3
+  split_version: split_lr_v1
+  split_sha256: e08cd05e20ed048ba976dcf6487ecab8f6ba4671ea90ed778cbe21176b599862
+model:
+  name: gru
+  sc_encoder: hcp_gcn
+  output_head: e0003_reconstruction_decoder
+  gru_layers: 2
+training:
+  seeds:
+  - 42
+  huber_beta: 1.0
+  finetune_fc_decoder: false
+  loss_weights:
+    edge: 1.0
+    difference: 0.25
+    variance: 3.0
+evaluation:
+  primary_metric: objective_loss
+decision_rule:
+  description: 仅按验证集objective_loss选择checkpoint；完成后用D0动态审计比较E0004与E0009，且不查看测试集。
+artifacts:
+  fc_autoencoder:
+    id: A0003
+    path: outputs/E0003/runs/E0003-s42-20260810T064954Z-4d4337d/checkpoints/best.pt
+    sha256: 2228c6d742c1eb3225eb550ae3839b7be55cbaac8a9bfafa018780a0d961ec97
