@@ -1,0 +1,97 @@
+seed: 42
+paths:
+  root: /XYAIFS00/HOME/sysu_linying/sysu_linying_1/HuangZW/HCP_New
+  atlas_labels: data/raw/atlas/ROI_MNI_V4.txt
+  sc_dir: data/raw/sc/HCP_Structure/AAL90
+  timeseries:
+    LR: data/raw/timeseries_lr
+  split_csv: data/manifests/split_lr_v1.csv
+  cache_dir: data/cache/dfc
+  output_dir: outputs
+data:
+  n_nodes: 90
+  n_timepoints: 1200
+  tr_seconds: 0.72
+  window_length: 83
+  stride: 5
+  sensitivity_windows:
+  - 42
+  - 125
+  fisher_clip: 0.999999
+  cache_dtype: float32
+  dataset_version: dataset_lr_v1
+  preprocessing_version: preprocess_lr_v1
+  manifest_path: data/manifests/dataset_lr_v1.json
+  manifest_sha256: 6ebb22662b4deb3fc7e38d45f2b76fc303d5c3ec973d36e6d7d0e2d3ffc29ac3
+  split_version: split_lr_v1
+  split_sha256: e08cd05e20ed048ba976dcf6487ecab8f6ba4671ea90ed778cbe21176b599862
+split:
+  train: 0.7
+  val: 0.15
+  test: 0.15
+model:
+  sc_encoder: hybrid
+  fc_latent_dim: 256
+  hidden_dim: 256
+  sc_graph_layers: 3
+  sc_graph_heads: 4
+  hcp_gcn_hidden_dim: 128
+  hcp_gcn_output_dim: 64
+  tcn_dilations:
+  - 1
+  - 2
+  - 4
+  - 8
+  - 16
+  - 32
+  transformer_layers: 4
+  transformer_heads: 8
+  transformer_ffn_dim: 1024
+  dropout: 0.1
+  baseline_hidden_dim: 256
+  ridge_pca_components: 128
+  ridge_alpha: 1.0
+  name: fc_autoencoder
+training:
+  batch_size: 4
+  autoencoder_batch_size: 256
+  epochs: 200
+  autoencoder_epochs: 100
+  decoder_frozen_epochs: 20
+  learning_rate: 0.0003
+  decoder_learning_rate_scale: 0.1
+  weight_decay: 0.0001
+  gradient_clip: 1.0
+  patience: 20
+  num_workers: 0
+  seeds:
+  - 42
+  autoencoder_loss_weights:
+    edge: 1.0
+  loss_weights:
+    edge: 1.0
+    difference: 0.25
+evaluation:
+  primary_metric: validation_loss
+  bootstrap_replicates: 2000
+  state_clusters: 5
+  projection_epsilon: 1.0e-06
+experiment:
+  id: E0003
+  name: fc_autoencoder_w83_v1
+  level: 1
+  task: autoencoder
+  research_question: FC能否稳定压缩到共享潜空间
+  hypothesis: 256维潜空间能够保持主要FC结构
+  primary_change: 建立83TR窗长的冻结FC自编码器工件
+  baseline: E0001
+  owner: Face88
+  status: planned
+  ablation: full
+  artifact_id: A0003
+decision_rule:
+  description: Decide after validation aggregation; do not inspect test data
+_config_source: /XYAIFS00/HOME/sysu_linying/sysu_linying_1/HuangZW/HCP_New/configs/experiments/E0003_fc_autoencoder_w83_v1.yaml
+runtime:
+  run_id: E0003-s42-20260810T064954Z-4d4337d
+  config_sha256: 7ac0efe2e2e01f9b3a52ad028853400eb022c1a4387005ad03f941a5830389c4

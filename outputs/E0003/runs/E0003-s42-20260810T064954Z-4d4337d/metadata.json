@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "experiment_id": "E0003",
+  "run_id": "E0003-s42-20260810T064954Z-4d4337d",
+  "seed": 42,
+  "level": 1,
+  "status": "COMPLETED",
+  "started_at": "2026-08-10T06:49:55Z",
+  "config_sha256": "7ac0efe2e2e01f9b3a52ad028853400eb022c1a4387005ad03f941a5830389c4",
+  "git": {
+    "commit": "4d4337d982b85c3f75852ca79e203b4fbf0c8dcf",
+    "branch": "main",
+    "remote": "https://github.com/Face233/SC2dFC.git",
+    "dirty": false,
+    "status": []
+  },
+  "ended_at": "2026-08-11T11:23:15Z",
+  "checkpoint": "/XYAIFS00/HOME/sysu_linying/sysu_linying_1/HuangZW/HCP_New/outputs/E0003/runs/E0003-s42-20260810T064954Z-4d4337d/checkpoints/best.pt",
+  "artifact_manifest": "/XYAIFS00/HOME/sysu_linying/sysu_linying_1/HuangZW/HCP_New/configs/artifacts/A0003.yaml"
+}

@@ -1,0 +1,29 @@
+{
+  "metrics": {
+    "objective_loss": 0.09458097044741028,
+    "edge_huber": 0.09339956170584582,
+    "difference_huber": 0.004725634966257818,
+    "mse": 0.1878423353161993,
+    "mae": 0.3441381876981711,
+    "raw_edge_pearson": 0.5269588828086853,
+    "raw_edge_spearman": 0.4804036105327094,
+    "long_residual_pearson": 0.08637697272528776,
+    "difference_mse": 0.009451272154722032,
+    "variance_mae": 0.1303696931823145,
+    "dynamic_amplitude_mae": 0.09588543905676165,
+    "node_strength_pearson": 0.515127496251577,
+    "node_strength_mae": 0.12173198616202874,
+    "fcd_pearson": 0.32950936052123014,
+    "fcd_wasserstein": 0.560181212375538,
+    "state_occupancy_mae": 0.2603053868422546,
+    "state_transition_mae": 0.12500197848004427,
+    "state_dwell_mae": 47.309472225074764,
+    "retrieval_top1": 0.05063291139240506,
+    "retrieval_top5": 0.13924050632911392,
+    "retrieval_mean_rank": 46.31645569620253,
+    "projection_negative_eigenvalue_fraction": 0.00025575044306950986,
+    "projection_minimum_eigenvalue": 0.04189284850513162,
+    "projection_projection_rmse": 3.947632925517126e-06
+  },
+  "primary_metric": "objective_loss"
+}
