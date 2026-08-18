@@ -104,6 +104,8 @@ def command_experiment_create(args) -> None:
         loss_weights = {"edge": 1.0, "difference": args.difference_weight}
         if float(args.variance_weight) != 0.0:
             loss_weights["variance"] = float(args.variance_weight)
+        if float(args.long_horizon_variance_weight) != 0.0:
+            loss_weights["long_horizon_variance"] = float(args.long_horizon_variance_weight)
         document["training"].update({
             "huber_beta": args.huber_beta,
             "finetune_fc_decoder": args.finetune_fc_decoder,

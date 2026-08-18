@@ -36,6 +36,20 @@ def variance_loss(prediction: torch.Tensor, target: torch.Tensor) -> torch.Tenso
     return F.smooth_l1_loss(prediction.var(dim=1, unbiased=False), target.var(dim=1, unbiased=False))
 
 
+def long_horizon_variance_loss(
+    prediction: torch.Tensor, target: torch.Tensor, nonoverlap_start: int, segments: int = 3
+) -> torch.Tensor:
+    """Match edgewise variance in each non-overlapping long-horizon time segment."""
+    prediction, target = prediction[:, nonoverlap_start:], target[:, nonoverlap_start:]
+    if prediction.shape[1] < segments:
+        raise ValueError("Long-horizon variance requires at least one window per segment")
+    boundaries = [index * prediction.shape[1] // segments for index in range(segments + 1)]
+    return torch.stack([
+        variance_loss(prediction[:, start:stop], target[:, start:stop])
+        for start, stop in zip(boundaries[:-1], boundaries[1:])
+    ]).mean()
+
+
 def fcd_gram_loss(prediction: torch.Tensor, target: torch.Tensor, max_windows: int = 32) -> torch.Tensor:
     """用抽样窗口间 FC 相似度矩阵近似 FCD 损失，控制显存开销。"""
     steps = prediction.shape[1]
@@ -67,7 +81,10 @@ def psd_penalty(z_edges: torch.Tensor, n_nodes: int = 90, max_windows: int = 4) 
 class CompositeLoss:
     """按配置组合预测损失；默认只启用边重建和时间差分两项。"""
 
-    _SUPPORTED = {"edge", "residual_corr", "difference", "static", "variance", "fcd", "contrastive", "psd"}
+    _SUPPORTED = {
+        "edge", "residual_corr", "difference", "static", "variance", "long_horizon_variance",
+        "fcd", "contrastive", "psd",
+    }
 
     def __init__(
         self, weights: dict[str, float], nonoverlap_start: int, n_nodes: int = 90, huber_beta: float = 1.0
@@ -108,6 +125,10 @@ class CompositeLoss:
             components["static"] = self._huber(prediction.mean(1), target.mean(1))
         if "variance" in self.weights:
             components["variance"] = variance_loss(prediction, target)
+        if "long_horizon_variance" in self.weights:
+            components["long_horizon_variance"] = long_horizon_variance_loss(
+                prediction, target, self.nonoverlap_start
+            )
         if "fcd" in self.weights:
             components["fcd"] = fcd_gram_loss(prediction, target)
         if "contrastive" in self.weights:

@@ -4,7 +4,7 @@ import pytest
 import torch
 import numpy as np
 
-from scdfc.training import AutoencoderLoss, CompositeLoss
+from scdfc.training import AutoencoderLoss, CompositeLoss, long_horizon_variance_loss
 from scdfc.evaluation import _load_model
 from scdfc.models import CommonInputLSTM, CommonInputMLP, ConditionalSequenceModel, FCAutoencoder, HCPGCNEncoder, PCARidgeBaseline
 from scdfc.models.baselines import DirectSCMLP, GCNGRUBaseline
@@ -130,6 +130,12 @@ def test_composite_loss_uses_configured_huber_for_edge_and_difference():
     assert components["edge"].item() == pytest.approx(0.75)
     assert components["difference"].item() == pytest.approx(1.5)
     assert loss.item() == pytest.approx(1.125)
+
+
+def test_long_horizon_dynamic_losses_are_zero_for_exact_prediction():
+    time = torch.arange(30, dtype=torch.float32)
+    target = torch.stack((torch.sin(time), torch.cos(time)), dim=-1)[None].repeat(2, 1, 1)
+    assert long_horizon_variance_loss(target, target, nonoverlap_start=3).item() == pytest.approx(0.0)
 
 
 def test_gcn_gru_baseline_uses_common_prediction_contract():
