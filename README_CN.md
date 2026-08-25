@@ -161,19 +161,19 @@ $$
 
 | 损失 | 配置键 | 实现方式 | 目的 |
 | --- | --- | --- | --- |
-| $L_{\mathrm{edge}}$ | `edge` | Fisher-z 边的 Smooth L1 / Huber | 拟合每个窗口的连接边，较 MSE 更抗异常边。 |
+| $L_{\mathrm{edge}}$ | `edge` | Fisher-z 边的 MSE | 拟合每个窗口的连接边。 |
 | $L_{\mathrm{residual}}$ | `residual_corr` | 无重叠时距内，预测/真实减群体模板后的 $1-\mathrm{Pearson}$ | 强制学习个体特异边模式，抑制组均值坍缩。 |
-| $L_{\mathrm{diff}}$ | `difference` | 相邻窗口一阶差分的 Smooth L1 | 拟合 FC 随时间的变化方向与幅度。 |
-| $L_{\mathrm{static}}$ | `static` | 序列时间均值的 Smooth L1 | 保证预测序列平均 FC 不偏离个体真实平均。 |
-| $L_{\mathrm{var}}$ | `variance` | 每条边时间方差的 Smooth L1 | 防止动态振幅被压缩为近零。 |
-| $L_{\mathrm{FCD}}$ | `fcd` | 最多抽样 32 个窗口的归一化边向量 Gram 矩阵 | 近似匹配 FCD，同时避免完整 $T\times T$ FCD 的高开销。 |
+| $L_{\mathrm{diff}}$ | `difference` | 相邻窗口一阶差分的 MSE | 拟合 FC 随时间的变化方向与幅度。 |
+| $L_{\mathrm{static}}$ | `static` | 序列时间均值的 MSE | 保证预测序列平均 FC 不偏离个体真实平均。 |
+| $L_{\mathrm{var}}$ | `variance` | 每条边时间方差的 MSE | 防止动态振幅被压缩为近零。 |
+| $L_{\mathrm{FCD}}$ | `fcd` | 最多抽样 32 个窗口的归一化边向量 Gram 矩阵 MSE | 近似匹配 FCD，同时避免完整 $T\times T$ FCD 的高开销。 |
 | $L_{\mathrm{contrast}}$ | `contrastive` | 批内 InfoNCE，比较预测和真实长时距平均边表征 | 增强预测未来与同一被试真实未来的可辨识性。 |
 | $L_{\mathrm{PSD}}$ | `psd` | 最多抽样 4 个预测窗口的负特征值平方 | 减少非合法相关矩阵，但不以硬投影限制重建能力。 |
 
-令 $p_{b,t}\in\mathbb{R}^{E}$、$y_{b,t}\in\mathbb{R}^{E}$ 分别表示第 $b$ 个样本、未来第 $t$ 个窗口的预测与真实 Fisher-z 上三角边向量，$g_t$ 表示训练集群体模板，$E=4005$；$\operatorname{Huber}$ 表示 PyTorch 默认 `SmoothL1`（$β=1$）并对全部元素取均值。令 $\tau$ 为与首窗不重叠的起点（83 TR 主分析中为未来标签索引 17），则实现中的各项为：
+令 $p_{b,t}\in\mathbb{R}^{E}$、$y_{b,t}\in\mathbb{R}^{E}$ 分别表示第 $b$ 个样本、未来第 $t$ 个窗口的预测与真实 Fisher-z 上三角边向量，$g_t$ 表示训练集群体模板，$E=4005$；$\operatorname{MSE}(a,b)$ 表示所有元素的平均平方误差。令 $\tau$ 为与首窗不重叠的起点（83 TR 主分析中为未来标签索引 17），则实现中的各项为：
 
 $$
-L_{\mathrm{edge}}=\operatorname{Huber}(p_{b,t},y_{b,t})
+L_{\mathrm{edge}}=\operatorname{MSE}(p_{b,t},y_{b,t})
 $$
 
 $$
@@ -184,17 +184,17 @@ $$
 
 $$
 L_{\mathrm{diff}}
-=\operatorname{Huber}\left(p_{b,t}-p_{b,t-1},\;y_{b,t}-y_{b,t-1}\right)
+=\operatorname{MSE}\left(p_{b,t}-p_{b,t-1},\;y_{b,t}-y_{b,t-1}\right)
 $$
 
 $$
 L_{\mathrm{static}}
-=\operatorname{Huber}\left(\frac{1}{T}\sum_t p_{b,t},\;\frac{1}{T}\sum_t y_{b,t}\right)
+=\operatorname{MSE}\left(\frac{1}{T}\sum_t p_{b,t},\;\frac{1}{T}\sum_t y_{b,t}\right)
 $$
 
 $$
 L_{\mathrm{var}}
-=\operatorname{Huber}\left(\operatorname{Var}_t(p_{b,t}),\;\operatorname{Var}_t(y_{b,t})\right)
+=\operatorname{MSE}\left(\operatorname{Var}_t(p_{b,t}),\;\operatorname{Var}_t(y_{b,t})\right)
 $$
 
 其中 $\operatorname{corr}_e$ 是在边维度 $e$ 上计算的 Pearson 相关；`difference` 对 $t=1,\ldots,T-1$ 求均值，`variance` 使用总体方差（`unbiased=False`）。其余三项的实现细节为：
@@ -210,7 +210,7 @@ $$
 $$
 
 $$
-L_{\mathrm{FCD}}=\operatorname{Huber}(\tilde P\tilde P^\top,\;\tilde Y\tilde Y^\top)
+L_{\mathrm{FCD}}=\operatorname{MSE}(\tilde P\tilde P^\top,\;\tilde Y\tilde Y^\top)
 $$
 
 $$
@@ -243,7 +243,7 @@ $$
 
 训练分两阶段：
 
-1. **FC 自编码器阶段**：训练集中每个 subject/run 每 epoch 可复现地抽取 32 个窗口，验证集抽取 8 个窗口；优化目标为 $L_{\mathrm{Huber}}+0.1L_{\mathrm{corr}}+0.01L_{\mathrm{PSD}}$。
+1. **FC 自编码器阶段**：训练集中每个 subject/run 每 epoch 可复现地抽取 32 个窗口，验证集抽取 8 个窗口；优化目标为 $L_{\mathrm{MSE}}+0.1L_{\mathrm{corr}}+0.01L_{\mathrm{PSD}}$。
 2. **序列预测阶段**：每个 batch 包含完整未来序列，不泄漏未来 FC；先冻结 FC 编码器与解码器，20 个 epoch 后仅以较小学习率解冻解码器。
 
 默认优化与稳定策略：
@@ -446,7 +446,7 @@ scdfc evaluate --config configs/default.yaml --window 83 `
 E0004–E0007 的 checkpoint 主指标为验证集 `objective_loss`，越小越好：
 
 $$
-L_{objective}=L_{Huber(edge)}+0.25L_{Huber(first\ difference)}
+L_{objective}=L_{MSE(edge)}+0.25L_{MSE(first\ difference)}
 $$
 
 `long_residual_pearson` 继续报告，但不参与反向传播或 checkpoint 选择。
@@ -455,8 +455,8 @@ $$
 
 | 指标 | 含义 |
 | --- | --- |
-| `objective_loss` | checkpoint 选择指标：边 Huber + 0.25 × 一阶差分 Huber |
-| `edge_huber` / `difference_huber` | 两个训练目标分量 |
+| `objective_loss` | checkpoint 选择指标：边 MSE + 0.25 × 一阶差分 MSE |
+| `edge_mse` / `difference_mse` | 两个训练目标分量 |
 | `mse` / `mae` | Fisher-z 上三角边的重建误差 |
 | `raw_edge_pearson` / `raw_edge_spearman` | 未去除群体模板的边模式相关 |
 | `long_residual_pearson` | 诊断指标，个体化长时距边相关 |
@@ -536,7 +536,7 @@ conda activate GCN_mri
 pytest
 ```
 
-测试覆盖矩阵上三角往返、滑窗 FC 计算、相关矩阵投影、被试级划分、Zarr 缓存、GRU/Transformer 输出形状、Huber 加一阶差分损失、动态评价与检索逻辑。
+测试覆盖矩阵上三角往返、滑窗 FC 计算、相关矩阵投影、被试级划分、Zarr 缓存、GRU/Transformer 输出形状、MSE 加一阶差分损失、动态评价与检索逻辑。
 
 ## 10. 当前边界与后续工作
 

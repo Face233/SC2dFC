@@ -178,7 +178,6 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--preprocessing-version", default="preprocess_lr_v1")
     create.add_argument("--split-version", default="split_lr_v1")
     create.add_argument("--primary-metric", default="objective_loss")
-    create.add_argument("--huber-beta", type=float, default=1.0)
     create.add_argument("--difference-weight", type=float, default=0.25)
     create.add_argument("--variance-weight", type=float, default=0.0)
     create.add_argument("--long-horizon-variance-weight", type=float, default=0.0)

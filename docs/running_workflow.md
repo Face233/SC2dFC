@@ -71,7 +71,7 @@ scdfc summarize --experiment E0003
 scdfc evaluate-run --run-id <level-2-run-id> --final-test --device cuda
 ```
 
-E0004–E0007 按验证集 `objective_loss`（边 Huber + 0.25 × 一阶差分 Huber）最小选择 checkpoint。相关、拓扑和动态指标用于解释；判断 SC 的增量价值时仍需与 `fc1_only` 对照比较。
+后续序列实验按验证集 `objective_loss`（边 MSE + 0.25 × 一阶差分 MSE）最小选择 checkpoint。相关、拓扑和动态指标用于解释；判断 SC 的增量价值时仍需与 `fc1_only` 对照比较。E0004–E0012 是历史 Huber 运行，结果应按各自冻结配置解读。
 
 ## 4. 查看运行状态
 
