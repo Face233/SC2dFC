@@ -32,17 +32,11 @@ def fcd(sequence: np.ndarray) -> np.ndarray:
     return normalized @ normalized.T
 
 
-def _smooth_l1(values: np.ndarray, beta: float) -> np.ndarray:
-    absolute = np.abs(values)
-    return np.where(absolute < beta, 0.5 * values**2 / beta, absolute - 0.5 * beta)
-
-
 def sequence_metrics(
     prediction: np.ndarray,
     target: np.ndarray,
     template: np.ndarray,
     nonoverlap: int,
-    huber_beta: float = 1.0,
     difference_weight: float = 0.25,
     loss_type: str = "huber",
 ) -> dict[str, float]:

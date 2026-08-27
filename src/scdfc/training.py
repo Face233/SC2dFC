@@ -33,7 +33,7 @@ def correlation_loss(prediction: torch.Tensor, target: torch.Tensor, eps: float 
 
 def variance_loss(prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
     """约束预测序列的逐边时间方差不坍缩。"""
-    return F.smooth_l1_loss(prediction.var(dim=1, unbiased=False), target.var(dim=1, unbiased=False))
+    return F.mse_loss(prediction.var(dim=1, unbiased=False), target.var(dim=1, unbiased=False))
 
 
 def long_horizon_variance_loss(
@@ -58,7 +58,7 @@ def fcd_gram_loss(prediction: torch.Tensor, target: torch.Tensor, max_windows: i
         prediction, target = prediction[:, indices], target[:, indices]
     prediction = F.normalize(prediction - prediction.mean(-1, keepdim=True), dim=-1)
     target = F.normalize(target - target.mean(-1, keepdim=True), dim=-1)
-    return F.smooth_l1_loss(prediction @ prediction.transpose(1, 2), target @ target.transpose(1, 2))
+    return F.mse_loss(prediction @ prediction.transpose(1, 2), target @ target.transpose(1, 2))
 
 
 def contrastive_loss(prediction: torch.Tensor, target: torch.Tensor, start: int, temperature: float = 0.1) -> torch.Tensor:
@@ -79,7 +79,7 @@ def psd_penalty(z_edges: torch.Tensor, n_nodes: int = 90, max_windows: int = 4) 
 
 
 class CompositeLoss:
-    """按配置组合预测损失；默认只启用边重建和时间差分两项。"""
+    """按配置组合预测损失；各分量使用直接的原始表达式。"""
 
     _SUPPORTED = {
         "edge", "residual_corr", "difference", "static", "variance", "long_horizon_variance",
@@ -150,7 +150,7 @@ class CompositeLoss:
 
 
 class AutoencoderLoss:
-    """Configurable FC autoencoder reconstruction loss."""
+    """Configurable FC autoencoder reconstruction loss using direct MSE."""
 
     _SUPPORTED = {"edge", "correlation", "psd"}
 
@@ -166,7 +166,7 @@ class AutoencoderLoss:
     def __call__(self, prediction: torch.Tensor, target: torch.Tensor) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         components: dict[str, torch.Tensor] = {}
         if "edge" in self.weights:
-            components["edge"] = F.smooth_l1_loss(prediction, target)
+            components["edge"] = F.mse_loss(prediction, target)
         if "correlation" in self.weights:
             components["correlation"] = correlation_loss(prediction, target)
         if "psd" in self.weights:
@@ -498,7 +498,7 @@ def validate_sequence(
     nonoverlap: int,
     device: torch.device,
 ) -> dict[str, float]:
-    """一次验证前向同时计算组合 Huber 目标、各分量与长时距诊断指标。"""
+    """一次验证前向同时计算组合 MSE 目标、各分量与长时距诊断指标。"""
     model.eval()
     total = 0.0
     component_totals: dict[str, float] = {name: 0.0 for name in criterion.weights}

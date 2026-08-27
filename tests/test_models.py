@@ -11,13 +11,13 @@ from scdfc.models.baselines import DirectSCMLP, GCNGRUBaseline
 from scdfc.models.sc_encoders import symmetric_normalize_with_self_loops
 
 
-def test_autoencoder_edge_only_loss_is_smooth_l1():
+def test_autoencoder_edge_only_loss_is_mse():
     prediction = torch.tensor([[0.0, 2.0, -2.0]])
     target = torch.zeros_like(prediction)
     loss, components = AutoencoderLoss({"edge": 1.0})(prediction, target)
 
     assert set(components) == {"edge"}
-    assert torch.allclose(loss, torch.nn.functional.smooth_l1_loss(prediction, target))
+    assert torch.allclose(loss, torch.nn.functional.mse_loss(prediction, target))
 
 
 @pytest.mark.parametrize("decoder", ["gru", "tcn", "transformer"])
@@ -148,14 +148,14 @@ def test_composite_loss_backpropagates():
     assert torch.isfinite(prediction.grad).all()
 
 
-def test_composite_loss_uses_configured_huber_for_edge_and_difference():
+def test_composite_loss_uses_mse_for_edge_and_difference():
     prediction = torch.tensor([[[0.0], [2.0]]], requires_grad=True)
     target = torch.zeros_like(prediction)
-    criterion = CompositeLoss({"edge": 1.0, "difference": 0.25}, 1, huber_beta=1.0)
+    criterion = CompositeLoss({"edge": 1.0, "difference": 0.25}, 1)
     loss, components = criterion(prediction, target, torch.zeros_like(target[0]))
-    assert components["edge"].item() == pytest.approx(0.75)
-    assert components["difference"].item() == pytest.approx(1.5)
-    assert loss.item() == pytest.approx(1.125)
+    assert components["edge"].item() == pytest.approx(2.0)
+    assert components["difference"].item() == pytest.approx(4.0)
+    assert loss.item() == pytest.approx(3.0)
 
 
 def test_composite_loss_uses_mse_when_configured():
