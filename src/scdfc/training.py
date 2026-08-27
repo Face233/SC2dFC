@@ -92,7 +92,7 @@ class CompositeLoss:
         nonoverlap_start: int,
         n_nodes: int = 90,
         huber_beta: float = 1.0,
-        loss_type: str = "huber",
+        loss_type: str = "mse",
     ) -> None:
         unknown = set(weights) - self._SUPPORTED
         if unknown:
@@ -498,7 +498,7 @@ def validate_sequence(
     nonoverlap: int,
     device: torch.device,
 ) -> dict[str, float]:
-    """一次验证前向同时计算组合 MSE 目标、各分量与长时距诊断指标。"""
+    """一次验证前向同时计算配置指定目标、各分量与长时距诊断指标。"""
     model.eval()
     total = 0.0
     component_totals: dict[str, float] = {name: 0.0 for name in criterion.weights}
@@ -585,7 +585,7 @@ def train_sequence_model(
     criterion = CompositeLoss(
         config["training"]["loss_weights"], nonoverlap, int(config["data"]["n_nodes"]),
         float(config["training"].get("huber_beta", 1.0)),
-        str(config["training"].get("loss_type", "huber")),
+        str(config["training"].get("loss_type", "mse")),
     )
     conditional_name = (
         decoder_type

@@ -32,13 +32,20 @@ def fcd(sequence: np.ndarray) -> np.ndarray:
     return normalized @ normalized.T
 
 
+def _smooth_l1(values: np.ndarray, beta: float) -> np.ndarray:
+    """Vectorized Smooth-L1/Huber penalty used only for explicit Huber reports."""
+    absolute = np.abs(values)
+    return np.where(absolute < beta, 0.5 * values**2 / beta, absolute - 0.5 * beta)
+
+
 def sequence_metrics(
     prediction: np.ndarray,
     target: np.ndarray,
     template: np.ndarray,
     nonoverlap: int,
     difference_weight: float = 0.25,
-    loss_type: str = "huber",
+    loss_type: str = "mse",
+    huber_beta: float = 1.0,
 ) -> dict[str, float]:
     """汇总单个 subject/run 的边级、动态和 FCD 指标。"""
     if huber_beta <= 0:
@@ -473,7 +480,7 @@ def evaluate_checkpoint(
     metric_kwargs = {
         "huber_beta": float(config["training"].get("huber_beta", 1.0)),
         "difference_weight": float(config["training"].get("loss_weights", {}).get("difference", 0.0)),
-        "loss_type": str(config["training"].get("loss_type", "huber")),
+        "loss_type": str(config["training"].get("loss_type", "mse")),
     }
     rows = [sequence_metrics(p, t, template, nonoverlap, **metric_kwargs) for p, t in zip(predictions, targets)]
     state_model = fit_state_model(train, int(config["evaluation"]["state_clusters"]), int(config["seed"]))
@@ -559,7 +566,7 @@ def evaluate_analytic_baseline(
     metric_kwargs = {
         "huber_beta": float(config["training"].get("huber_beta", 1.0)),
         "difference_weight": float(config["training"].get("loss_weights", {}).get("difference", 0.0)),
-        "loss_type": str(config["training"].get("loss_type", "huber")),
+        "loss_type": str(config["training"].get("loss_type", "mse")),
     }
     rows = [sequence_metrics(p, t, template, nonoverlap, **metric_kwargs) for p, t in zip(predictions, targets)]
     aggregate = {key: float(np.mean([row[key] for row in rows])) for key in rows[0]}
