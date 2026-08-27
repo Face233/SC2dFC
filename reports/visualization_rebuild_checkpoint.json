@@ -4,10 +4,10 @@
   "status": "COMPLETED",
   "paused_at": "2026-08-27T11:44:45+08:00",
   "scope": {
-    "completed_experiments": ["E0004", "E0005", "E0006", "E0007", "E0009", "E0010", "E0011", "E0012"],
-    "excluded_without_runs": ["E0008", "E0013", "E0014", "E0015"],
+    "completed_experiments": ["E0004", "E0005", "E0006", "E0007", "E0008", "E0009", "E0010", "E0011", "E0012"],
+    "excluded_without_runs": ["E0013", "E0014", "E0015"],
     "split": "val",
-    "no_training": true,
+    "visualization_backfill_no_training": true,
     "no_test_split": true
   },
   "completed": {
@@ -20,9 +20,19 @@
       "E0009": "E0009-s42-20260818T073202Z-f875e65",
       "E0010": "E0010-s42-20260818T075122Z-f073db0",
       "E0011": "E0011-s42-20260818T083706Z-febe983",
-      "E0012": "E0012-s42-20260819T015545Z-afb7270"
+      "E0012": "E0012-s42-20260819T015545Z-afb7270",
+      "E0008": "E0008-s42-20260827T061502Z-83424f0"
     },
-    "visual_report_generated": ["E0004"],
+    "visual_report_generated": ["E0004", "E0008"],
+    "e0008_run": {
+      "run_id": "E0008-s42-20260827T061502Z-83424f0",
+      "status": "COMPLETED",
+      "loss_type": "mse",
+      "best_epoch": 4,
+      "best_validation_objective_loss": 0.1888369210535967,
+      "evaluation_val": true,
+      "dynamic_audit_val": true
+    },
     "legacy_visualization_deleted": ["E0004", "E0005", "E0006", "E0010", "E0011"],
     "legacy_visualization_cleanup": "Sent to Windows Recycle Bin; old output paths no longer exist."
   },
