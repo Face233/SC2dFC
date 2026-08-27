@@ -1,0 +1,31 @@
+base: E0004_gcn_gru_full_v1.yaml
+
+data:
+  warmup_windows: 1
+
+model:
+  # Parameter-matched control for E0015: K=1 still observes one FC window,
+  # but routes it through the same learnable warmup GRU.
+  warmup_encoder: gru
+  warmup_gru_layers: 1
+
+training:
+  # Exploration phase: use plain MSE for edge and difference terms; reserve
+  # Huber for a later robustness-focused optimization pass.
+  loss_type: mse
+
+experiment:
+  id: E0014
+  name: gcn_gru_warmup_k1_control_v1
+  level: 1
+  task: sequence
+  research_question: 在输入信息不变时，新增warmup GRU本身是否改变E0004的预测能力
+  hypothesis: K=1 GRU仅带来有限变化；它是K=5比较所需的参数量对照
+  primary_change: 在E0004的FC1 encoder之后增加单层256维warmup GRU，warmup窗口数保持1
+  baseline: E0004
+  owner: Face88
+  status: planned
+  ablation: full
+
+decision_rule:
+  description: 仅按验证集objective_loss选择checkpoint；K=1与K=5必须在共同绝对时间后缀和相对最后warmup窗口的non-overlap区间同时报告。

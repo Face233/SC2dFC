@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "task": "E0004–E0012 unified validation visualization rebuild",
+  "status": "COMPLETED",
+  "paused_at": "2026-08-27T11:44:45+08:00",
+  "scope": {
+    "completed_experiments": ["E0004", "E0005", "E0006", "E0007", "E0009", "E0010", "E0011", "E0012"],
+    "excluded_without_runs": ["E0008", "E0013", "E0014", "E0015"],
+    "split": "val",
+    "no_training": true,
+    "no_test_split": true
+  },
+  "completed": {
+    "shared_visualization_module_and_tests": true,
+    "dynamic_audit_backfill": {
+      "E0004": "E0004-s42-20260812T062236Z-b1bf06d",
+      "E0005": "E0005-s42-20260812T071223Z-b824210",
+      "E0006": "E0006-s42-20260812T075113Z-caeb70b",
+      "E0007": "E0007-s42-20260812T093450Z-b6dff41",
+      "E0009": "E0009-s42-20260818T073202Z-f875e65",
+      "E0010": "E0010-s42-20260818T075122Z-f073db0",
+      "E0011": "E0011-s42-20260818T083706Z-febe983",
+      "E0012": "E0012-s42-20260819T015545Z-afb7270"
+    },
+    "visual_report_generated": ["E0004"],
+    "legacy_visualization_deleted": ["E0004", "E0005", "E0006", "E0010", "E0011"],
+    "legacy_visualization_cleanup": "Sent to Windows Recycle Bin; old output paths no longer exist."
+  },
+  "pending": {
+    "validation_evaluation_backfill": [],
+    "regenerate_E0004_after_layout_and_manifest_updates": false,
+    "generate_visual_reports": [],
+    "verify_each_report_has_four_pngs_script_and_manifest": false,
+    "delete_legacy_visualization_after_verification": []
+  },
+  "resume_order": [],
+  "interruption_note": "The paused bulk job was resumed from E0009 validation evaluation; all pending validation evaluations, report generation, verification, and legacy cleanup are now complete."
+}

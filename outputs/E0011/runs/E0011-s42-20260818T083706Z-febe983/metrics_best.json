@@ -1,11 +1,29 @@
 {
   "metrics": {
-    "objective_loss": 0.11546086633129965,
-    "long_residual_pearson": 0.08273833923287177,
-    "validation_edge_loss": 0.09185886175572118,
-    "validation_difference_loss": 0.00472517401168618,
-    "validation_long_horizon_variance_loss": 0.007473570730867265
+    "objective_loss": 0.09304015449310146,
+    "edge_huber": 0.09185886104838757,
+    "difference_huber": 0.0047251737788555365,
+    "mse": 0.18470496052428137,
+    "mae": 0.3412386261964146,
+    "raw_edge_pearson": 0.5244273835722404,
+    "raw_edge_spearman": 0.477248213159314,
+    "long_residual_pearson": 0.08273833794014593,
+    "difference_mse": 0.00945034976223413,
+    "variance_mae": 0.128293477328895,
+    "dynamic_amplitude_mae": 0.09514159053752694,
+    "node_strength_pearson": 0.5134735622360737,
+    "node_strength_mae": 0.11703141901311995,
+    "fcd_pearson": 0.31427813409768707,
+    "fcd_wasserstein": 0.542045958187511,
+    "state_occupancy_mae": 0.2153942214906057,
+    "state_transition_mae": 0.10418900349353052,
+    "state_dwell_mae": 45.383402722143416,
+    "retrieval_top1": 0.02531645569620253,
+    "retrieval_top5": 0.17088607594936708,
+    "retrieval_mean_rank": 42.56962025316456,
+    "projection_negative_eigenvalue_fraction": 0.006488051314071635,
+    "projection_minimum_eigenvalue": -0.34535162570544436,
+    "projection_projection_rmse": 0.0007303292851259046
   },
-  "primary_metric": "objective_loss",
-  "best_epoch": 2
+  "primary_metric": "objective_loss"
 }

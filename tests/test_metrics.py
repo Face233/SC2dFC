@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from scdfc.evaluation import _dynamic_audit_horizons, dynamic_calibration_metrics, dynamic_state_metrics, retrieval_metrics, sequence_metrics, subject_bootstrap_difference
 
@@ -11,6 +12,15 @@ def test_metrics_are_best_for_exact_prediction():
     assert metrics["mse"] == 0
     assert metrics["long_residual_pearson"] > 0.999
     assert metrics["fcd_pearson"] > 0.999
+
+
+def test_sequence_metrics_uses_mse_objective_when_configured():
+    prediction = np.array([[0.0], [2.0], [0.0]])
+    target = np.zeros_like(prediction)
+    metrics = sequence_metrics(prediction, target, np.zeros_like(target), 1, loss_type="mse")
+    assert metrics["mse"] == 4.0 / 3.0
+    assert metrics["difference_mse"] == 4.0
+    assert metrics["objective_loss"] == pytest.approx(7.0 / 3.0)
 
 
 def test_retrieval_and_subject_bootstrap():

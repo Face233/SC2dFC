@@ -85,3 +85,13 @@ Get-Content outputs\E0003\runs\<run_id>\metadata.json
 若将输出重定向到文件，保留 `$env:PYTHONUNBUFFERED = "1"`。完成后，检查 `metrics_best.json`、`metrics_last.json`、`evaluation_val.json`（或最终的 `evaluation_test.json`）以及 `metadata.json`。
 
 `epoch_complete` 还记录 `train_seconds`、`validation_seconds`、`epoch_seconds`、累计平均 epoch 时间、按最大 epoch 估算的剩余时间、假设不再改善时距早停的估算时间、训练吞吐量和峰值 GPU 显存。前 3 个 epoch 后应优先使用这些实测字段更新总耗时预估。
+
+## 5. 可视化交付
+
+后续实验可视化统一写入 `outputs/E####/visual/`，该目录与该实验的 `runs/` 同级。每个图须由同目录下可重复运行的 `.py` 脚本生成，并提交静态图片（默认 PNG）；不以 HTML 或网页作为交付物。完整目录、命名和可追溯性要求见[实验可视化合约](visualization_contract.md)。
+
+在验证评估与动态审计完成后，可生成一个实验的四图验证报告：
+
+```powershell
+python -m scdfc.visualization --root . --experiment E0004
+```

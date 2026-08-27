@@ -77,7 +77,7 @@ class SCGraphEncoder(nn.Module):
 
 
 class ConditionEncoder(nn.Module):
-    """将 SC 与首窗 FC 分别编码为 256 维，再融合成共享全局条件。"""
+    """Encode SC and one or more FC warmup windows into a shared condition."""
 
     def __init__(
         self,
@@ -92,12 +92,18 @@ class ConditionEncoder(nn.Module):
         hcp_gcn_hidden_dim: int = 128,
         hcp_gcn_output_dim: int = 64,
         ablation: str = "full",
+        warmup_encoder: str = "none",
+        warmup_gru_layers: int = 1,
     ) -> None:
         super().__init__()
         if sc_encoder_type not in {"hybrid", "hcp_gcn"}:
             raise ValueError("sc_encoder_type must be 'hybrid' or 'hcp_gcn'")
         if ablation not in {"full", "fc1_only", "sc_only", "mean_sc", "shuffled_sc"}:
             raise ValueError(f"Unknown ablation: {ablation}")
+        if warmup_encoder not in {"none", "gru"}:
+            raise ValueError("warmup_encoder must be 'none' or 'gru'")
+        if warmup_gru_layers < 1:
+            raise ValueError("warmup_gru_layers must be positive")
         self.fc_autoencoder = fc_autoencoder
         self.sc_encoder_type = sc_encoder_type
         self.ablation = ablation
@@ -109,6 +115,12 @@ class ConditionEncoder(nn.Module):
             self.hcp_global_projection = nn.Linear(hcp_gcn_output_dim, 256)
         self.sc_norm = nn.LayerNorm(256)
         fc_dim = fc_autoencoder.encoder[-1].normalized_shape[0]
+        self.warmup_encoder = warmup_encoder
+        self.warmup_gru = (
+            nn.GRU(fc_dim, fc_dim, num_layers=warmup_gru_layers, batch_first=True)
+            if warmup_encoder == "gru"
+            else None
+        )
         combined = 256 + fc_dim
         # 门控融合确保模型可按被试调整各类条件信息的贡献。
         self.value = nn.Linear(combined, hidden_dim)
@@ -125,7 +137,24 @@ class ConditionEncoder(nn.Module):
         else:
             hcp_global, _ = self.hcp_gcn(sc_matrix)
             sc_global = self.hcp_global_projection(hcp_global)
-        warmup = self.fc_autoencoder.encode(fc_warmup)
+        if self.warmup_encoder == "none":
+            if fc_warmup.ndim == 3:
+                if fc_warmup.shape[1] != 1:
+                    raise ValueError("warmup_encoder='none' accepts exactly one FC warmup window")
+                fc_warmup = fc_warmup[:, 0]
+            if fc_warmup.ndim != 2:
+                raise ValueError("FC warmup must have shape [batch, edges]")
+            warmup = self.fc_autoencoder.encode(fc_warmup)
+        else:
+            if fc_warmup.ndim == 2:
+                fc_warmup = fc_warmup[:, None]
+            if fc_warmup.ndim != 3:
+                raise ValueError("warmup_encoder='gru' requires FC warmup shape [batch, windows, edges]")
+            batch, windows, edges = fc_warmup.shape
+            latent = self.fc_autoencoder.encode(fc_warmup.reshape(batch * windows, edges))
+            latent = latent.reshape(batch, windows, -1)
+            _, hidden = self.warmup_gru(latent)
+            warmup = hidden[-1]
         return self.sc_norm(sc_global), warmup
 
     def forward(
@@ -241,7 +270,7 @@ def torch_edges_to_matrix(edges: torch.Tensor, n_nodes: int = 90) -> torch.Tenso
 
 
 class ConditionalSequenceModel(nn.Module):
-    """SC + 首窗 FC 条件下预测未来 dFC 的完整主模型。"""
+    """Predict future dFC from SC and one or more initial FC windows."""
     def __init__(
         self,
         fc_autoencoder: FCAutoencoder,
@@ -264,6 +293,8 @@ class ConditionalSequenceModel(nn.Module):
         hcp_gcn_output_dim: int = 64,
         ablation: str = "full",
         output_head: str = "e0003_reconstruction_decoder",
+        warmup_encoder: str = "none",
+        warmup_gru_layers: int = 1,
     ) -> None:
         super().__init__()
         self.n_nodes = n_nodes
@@ -290,6 +321,8 @@ class ConditionalSequenceModel(nn.Module):
             hcp_gcn_hidden_dim,
             hcp_gcn_output_dim,
             ablation,
+            warmup_encoder,
+            warmup_gru_layers,
         )
         if decoder_type == "tcn":
             self.temporal = TCNDecoder(hidden_dim, 256, tcn_dilations, dropout)

@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 
 from .config import DEFAULT_SEED, resolve_path
 from .connectivity import nonoverlap_horizon
-from .data import DFCSequenceDataset, FCWindowDataset
+from .data import DFCSequenceDataset, FCWindowDataset, group_template_for_warmup
 from .models import ConditionalSequenceModel, FCAutoencoder
 from .models.baselines import CommonInputLSTM, CommonInputMLP, DirectSCMLP, GCNGRUBaseline, PCARidgeBaseline
 from .models.sequence import torch_edges_to_matrix
@@ -87,7 +87,12 @@ class CompositeLoss:
     }
 
     def __init__(
-        self, weights: dict[str, float], nonoverlap_start: int, n_nodes: int = 90, huber_beta: float = 1.0
+        self,
+        weights: dict[str, float],
+        nonoverlap_start: int,
+        n_nodes: int = 90,
+        huber_beta: float = 1.0,
+        loss_type: str = "huber",
     ) -> None:
         unknown = set(weights) - self._SUPPORTED
         if unknown:
@@ -99,17 +104,22 @@ class CompositeLoss:
             raise ValueError("At most three loss components may be enabled")
         self.nonoverlap_start = nonoverlap_start
         self.n_nodes = n_nodes
+        self.loss_type = str(loss_type)
+        if self.loss_type not in {"huber", "mse"}:
+            raise ValueError("loss_type must be 'huber' or 'mse'")
         self.huber_beta = float(huber_beta)
         if self.huber_beta <= 0:
             raise ValueError("huber_beta must be positive")
 
-    def _huber(self, prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    def _pointwise_loss(self, prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        if self.loss_type == "mse":
+            return F.mse_loss(prediction, target)
         return F.smooth_l1_loss(prediction, target, beta=self.huber_beta)
 
     def __call__(self, prediction: torch.Tensor, target: torch.Tensor, group_template: torch.Tensor) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         components: dict[str, torch.Tensor] = {}
         if "edge" in self.weights:
-            components["edge"] = self._huber(prediction, target)
+            components["edge"] = self._pointwise_loss(prediction, target)
         if "residual_corr" in self.weights:
             template = group_template[: target.shape[1]][None]
             components["residual_corr"] = correlation_loss(
@@ -117,12 +127,12 @@ class CompositeLoss:
                 target[:, self.nonoverlap_start :] - template[:, self.nonoverlap_start :],
             )
         if "difference" in self.weights:
-            components["difference"] = self._huber(
+            components["difference"] = self._pointwise_loss(
                 prediction[:, 1:] - prediction[:, :-1],
                 target[:, 1:] - target[:, :-1],
             )
         if "static" in self.weights:
-            components["static"] = self._huber(prediction.mean(1), target.mean(1))
+            components["static"] = self._pointwise_loss(prediction.mean(1), target.mean(1))
         if "variance" in self.weights:
             components["variance"] = variance_loss(prediction, target)
         if "long_horizon_variance" in self.weights:
@@ -360,7 +370,8 @@ def build_sequence_model(
     output_head = str(model_cfg.get("output_head", "e0003_reconstruction_decoder"))
     if decoder_type in {"gru", "tcn", "transformer"} and output_head not in {"e0003_reconstruction_decoder", "direct_edge_linear"}:
         raise ValueError(f"Unsupported conditional output head: {output_head}")
-    group_template = torch.from_numpy(stats["group_template"])
+    warmup_windows = int((checkpoint_payload or {}).get("warmup_windows", config.get("data", {}).get("warmup_windows", 1)))
+    group_template = torch.from_numpy(group_template_for_warmup(stats, warmup_windows))
     if decoder_type == "pca_ridge":
         if checkpoint_payload is None:
             raise ValueError("A fitted checkpoint payload is required to build pca_ridge")
@@ -398,6 +409,8 @@ def build_sequence_model(
         hcp_gcn_output_dim=int(model_cfg.get("hcp_gcn_output_dim", 64)),
         ablation=ablation,
         output_head=output_head,
+        warmup_encoder=str((checkpoint_payload or {}).get("warmup_encoder", model_cfg.get("warmup_encoder", "none"))),
+        warmup_gru_layers=int((checkpoint_payload or {}).get("warmup_gru_layers", model_cfg.get("warmup_gru_layers", 1))),
     ).to(device)
 
 
@@ -553,6 +566,8 @@ def train_sequence_model(
     requested_sc_encoder_type = sc_encoder_type
     sc_encoder_type = requested_sc_encoder_type or str(config["model"].get("sc_encoder", "hybrid"))
     baseline_types = {"direct_mlp", "gcn_gru", "mlp", "lstm"}
+    if int(config.get("data", {}).get("warmup_windows", 1)) != 1 and decoder_type in baseline_types | {"pca_ridge"}:
+        raise ValueError(f"{decoder_type} does not support multi-window warmup; use a conditional gru, tcn, or transformer model")
     if decoder_type in baseline_types and requested_sc_encoder_type not in {None, "hybrid"}:
         raise ValueError("--sc-encoder applies only to the gru, tcn, and transformer conditional models")
     if decoder_type in baseline_types:
@@ -570,6 +585,7 @@ def train_sequence_model(
     criterion = CompositeLoss(
         config["training"]["loss_weights"], nonoverlap, int(config["data"]["n_nodes"]),
         float(config["training"].get("huber_beta", 1.0)),
+        str(config["training"].get("loss_type", "huber")),
     )
     conditional_name = (
         decoder_type
@@ -645,6 +661,10 @@ def train_sequence_model(
                 "primary_metric": primary_metric, "decoder_type": decoder_type,
                 "sc_encoder_type": sc_encoder_type, "ablation": ablation, "window_length": window_length,
                 "validation_metrics": validation_metrics, "output_head": str(config["model"].get("output_head", "e0003_reconstruction_decoder")),
+                "warmup_windows": int(config.get("data", {}).get("warmup_windows", 1)),
+                "warmup_encoder": str(config["model"].get("warmup_encoder", "none")),
+                "warmup_gru_layers": int(config["model"].get("warmup_gru_layers", 1)),
+                "loss_type": criterion.loss_type,
                 "fc_reconstruction_decoder_frozen": not finetune_fc_decoder,
             }
             payload.update(checkpoint_metadata or {})
@@ -678,6 +698,7 @@ def train_sequence_model(
                 "primary_metric": primary_metric, "decoder_type": decoder_type,
                 "sc_encoder_type": sc_encoder_type, "ablation": ablation, "window_length": window_length,
                 "validation_metrics": validation_metrics, "output_head": str(config["model"].get("output_head", "e0003_reconstruction_decoder")),
+                "loss_type": criterion.loss_type,
                 "fc_reconstruction_decoder_frozen": not finetune_fc_decoder,
             }
             last_payload.update(checkpoint_metadata or {})

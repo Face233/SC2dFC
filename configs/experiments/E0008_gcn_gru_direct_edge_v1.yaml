@@ -39,6 +39,9 @@ training:
   gradient_clip: 1.0
   patience: 20
   num_workers: 0
+  # Per the current protocol, explore direct-edge output with plain MSE;
+  # reserve Huber for a later robustness-focused optimization pass.
+  loss_type: mse
   huber_beta: 1.0
   finetune_fc_decoder: false
   loss_weights:

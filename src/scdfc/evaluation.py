@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 
 from .config import DEFAULT_SEED, resolve_path
 from .connectivity import edges_to_matrix, inverse_fisher_z, nearest_correlation, nonoverlap_horizon
-from .data import DFCSequenceDataset, read_cached
+from .data import DFCSequenceDataset, group_template_for_warmup, read_cached
 from .training import build_sequence_model, device_from_arg, seed_everything
 
 
@@ -44,10 +44,13 @@ def sequence_metrics(
     nonoverlap: int,
     huber_beta: float = 1.0,
     difference_weight: float = 0.25,
+    loss_type: str = "huber",
 ) -> dict[str, float]:
     """汇总单个 subject/run 的边级、动态和 FCD 指标。"""
     if huber_beta <= 0:
         raise ValueError("huber_beta must be positive")
+    if loss_type not in {"huber", "mse"}:
+        raise ValueError("loss_type must be 'huber' or 'mse'")
     pred_r, target_r = np.tanh(prediction), np.tanh(target)
     long_pred, long_target = prediction[nonoverlap:] - template[nonoverlap:], target[nonoverlap:] - template[nonoverlap:]
     raw_corr = _row_correlation(prediction, target)
@@ -58,6 +61,11 @@ def sequence_metrics(
     pred_diff, target_diff = np.diff(prediction, axis=0), np.diff(target, axis=0)
     edge_huber = float(np.mean(_smooth_l1(prediction - target, huber_beta)))
     difference_huber = float(np.mean(_smooth_l1(pred_diff - target_diff, huber_beta)))
+    edge_mse = float(np.mean((prediction - target) ** 2))
+    difference_mse = float(np.mean((pred_diff - target_diff) ** 2))
+    edge_loss, difference_loss = (
+        (edge_huber, difference_huber) if loss_type == "huber" else (edge_mse, difference_mse)
+    )
     n_edges = prediction.shape[-1]
     n_nodes = int((1 + np.sqrt(1 + 8 * n_edges)) / 2)
     if n_nodes * (n_nodes - 1) // 2 != n_edges:
@@ -65,15 +73,15 @@ def sequence_metrics(
     pred_strength = np.abs(edges_to_matrix(pred_r, n_nodes)).sum(-1) / (n_nodes - 1)
     target_strength = np.abs(edges_to_matrix(target_r, n_nodes)).sum(-1) / (n_nodes - 1)
     return {
-        "objective_loss": edge_huber + float(difference_weight) * difference_huber,
+        "objective_loss": edge_loss + float(difference_weight) * difference_loss,
         "edge_huber": edge_huber,
         "difference_huber": difference_huber,
-        "mse": float(np.mean((prediction - target) ** 2)),
+        "mse": edge_mse,
         "mae": float(np.mean(np.abs(prediction - target))),
         "raw_edge_pearson": float(np.nanmean(raw_corr)),
         "raw_edge_spearman": float(np.nanmean(raw_spearman)),
         "long_residual_pearson": float(np.nanmean(residual_corr)),
-        "difference_mse": float(np.mean((pred_diff - target_diff) ** 2)),
+        "difference_mse": difference_mse,
         "variance_mae": float(np.mean(np.abs(prediction.var(0) - target.var(0)))),
         "dynamic_amplitude_mae": float(abs(pred_diff.std() - target_diff.std())),
         "node_strength_pearson": float(np.nanmean(_row_correlation(pred_strength, target_strength))),
@@ -350,6 +358,10 @@ def dynamic_audit_checkpoint(
     prediction, target, subjects, runs = collect_predictions(model, loader, device)
     template = model.group_template.cpu().numpy()[: target.shape[1]]
     warmup = np.stack([dataset[index]["fc_warmup"].numpy() for index in range(len(dataset))])
+    if warmup.ndim == 3:
+        # For K>1, persistence means holding the *last observed* FC window,
+        # never averaging or leaking a future warmup window into the target.
+        warmup = warmup[:, -1]
     model_name = str(config.get("experiment", {}).get("id", "model"))
     methods = {
         model_name: prediction,
@@ -467,6 +479,7 @@ def evaluate_checkpoint(
     metric_kwargs = {
         "huber_beta": float(config["training"].get("huber_beta", 1.0)),
         "difference_weight": float(config["training"].get("loss_weights", {}).get("difference", 0.0)),
+        "loss_type": str(config["training"].get("loss_type", "huber")),
     }
     rows = [sequence_metrics(p, t, template, nonoverlap, **metric_kwargs) for p, t in zip(predictions, targets)]
     state_model = fit_state_model(train, int(config["evaluation"]["state_clusters"]), int(config["seed"]))
@@ -475,6 +488,8 @@ def evaluate_checkpoint(
     aggregate = {key: float(np.mean([row[key] for row in rows])) for key in rows[0]}
     aggregate.update(retrieval_metrics(predictions, targets, template, nonoverlap, subjects))
     warmup = np.stack([test[index]["fc_warmup"].numpy() for index in range(len(test))])
+    if warmup.ndim == 3:
+        warmup = warmup[:, -1]
     analytic = {
         "group_mean": np.broadcast_to(template[None], targets.shape),
         "fc1_persistence": np.broadcast_to(warmup[:, None], targets.shape),
@@ -532,7 +547,7 @@ def evaluate_analytic_baseline(
     seed_everything(int(config["seed"]))
     dataset = DFCSequenceDataset(config, window_length, split_name, stats_path)
     stats = dict(np.load(stats_path))
-    template = stats["group_template"]
+    template = group_template_for_warmup(stats, int(config.get("data", {}).get("warmup_windows", 1)))
     predictions, targets, subjects, runs = [], [], [], []
     for index in range(len(dataset)):
         sample = dataset[index]
@@ -550,6 +565,7 @@ def evaluate_analytic_baseline(
     metric_kwargs = {
         "huber_beta": float(config["training"].get("huber_beta", 1.0)),
         "difference_weight": float(config["training"].get("loss_weights", {}).get("difference", 0.0)),
+        "loss_type": str(config["training"].get("loss_type", "huber")),
     }
     rows = [sequence_metrics(p, t, template, nonoverlap, **metric_kwargs) for p, t in zip(predictions, targets)]
     aggregate = {key: float(np.mean([row[key] for row in rows])) for key in rows[0]}

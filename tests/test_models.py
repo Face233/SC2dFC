@@ -90,6 +90,32 @@ def test_information_ablation_zeros_embeddings_after_encoding(ablation, zero_sli
     assert torch.count_nonzero(captured["combined"][:, zero_slice]) == 0
 
 
+def test_warmup_gru_encodes_multiple_fc_windows_and_backpropagates():
+    autoencoder = FCAutoencoder(6, latent_dim=4, dropout=0)
+    model = ConditionalSequenceModel(
+        autoencoder,
+        torch.zeros(3, 6),
+        decoder_type="gru",
+        n_nodes=4,
+        hidden_dim=4,
+        graph_layers=1,
+        graph_heads=4,
+        gru_layers=1,
+        dropout=0,
+        warmup_encoder="gru",
+        warmup_gru_layers=1,
+    )
+    sc = torch.rand(2, 4, 4)
+    sc = (sc + sc.transpose(1, 2)) / 2
+    sc[:, torch.arange(4), torch.arange(4)] = 0
+    indices = torch.triu_indices(4, 4, 1)
+    edges = sc[:, indices[0], indices[1]]
+    result = model(sc, edges, torch.randn(2, 5, 6))
+    assert result.fc_z_edges.shape == (2, 3, 6)
+    result.fc_z_edges.square().mean().backward()
+    assert all(parameter.grad is not None for parameter in model.condition_encoder.warmup_gru.parameters())
+
+
 def test_hcp_gcn_encoder_normalizes_and_backpropagates():
     torch.manual_seed(0)
     adjacency = torch.rand(2, 6, 6)
@@ -130,6 +156,16 @@ def test_composite_loss_uses_configured_huber_for_edge_and_difference():
     assert components["edge"].item() == pytest.approx(0.75)
     assert components["difference"].item() == pytest.approx(1.5)
     assert loss.item() == pytest.approx(1.125)
+
+
+def test_composite_loss_uses_mse_when_configured():
+    prediction = torch.tensor([[[0.0], [2.0]]], requires_grad=True)
+    target = torch.zeros_like(prediction)
+    criterion = CompositeLoss({"edge": 1.0, "difference": 0.25}, 1, loss_type="mse")
+    loss, components = criterion(prediction, target, torch.zeros_like(target[0]))
+    assert components["edge"].item() == pytest.approx(2.0)
+    assert components["difference"].item() == pytest.approx(4.0)
+    assert loss.item() == pytest.approx(3.0)
 
 
 def test_long_horizon_dynamic_losses_are_zero_for_exact_prediction():

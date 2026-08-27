@@ -14,6 +14,9 @@ data:
   tr_seconds: 0.72
   window_length: 83
   stride: 5
+  # K=1 preserves the original FC[0] -> FC[1:] task.  Multi-window experiments
+  # set K>1 and predict only FC[K:] to avoid leaking the warmup windows.
+  warmup_windows: 1
   sensitivity_windows: [42, 125]
   fisher_clip: 0.999999
   cache_dtype: float32
@@ -37,6 +40,10 @@ model:
   baseline_hidden_dim: 256
   ridge_pca_components: 128
   ridge_alpha: 1.0
+  # "none" is the original single-FC condition.  The K=1 control and K>1
+  # warmup studies use a learned GRU to preserve initial change direction.
+  warmup_encoder: none
+  warmup_gru_layers: 1
 training:
   batch_size: 4
   autoencoder_batch_size: 256

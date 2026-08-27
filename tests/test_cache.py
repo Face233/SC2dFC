@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from scdfc.data import audit_dataset, iter_cached_samples, precompute_dfc, read_cached
+from scdfc.data import DFCSequenceDataset, audit_dataset, group_template_for_warmup, iter_cached_samples, precompute_dfc, read_cached
 from scdfc.config import load_config
 
 
@@ -73,3 +73,29 @@ def test_precompute_respects_frozen_split(tmp_path: Path):
     }
     assert precompute_dfc(config, 10) == {"written": 1, "skipped": 0}
     assert list(iter_cached_samples(config, 10)) == [("100001", "LR")]
+
+
+def test_multi_window_warmup_uses_only_strictly_future_targets_and_aligned_template(tmp_path: Path):
+    sc_dir = tmp_path / "sc"
+    ts_dir = tmp_path / "lr"
+    sc_dir.mkdir()
+    ts_dir.mkdir()
+    subject = "100001"
+    np.savetxt(sc_dir / f"{subject}.csv", np.eye(4), delimiter=",")
+    frame = pd.DataFrame(np.random.default_rng(9).normal(size=(30, 4)), columns=list("ABCD"))
+    frame.insert(0, "timepoint", np.arange(30))
+    frame.to_csv(ts_dir / f"{subject}_AAL90_timeseries.csv", index=False)
+    split = tmp_path / "split.csv"
+    pd.DataFrame({"subject_id": [subject], "split": ["train"]}).to_csv(split, index=False)
+    config = {
+        "paths": {"root": str(tmp_path), "sc_dir": "sc", "timeseries": {"LR": "lr"}, "cache_dir": "cache", "split_csv": "split.csv"},
+        "data": {"n_nodes": 4, "stride": 5, "fisher_clip": 0.999999, "warmup_windows": 3},
+    }
+    precompute_dfc(config, 10)
+    fc, _ = read_cached(config, 10, subject, "LR")
+    stats = tmp_path / "stats.npz"
+    np.savez(stats, sc_mean=np.zeros(6, dtype=np.float32), sc_std=np.ones(6, dtype=np.float32), group_template=fc[1:])
+    sample = DFCSequenceDataset(config, 10, "train", stats)[0]
+    np.testing.assert_allclose(sample["fc_warmup"].numpy(), fc[:3])
+    np.testing.assert_allclose(sample["fc_future"].numpy(), fc[3:])
+    np.testing.assert_allclose(group_template_for_warmup(dict(np.load(stats)), 3), fc[3:])

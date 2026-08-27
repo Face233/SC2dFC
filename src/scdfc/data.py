@@ -267,8 +267,27 @@ def fit_training_statistics(config: dict[str, Any], window_length: int, output: 
     return stats
 
 
+def group_template_for_warmup(stats: dict[str, np.ndarray], warmup_windows: int) -> np.ndarray:
+    """Return the training template aligned with a ``FC[:K] -> FC[K:]`` task.
+
+    Stored training statistics deliberately keep the full ``FC[1:]`` template so
+    that one cache/statistics artifact can serve K=1 and multi-window warmup
+    experiments.  A K-window target starts at ``FC[K]``, which is offset K-1
+    within that stored template.
+    """
+    if warmup_windows < 1:
+        raise ValueError("warmup_windows must be at least 1")
+    template = stats["group_template"]
+    offset = warmup_windows - 1
+    if offset >= len(template):
+        raise ValueError(
+            f"warmup_windows={warmup_windows} leaves no future windows in a template of length {len(template)}"
+        )
+    return template[offset:]
+
+
 class DFCSequenceDataset(Dataset):
-    """按 subject/run 返回 SC、首窗 FC 和完整未来 FC 标签。"""
+    """Return SC, K FC warmup windows, and the strictly future FC target."""
     def __init__(
         self,
         config: dict[str, Any],
@@ -287,6 +306,9 @@ class DFCSequenceDataset(Dataset):
         self.samples = [(s, r) for s, r in iter_cached_samples(config, window_length) if s in allowed]
         self.ablation = ablation
         self.mean_sc = self.stats["sc_mean"]
+        self.warmup_windows = int(config.get("data", {}).get("warmup_windows", 1))
+        if self.warmup_windows < 1:
+            raise ValueError("data.warmup_windows must be at least 1")
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -313,7 +335,16 @@ class DFCSequenceDataset(Dataset):
             raw = np.log1p(matrix_to_edges(sc_matrix))
             sc_edges = (raw - self.stats["sc_mean"]) / self.stats["sc_std"]
         fc, starts = read_cached(self.config, self.window_length, subject, run)
-        warmup = fc[0]
+        if self.warmup_windows >= len(fc):
+            raise ValueError(
+                f"warmup_windows={self.warmup_windows} leaves no future target for {subject}/{run} with {len(fc)} FC windows"
+            )
+        warmup = fc[: self.warmup_windows]
+        # Preserve the established K=1 batch contract [batch, edges] for
+        # analytic baselines and existing checkpoints.  K>1 uses
+        # [batch, windows, edges].  The warmup GRU accepts both forms.
+        if self.warmup_windows == 1:
+            warmup = warmup[0]
         if self.ablation == "sc_only":
             warmup = np.zeros_like(warmup)
         return {
@@ -321,8 +352,8 @@ class DFCSequenceDataset(Dataset):
             "run_name": run,
             "sc_matrix": torch.from_numpy(sc_matrix.astype(np.float32)),
             "sc_edges": torch.from_numpy(sc_edges.astype(np.float32)),
-            "fc_warmup": torch.from_numpy(warmup),
-            "fc_future": torch.from_numpy(fc[1:]),
+            "fc_warmup": torch.from_numpy(warmup.astype(np.float32)),
+            "fc_future": torch.from_numpy(fc[self.warmup_windows :]),
             "window_starts": torch.from_numpy(starts),
         }
 
@@ -340,7 +371,10 @@ class FCWindowDataset(Dataset):
     def __getitem__(self, index: int):
         run_index = index // self.windows_per_run
         sample = self.sequence_dataset[run_index]
-        sequence = torch.cat([sample["fc_warmup"][None], sample["fc_future"]], dim=0)
+        warmup = sample["fc_warmup"]
+        if warmup.ndim == 1:
+            warmup = warmup[None]
+        sequence = torch.cat([warmup, sample["fc_future"]], dim=0)
         generator = np.random.default_rng(self.seed + index)
         window = int(generator.integers(0, len(sequence)))
         return sequence[window]
