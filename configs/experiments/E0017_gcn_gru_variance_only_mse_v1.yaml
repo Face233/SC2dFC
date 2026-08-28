@@ -20,7 +20,8 @@ experiment:
   baseline: E0012
   owner: Face88
   status: planned
-  ablation: variance_only
+  # This is a loss ablation; keep the model architecture fully enabled.
+  ablation: full
 
 decision_rule:
   description: 固定完成50个epoch，仅在验证集运行动态审计且不查看测试集；与E0012比较差分标准差比、低/中频功率比和差分时间相关。若幅值改善而时间相关仍低，说明L_var主要校准振幅而不能恢复时间细节。

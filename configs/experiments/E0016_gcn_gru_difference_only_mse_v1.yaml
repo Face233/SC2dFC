@@ -20,7 +20,8 @@ experiment:
   baseline: E0012
   owner: Face88
   status: planned
-  ablation: difference_only
+  # This is a loss ablation; keep the model architecture fully enabled.
+  ablation: full
 
 decision_rule:
   description: 固定完成50个epoch，仅在验证集运行动态审计且不查看测试集；与E0012比较差分时间相关、差分标准差比和频段功率比。若变化方向改善但幅值/功率仍失配，说明L_diff主要提供时间方向而不足以校准幅值。
