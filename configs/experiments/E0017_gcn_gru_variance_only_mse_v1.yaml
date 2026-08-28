@@ -1,0 +1,26 @@
+base: E0012_gcn_gru_dynamic_only_v1.yaml
+
+training:
+  # variance_loss itself is MSE of edgewise temporal variances.
+  # The inherited huber_beta is inert because loss_type is mse.
+  loss_type: mse
+  loss_weights:
+    edge: 0.0
+    difference: 0.0
+    variance: 3.0
+
+experiment:
+  id: E0017
+  name: gcn_gru_variance_only_mse_v1
+  level: 1
+  task: sequence
+  research_question: 在E0012无边重建的动态压力测试中，单独使用逐边时间方差MSE能否校准dFC动态幅值，并保留真实变化细节
+  hypothesis: 单独的方差MSE可改善时间幅值与频段功率，但没有逐窗变化方向约束时，差分时间相关和细节重建仍会较弱
+  primary_change: 从E0012的3·L_diff + 3·L_var中移除L_diff，仅保留3·L_var（逐边时间方差MSE）
+  baseline: E0012
+  owner: Face88
+  status: planned
+  ablation: variance_only
+
+decision_rule:
+  description: 固定完成50个epoch，仅在验证集运行动态审计且不查看测试集；与E0012比较差分标准差比、低/中频功率比和差分时间相关。若幅值改善而时间相关仍低，说明L_var主要校准振幅而不能恢复时间细节。
