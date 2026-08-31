@@ -1,0 +1,25 @@
+base: E0012_gcn_gru_dynamic_only_v1.yaml
+
+training:
+  # Explicit MSE avoids inheriting the historical Huber ambiguity in E0012.
+  loss_type: mse
+  loss_weights:
+    edge: 0.0
+    difference: 1.0
+    variance: 1.0
+
+experiment:
+  id: E0018
+  name: gcn_gru_dynamic_only_mse_w1_control_v1
+  level: 1
+  task: sequence
+  research_question: 在E0012无边重建的动态压力测试中，将差分与全程方差损失从3:3同步缩放为1:1，整体损失尺度是否会改变dFC动态塌缩与验证表现
+  hypothesis: 若E0018与E0012的动态诊断接近，则3:3与1:1的整体缩放不改变核心结论，后续可固定总尺度而只调两项损失比例；若明显不同，则总体梯度尺度是重要优化因素。
+  primary_change: 保持E0012的无边重建、GCN+GRU、冻结decoder和50 epoch设置，仅将MSE损失由3·L_diff + 3·L_var改为1·L_diff + 1·L_var
+  baseline: E0012
+  owner: Face88
+  status: planned
+  ablation: full
+
+decision_rule:
+  description: 固定完成50个epoch且不查看测试集；与E0012在验证集比较temporal_std_ratio、difference_std_ratio、difference_temporal_pearson、dynamic_amplitude_mae、difference_mse、MSE、long_residual_pearson和FCD。不得以objective_loss绝对值比较，因为该值会随共同缩放的损失系数改变。
