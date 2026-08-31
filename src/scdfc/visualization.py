@@ -290,10 +290,19 @@ def _overview_loss_text(training: dict[str, Any]) -> str:
 
 
 def _overview_architecture_text(model: dict[str, Any], training: dict[str, Any]) -> str:
-    parts = [
-        f"SC {str(model.get('sc_encoder', 'encoder')).replace('_', '-').upper()}",
-        f"{str(model.get('name', 'sequence model')).upper()} ({int(model.get('gru_layers', 1))} layers)",
-    ]
+    model_name = str(model.get("name", "sequence model")).lower()
+    if model_name == "transformer":
+        temporal = (
+            f"TRANSFORMER ({int(model.get('transformer_layers', 1))} layers, "
+            f"{int(model.get('transformer_heads', 1))} heads)"
+        )
+    elif model_name == "gru":
+        temporal = f"GRU ({int(model.get('gru_layers', 1))} layers)"
+    elif model_name == "lstm":
+        temporal = f"LSTM ({int(model.get('lstm_layers', 1))} layers)"
+    else:
+        temporal = model_name.upper()
+    parts = [f"SC {str(model.get('sc_encoder', 'encoder')).replace('_', '-').upper()}", temporal]
     output_head = str(model.get("output_head", "output head")).replace("_", " ")
     decoder_state = "fine-tuned" if training.get("finetune_fc_decoder", False) else "frozen"
     frozen_epochs = int(training.get("decoder_frozen_epochs", 0))
@@ -365,7 +374,19 @@ def plot_run_overview(current: ManagedRun, destination: Path) -> Path:
         epochs = [row["epoch"] for row in rows]
         axes[0].plot(epochs, [row.get("train_loss", np.nan) for row in rows], color=PREDICTED_COLOR, label="Train")
         axes[0].plot(epochs, [row.get("objective_loss", np.nan) for row in rows], color=TRUE_COLOR, label="Validation")
-        axes[0].axvline(best.get("best_epoch", 0) + 1, color="#444444", linestyle="--", linewidth=1, label="Best checkpoint")
+        primary_metric = str(best.get("primary_metric", rows[-1].get("primary_metric", "objective_loss")))
+        logged_values = [
+            (float(row["primary_value"]), int(row["epoch"]))
+            for row in rows
+            if row.get("primary_value") is not None and np.isfinite(float(row["primary_value"]))
+        ]
+        if logged_values:
+            # train.log stores one-based epoch numbers; metrics_best.json stores
+            # the checkpoint epoch zero-based and may be overwritten by evaluation.
+            checkpoint_epoch = (min if primary_metric == "objective_loss" else max)(logged_values)[1]
+        else:
+            checkpoint_epoch = int(best.get("best_epoch", -1)) + 1
+        axes[0].axvline(checkpoint_epoch, color="#444444", linestyle="--", linewidth=1, label="Best checkpoint")
         axes[0].set(xlabel="Epoch", ylabel="Objective loss", title="Optimization trace")
         axes[0].grid(alpha=0.22)
         axes[0].legend(frameon=False)
