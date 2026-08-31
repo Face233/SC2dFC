@@ -22,6 +22,7 @@ import numpy as np
 import torch
 import yaml
 from matplotlib.lines import Line2D
+from matplotlib.font_manager import FontProperties
 
 from .data import DFCSequenceDataset
 from .training import build_sequence_model
@@ -50,6 +51,8 @@ HORIZON_METRICS = (
 # the whole categorical axis.  This width is shared by single- and two-model
 # reports so the visual grammar stays stable across experiments.
 CALIBRATION_BAR_WIDTH = 0.42
+CHINESE_BODY_FONT = FontProperties(family="Microsoft YaHei")
+CHINESE_HEADING_FONT = FontProperties(family="Microsoft YaHei", weight="bold")
 
 
 @dataclass(frozen=True)
@@ -271,6 +274,88 @@ def _read_log(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def _overview_loss_text(training: dict[str, Any]) -> str:
+    """Describe the active optimization terms without exposing raw config keys."""
+    weights = training.get("loss_weights", {})
+    labels = {"edge": "L_edge", "difference": "L_diff", "variance": "L_var", "long_variance": "L_long-var"}
+    active = [
+        f"{float(weight):g}·{labels.get(str(name), f'L_{name}')}"
+        for name, weight in weights.items()
+        if float(weight) != 0
+    ]
+    loss_name = "MSE" if str(training.get("loss_type", "mse")).lower() == "mse" else "Huber"
+    if loss_name == "Huber":
+        loss_name += f" (β={float(training.get('huber_beta', 1.0)):g})"
+    return f"{loss_name}: {' + '.join(active) if active else 'no active sequence-loss term'}"
+
+
+def _overview_architecture_text(model: dict[str, Any], training: dict[str, Any]) -> str:
+    parts = [
+        f"SC {str(model.get('sc_encoder', 'encoder')).replace('_', '-').upper()}",
+        f"{str(model.get('name', 'sequence model')).upper()} ({int(model.get('gru_layers', 1))} layers)",
+    ]
+    output_head = str(model.get("output_head", "output head")).replace("_", " ")
+    decoder_state = "fine-tuned" if training.get("finetune_fc_decoder", False) else "frozen"
+    frozen_epochs = int(training.get("decoder_frozen_epochs", 0))
+    if frozen_epochs:
+        decoder_state += f" for {frozen_epochs} epochs"
+    return " → ".join([*parts, f"{output_head} ({decoder_state})"])
+
+
+def _overview_design_text(config: dict[str, Any]) -> str:
+    experiment = config.get("experiment", {})
+    training = config.get("training", {})
+    data = config.get("data", {})
+    items = []
+    baseline = str(experiment.get("baseline", "")).strip()
+    if baseline:
+        items.append(f"Baseline: {baseline}")
+    warmup = int(data.get("warmup_windows", 0))
+    if warmup:
+        items.append(f"warm-up: {warmup} windows")
+    items.append(f"{int(training.get('epochs', 0))} epochs")
+    return " · ".join(items)
+
+
+def _overview_purpose_text(config: dict[str, Any]) -> str:
+    """Give a compact, consistently readable Chinese purpose for every experiment."""
+    weights = config.get("training", {}).get("loss_weights", {})
+    edge = float(weights.get("edge", 0))
+    difference = float(weights.get("difference", 0))
+    variance = float(weights.get("variance", 0))
+    if edge == 0 and (difference != 0 or variance != 0):
+        return "检验移除边重建约束、仅保留动态监督后，能否恢复 dFC 的时间波动。"
+    if difference != 0 or variance != 0:
+        return "检验动态监督能否同时改善 dFC 重建与时间波动。"
+    return "为 dFC 预测流程建立重建基线。"
+
+
+def _overview_lines(current: ManagedRun, best: dict[str, Any], evaluation: dict[str, Any]) -> list[tuple[str, str]]:
+    """Return the bounded experiment card displayed beside the optimization trace."""
+    config = current.config
+    experiment = config.get("experiment", {})
+    training = config.get("training", {})
+    aggregate = evaluation.get("aggregate", {})
+    primary_metric = str(best.get("primary_metric", "objective_loss"))
+    primary_value = aggregate.get(primary_metric, best.get("metrics", {}).get(primary_metric))
+    result = f"Validation {primary_metric}: {float(primary_value):.4g}" if primary_value is not None else "Validation result unavailable"
+    compact_metrics = []
+    for key, label in (("mse", "MSE"), ("raw_edge_pearson", "edge r"), ("fcd_pearson", "FCD r")):
+        value = aggregate.get(key)
+        if value is not None and np.isfinite(float(value)):
+            compact_metrics.append(f"{label} {float(value):.3g}")
+    if compact_metrics:
+        result += " · " + " · ".join(compact_metrics)
+    return [
+        ("EXPERIMENT", f"{current.experiment_id} · {str(experiment.get('name', '')).replace('_', ' ')}"),
+        ("目的", _overview_purpose_text(config)),
+        ("DESIGN", _overview_design_text(config)),
+        ("ARCHITECTURE", _overview_architecture_text(config.get("model", {}), training)),
+        ("LOSS", _overview_loss_text(training)),
+        ("BEST VALIDATION", result),
+    ]
+
+
 def plot_run_overview(current: ManagedRun, destination: Path) -> Path:
     rows = _read_log(current.run_dir / "train.log")
     best = _read_json(current.run_dir / "metrics_best.json")
@@ -287,18 +372,21 @@ def plot_run_overview(current: ManagedRun, destination: Path) -> Path:
     else:
         axes[0].text(0.5, 0.5, "No epoch log available", ha="center", va="center")
         axes[0].set_axis_off()
-    metrics = best.get("metrics", {})
-    lines = [
-        f"Experiment: {current.experiment_id}", f"Run: {current.run_id}", "Split: validation",
-        f"Best epoch: {best.get('best_epoch', 'n/a')}", f"Primary metric: {best.get('primary_metric', 'n/a')}",
-    ]
-    lines.extend(f"{key}: {value:.5g}" for key, value in metrics.items())
-    aggregate = evaluation.get("aggregate", {})
-    for key in ("mse", "long_residual_pearson", "fcd_pearson"):
-        if key in aggregate:
-            lines.append(f"val {key}: {float(aggregate[key]):.5g}")
-    axes[1].text(0.02, 0.98, "\n".join(lines), ha="left", va="top", family="monospace", fontsize=9)
-    axes[1].set(title="Best-checkpoint summary", xticks=[], yticks=[])
+    y = 0.96
+    for heading, content in _overview_lines(current, best, evaluation):
+        chinese = heading == "目的"
+        axes[1].text(
+            0.04, y, heading, ha="left", va="top", fontsize=8, fontweight="bold", color="#555555",
+            fontproperties=CHINESE_HEADING_FONT if chinese else None,
+        )
+        y -= 0.045
+        wrapped = textwrap.fill(content, width=43, break_long_words=False)
+        axes[1].text(
+            0.04, y, wrapped, ha="left", va="top", fontsize=9, linespacing=1.25,
+            fontproperties=CHINESE_BODY_FONT if chinese else None,
+        )
+        y -= 0.048 * (wrapped.count("\n") + 1) + 0.020
+    axes[1].set(title="Experiment summary", xticks=[], yticks=[])
     path = destination / f"{current.run_id}_val_overview.png"
     figure.savefig(path, dpi=180)
     plt.close(figure)

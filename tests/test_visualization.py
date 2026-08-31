@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from scdfc.visualization import FIXED_EDGE_COUNT, fixed_edge_indices
+from scdfc.visualization import FIXED_EDGE_COUNT, _overview_loss_text, fixed_edge_indices
 
 
 def test_fixed_edge_selection_is_stable_and_unique():
@@ -11,6 +11,11 @@ def test_fixed_edge_selection_is_stable_and_unique():
     assert np.array_equal(first, second)
     assert np.array_equal(first, np.sort(first))
     assert len(np.unique(first)) == FIXED_EDGE_COUNT
+
+
+def test_overview_loss_text_shows_only_active_terms_and_loss_family():
+    assert _overview_loss_text({"loss_type": "mse", "loss_weights": {"edge": 0, "difference": 3, "variance": 3}}) == "MSE: 3·L_diff + 3·L_var"
+    assert _overview_loss_text({"loss_type": "huber", "huber_beta": 0.5, "loss_weights": {"edge": 1}}) == "Huber (β=0.5): 1·L_edge"
 
 
 def test_constrained_layout_keeps_header_inside_canvas(tmp_path):
