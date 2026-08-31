@@ -1,0 +1,26 @@
+base: E0018_gcn_gru_dynamic_only_mse_w1_control_v1.yaml
+
+model:
+  # Architecture-only comparison with E0018: replace the trajectory GRU
+  # while retaining the same GCN condition, frozen decoder, and loss setup.
+  name: transformer
+  transformer_layers: 4
+  transformer_heads: 8
+  transformer_ffn_dim: 1024
+  dropout: 0.1
+
+experiment:
+  id: E0022
+  name: gcn_transformer_dynamic_only_mse_w1_v1
+  level: 1
+  task: sequence
+  research_question: 在E0018的动态损失基准上，仅将主体时序解码器由GRU替换为Transformer，能否改善未来dFC的时间结构并减轻跨被试预测塌缩
+  hypothesis: Transformer的全序列self-attention可能改善长程时间依赖和细节建模，但若个体条件未被有效使用，跨被试共同预测模板仍会存在
+  primary_change: 保持E0018的数据、GCN条件编码、MSE动态损失、冻结E0003 decoder、训练轮数和seed不变，仅将GRU轨迹解码器替换为4层8头Transformer
+  baseline: E0018
+  owner: Face88
+  status: planned
+  ablation: full
+
+decision_rule:
+  description: 固定完成50个epoch且不查看测试集；在验证集与E0018比较temporal_std_ratio、difference_std_ratio、difference_temporal_pearson、dynamic_amplitude_mae、difference_mse、MSE、long_residual_pearson、FCD及跨被试预测相关性。不得仅按objective_loss绝对值判断，因为架构变化可能改变优化尺度。
