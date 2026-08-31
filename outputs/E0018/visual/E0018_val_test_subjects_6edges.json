@@ -1,0 +1,35 @@
+{
+  "experiment_id": "E0018",
+  "run_id": "E0018-s42-20260831T033422Z-9e36157",
+  "purpose": "在验证集和测试集各随机选择2个被试，使用相同随机6条边比较真实/预测时序。",
+  "test_panel_scope": "exploratory_visualization_only",
+  "subject_seed": 42,
+  "edge_seed": 42,
+  "subjects": {
+    "val": [
+      "123117",
+      "561949"
+    ],
+    "test": [
+      "121618",
+      "585256"
+    ]
+  },
+  "edge_indices": [
+    357,
+    1733,
+    1756,
+    2619,
+    3096,
+    3438
+  ],
+  "edge_labels": [
+    "Frontal_Sup_Orb_L ↔ Frontal_Inf_Tri_L",
+    "Frontal_Sup_Medial_L ↔ Insula_R",
+    "Frontal_Sup_Medial_L ↔ Occipital_Inf_L",
+    "Hippocampus_L ↔ Temporal_Pole_Sup_L",
+    "Lingual_L ↔ Temporal_Mid_L",
+    "Fusiform_R ↔ Temporal_Mid_L"
+  ],
+  "image": "D:\\Code\\HCP_New\\outputs\\E0018\\visual\\E0018_val_test_subjects_6edges.png"
+}
