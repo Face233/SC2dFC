@@ -1,0 +1,24 @@
+base: E0018_gcn_gru_dynamic_only_mse_w1_control_v1.yaml
+
+training:
+  loss_type: mse
+  loss_weights:
+    edge: 0.0
+    difference: 1.5
+    variance: 0.5
+
+experiment:
+  id: E0019
+  name: gcn_gru_dynamic_only_mse_diff_bias_v1
+  level: 1
+  task: sequence
+  research_question: 在E0018的1:1动态损失基准上，提高差分项相对权重是否能优先恢复dFC变化方向与时间细节
+  hypothesis: 差分项偏重可能改善逐窗变化方向，但由于方差约束减弱，动态幅值和低频功率仍可能不足
+  primary_change: 保持E0018总动态损失权重为2，仅将权重改为1.5·L_diff + 0.5·L_var
+  baseline: E0018
+  owner: Face88
+  status: planned
+  ablation: full
+
+decision_rule:
+  description: 固定完成50个epoch且不查看测试集；与E0018比较non-overlap动态幅值、差分标准差比、差分时间相关、频段功率、MSE、长程残差相关和FCD。不得仅按objective_loss绝对值比较。

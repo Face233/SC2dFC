@@ -1,0 +1,24 @@
+base: E0018_gcn_gru_dynamic_only_mse_w1_control_v1.yaml
+
+training:
+  loss_type: mse
+  loss_weights:
+    edge: 0.0
+    difference: 0.2
+    variance: 1.8
+
+experiment:
+  id: E0021
+  name: gcn_gru_dynamic_only_mse_variance_bias_v1
+  level: 1
+  task: sequence
+  research_question: 在E0018的1:1动态损失基准上，明显提高方差项相对权重能否进一步解除dFC动态幅值塌缩
+  hypothesis: 方差项偏重可能进一步拉高总体动态幅值，但若缺少足够的差分约束，时间顺序、变化方向和细节重建可能恶化
+  primary_change: 保持E0018总动态损失权重为2，仅将权重改为0.2·L_diff + 1.8·L_var
+  baseline: E0018
+  owner: Face88
+  status: planned
+  ablation: full
+
+decision_rule:
+  description: 固定完成50个epoch且不查看测试集；与E0018比较non-overlap动态幅值、差分标准差比、差分时间相关、频段功率、MSE、长程残差相关和FCD。不得仅按objective_loss绝对值比较。

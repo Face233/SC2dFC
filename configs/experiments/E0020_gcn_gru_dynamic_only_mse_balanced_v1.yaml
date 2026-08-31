@@ -1,0 +1,24 @@
+base: E0018_gcn_gru_dynamic_only_mse_w1_control_v1.yaml
+
+training:
+  loss_type: mse
+  loss_weights:
+    edge: 0.0
+    difference: 0.5
+    variance: 1.5
+
+experiment:
+  id: E0020
+  name: gcn_gru_dynamic_only_mse_balanced_v1
+  level: 1
+  task: sequence
+  research_question: 在E0018的1:1动态损失基准上，提高方差项相对权重并平衡两项实际贡献，能否改善dFC动态幅值
+  hypothesis: 由于E0018中原始差分损失约为方差损失的3倍，0.5:1.5的权重可使两项实际优化贡献接近，从而改善动态幅值而不显著损失时间细节
+  primary_change: 保持E0018总动态损失权重为2，将权重改为0.5·L_diff + 1.5·L_var，使两项原始数值贡献近似平衡
+  baseline: E0018
+  owner: Face88
+  status: planned
+  ablation: full
+
+decision_rule:
+  description: 固定完成50个epoch且不查看测试集；与E0018比较non-overlap动态幅值、差分标准差比、差分时间相关、频段功率、MSE、长程残差相关和FCD。不得仅按objective_loss绝对值比较。
