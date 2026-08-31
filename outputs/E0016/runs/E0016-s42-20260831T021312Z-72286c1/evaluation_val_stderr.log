@@ -1,0 +1,2 @@
+D:\Code\HCP_New\src\scdfc\evaluation.py:90: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  "fcd_pearson": float(pearsonr(pred_fcd[tri], true_fcd[tri]).statistic),

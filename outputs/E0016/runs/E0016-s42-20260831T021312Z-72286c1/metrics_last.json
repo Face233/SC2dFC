@@ -1,0 +1,9 @@
+{
+  "metrics": {
+    "objective_loss": 0.028347556585375265,
+    "long_residual_pearson": -0.002526009442741396,
+    "validation_difference_loss": 0.009449185532388053
+  },
+  "primary_metric": "objective_loss",
+  "last_epoch": 49
+}
