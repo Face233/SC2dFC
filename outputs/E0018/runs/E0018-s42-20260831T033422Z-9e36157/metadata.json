@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "experiment_id": "E0018",
+  "run_id": "E0018-s42-20260831T033422Z-9e36157",
+  "seed": 42,
+  "level": 1,
+  "status": "COMPLETED",
+  "started_at": "2026-08-31T03:34:23Z",
+  "config_sha256": "e1a24d8a0d35ccf30d4b49ba9b0fa21fa82a8efcd8e7d81b4dc49635a8f0596c",
+  "git": {
+    "commit": "9e36157210944af58682fc4f6a816a66953d6b62",
+    "branch": "main",
+    "remote": "https://github.com/Face233/SC2dFC.git",
+    "dirty": false,
+    "status": []
+  },
+  "ended_at": "2026-08-31T03:50:25Z",
+  "checkpoint": "D:\\Code\\HCP_New\\outputs\\E0018\\runs\\E0018-s42-20260831T033422Z-9e36157\\checkpoints\\best.pt"
+}
