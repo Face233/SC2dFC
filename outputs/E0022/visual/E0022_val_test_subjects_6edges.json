@@ -1,0 +1,44 @@
+{
+  "experiment_id": "E0022",
+  "run_id": "E0022-s42-20260831T083916Z-65b96c5",
+  "purpose": "将相同随机6条边置于行、验证集和测试集各2名被试置于前四列，比较真实/预测时序；第五列单独展示训练集组平均真实时序。",
+  "test_panel_scope": "exploratory_visualization_only",
+  "subject_seed": 42,
+  "edge_seed": 42,
+  "subjects": {
+    "val": [
+      "123117",
+      "561949"
+    ],
+    "test": [
+      "121618",
+      "585256"
+    ]
+  },
+  "edge_indices": [
+    357,
+    1733,
+    1756,
+    2619,
+    3096,
+    3438
+  ],
+  "edge_labels": [
+    "Frontal_Sup_Orb_L ↔ Frontal_Inf_Tri_L",
+    "Frontal_Sup_Medial_L ↔ Insula_R",
+    "Frontal_Sup_Medial_L ↔ Occipital_Inf_L",
+    "Hippocampus_L ↔ Temporal_Pole_Sup_L",
+    "Lingual_L ↔ Temporal_Mid_L",
+    "Fusiform_R ↔ Temporal_Mid_L"
+  ],
+  "layout": {
+    "rows": "六条共享边",
+    "columns": "验证/测试被试四列 + 训练集组平均一列"
+  },
+  "training_group_mean": {
+    "split": "train",
+    "source": "training statistics group_template",
+    "warmup_windows": 1
+  },
+  "image": "D:\\Code\\HCP_New\\outputs\\E0022\\visual\\E0022_val_test_subjects_6edges.png"
+}

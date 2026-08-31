@@ -1,4 +1,4 @@
-"""Plot E0018 true/predicted dFC edge trajectories for validation and test subjects.
+"""Plot multi-subject true/predicted dFC edge trajectories.
 
 The same reproducibly sampled six edges are shown for two randomly selected
 subjects in each split.  The test panel is exploratory visualization only; it
@@ -7,6 +7,7 @@ does not create a formal managed test evaluation or alter experiment status.
 from __future__ import annotations
 
 import json
+import argparse
 import textwrap
 from pathlib import Path
 
@@ -92,9 +93,9 @@ def _edge_title(index: int, label: str) -> str:
     return f"edge {index}\n{wrapped}"
 
 
-def main() -> None:
+def main(experiment_id: str = EXPERIMENT_ID, run_id: str | None = RUN_ID) -> None:
     root = ROOT.resolve()
-    run = _load_run(root, EXPERIMENT_ID, RUN_ID)
+    run = _load_run(root, experiment_id, run_id)
     stats_path = _stats_path(root, run.config)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     checkpoint = run.run_dir / "checkpoints" / "best.pt"
@@ -167,7 +168,7 @@ def main() -> None:
             group_axis.set_xlabel("预测起点后分钟", fontsize=9, fontproperties=BODY_FONT)
 
     figure.suptitle(
-        "E0018 · 验证集/测试集被试时序对比与训练集组平均 · 相同随机六条边",
+        f"{experiment_id} · 验证集/测试集被试时序对比与训练集组平均 · 相同随机六条边",
         fontsize=15,
         fontproperties=HEADING_FONT,
         y=0.995,
@@ -184,22 +185,22 @@ def main() -> None:
     figure.text(
         0.5,
         0.008,
-        f"checkpoint: {RUN_ID} · edge seed={EDGE_SEED} · subject seed={SUBJECT_SEED} · 第五列为训练集组平均真实时序 · test panel仅作探索性可视化",
+        f"checkpoint: {run.run_id} · edge seed={EDGE_SEED} · subject seed={SUBJECT_SEED} · 第五列为训练集组平均真实时序 · test panel仅作探索性可视化",
         ha="center",
         fontsize=8,
         color="#555555",
     )
     figure.tight_layout(rect=(0.01, 0.025, 0.995, 0.94))
 
-    destination = root / "outputs" / EXPERIMENT_ID / "visual"
+    destination = root / "outputs" / experiment_id / "visual"
     destination.mkdir(parents=True, exist_ok=True)
-    image_path = destination / "E0018_val_test_subjects_6edges.png"
+    image_path = destination / f"{experiment_id}_val_test_subjects_6edges.png"
     figure.savefig(image_path, dpi=180, bbox_inches="tight")
     plt.close(figure)
 
     manifest = {
-        "experiment_id": EXPERIMENT_ID,
-        "run_id": RUN_ID,
+        "experiment_id": experiment_id,
+        "run_id": run.run_id,
         "purpose": "将相同随机6条边置于行、验证集和测试集各2名被试置于前四列，比较真实/预测时序；第五列单独展示训练集组平均真实时序。",
         "test_panel_scope": "exploratory_visualization_only",
         "subject_seed": SUBJECT_SEED,
@@ -211,10 +212,15 @@ def main() -> None:
         "training_group_mean": {"split": "train", "source": "training statistics group_template", "warmup_windows": warmup_windows},
         "image": str(image_path),
     }
-    manifest_path = destination / "E0018_val_test_subjects_6edges.json"
+    manifest_path = destination / f"{experiment_id}_val_test_subjects_6edges.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(manifest, ensure_ascii=True, indent=2))
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Plot the reproducible multi-subject edge comparison for a completed run")
+    parser.add_argument("--experiment", default=EXPERIMENT_ID)
+    parser.add_argument("--run-id")
+    arguments = parser.parse_args()
+    selected_run_id = arguments.run_id if arguments.run_id is not None else (RUN_ID if arguments.experiment == EXPERIMENT_ID else None)
+    main(arguments.experiment, selected_run_id)
