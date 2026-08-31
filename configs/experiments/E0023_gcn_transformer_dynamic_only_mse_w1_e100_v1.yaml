@@ -1,0 +1,23 @@
+base: E0022_gcn_transformer_dynamic_only_mse_w1_v1.yaml
+
+training:
+  # Complete the planned long-horizon run rather than stopping after the
+  # original 50-epoch E0022 budget.
+  epochs: 100
+  patience: 101
+
+experiment:
+  id: E0023
+  name: gcn_transformer_dynamic_only_mse_w1_e100_v1
+  level: 1
+  task: sequence
+  research_question: E0022在第43个epoch后出现验证动态损失显著下降；在其余条件完全不变时，延长至100个epoch能否确认该晚期优化阶段并进一步改善dFC动态预测
+  hypothesis: 若该下降代表稳定进入更优参数区域，100个epoch将继续降低验证动态损失，并使差分时间相关、差分标准差比和跨被试预测差异同步改善；若仅是偶发随机跃迁，后续改善将不稳定或停滞
+  primary_change: 保持E0022的Transformer、GCN条件编码、MSE动态损失、冻结decoder、数据、seed和学习率不变，仅将训练预算从50扩展为100个epoch，并将patience设为101以完成全程训练
+  baseline: E0022
+  owner: Face88
+  status: planned
+  ablation: full
+
+decision_rule:
+  description: 固定完成100个epoch且不查看测试集；与E0022比较第43至50轮后的验证动态损失轨迹、temporal_std_ratio、difference_std_ratio、difference_temporal_pearson、动态幅值、MSE、FCD及跨被试预测相关性。若长期改善仅表现为方差项下降而时间细节或个体差异未改善，则不将训练时长作为解决塌缩的有效方案。随后需以独立重复或多seed确认晚期跃迁是否可复现。
