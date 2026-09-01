@@ -4,7 +4,7 @@ import pytest
 import torch
 import numpy as np
 
-from scdfc.training import AutoencoderLoss, CompositeLoss, long_horizon_variance_loss
+from scdfc.training import AutoencoderLoss, CompositeLoss, learning_rate_scale, long_horizon_variance_loss
 from scdfc.evaluation import _load_model
 from scdfc.models import CommonInputLSTM, CommonInputMLP, ConditionalSequenceModel, FCAutoencoder, HCPGCNEncoder, PCARidgeBaseline
 from scdfc.models.baselines import DirectSCMLP, GCNGRUBaseline
@@ -18,6 +18,14 @@ def test_autoencoder_edge_only_loss_is_mse():
 
     assert set(components) == {"edge"}
     assert torch.allclose(loss, torch.nn.functional.mse_loss(prediction, target))
+
+
+def test_warmup_cosine_learning_rate_schedule_reaches_base_and_eta_min():
+    schedule = {"name": "warmup_cosine", "warmup_epochs": 5, "eta_min": 1e-5, "base_learning_rate": 3e-4}
+    assert learning_rate_scale(schedule, epoch=0, max_epochs=100) == pytest.approx(0.2)
+    assert learning_rate_scale(schedule, epoch=4, max_epochs=100) == pytest.approx(1.0)
+    assert learning_rate_scale(schedule, epoch=5, max_epochs=100) == pytest.approx(1.0)
+    assert learning_rate_scale(schedule, epoch=99, max_epochs=100) == pytest.approx(1e-5 / 3e-4)
 
 
 @pytest.mark.parametrize("decoder", ["gru", "tcn", "transformer"])

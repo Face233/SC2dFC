@@ -21,6 +21,33 @@ from .models.sequence import torch_edges_to_matrix
 from .progress import append_jsonl, emit
 
 
+def learning_rate_scale(schedule: dict[str, Any], epoch: int, max_epochs: int) -> float:
+    """Return the per-epoch multiplier for the configured learning-rate schedule.
+
+    The schedule is applied at the *start* of each epoch. ``warmup_cosine``
+    reaches the configured base learning rate at the final warm-up epoch and
+    then follows a cosine curve through the final training epoch.
+    """
+    name = str(schedule.get("name", "constant"))
+    if name == "constant":
+        return 1.0
+    if name != "warmup_cosine":
+        raise ValueError(f"Unsupported learning-rate schedule: {name}")
+    if max_epochs < 1:
+        raise ValueError("max_epochs must be positive")
+    warmup_epochs = int(schedule.get("warmup_epochs", 0))
+    if not 0 <= warmup_epochs < max_epochs:
+        raise ValueError("warmup_epochs must be non-negative and smaller than epochs")
+    eta_min_ratio = float(schedule.get("eta_min", 0.0)) / float(schedule["base_learning_rate"])
+    if not 0.0 <= eta_min_ratio <= 1.0:
+        raise ValueError("schedule eta_min must be between zero and learning_rate")
+    if epoch < warmup_epochs:
+        return (epoch + 1) / warmup_epochs
+    cosine_epochs = max_epochs - warmup_epochs
+    progress = (epoch - warmup_epochs) / max(cosine_epochs - 1, 1)
+    return eta_min_ratio + (1.0 - eta_min_ratio) * (1.0 + np.cos(np.pi * progress)) / 2.0
+
+
 # ======================== 训练损失函数 ========================
 def correlation_loss(prediction: torch.Tensor, target: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
     """计算每个样本/时间窗内 FC 边模式的 Pearson 相关损失。"""
@@ -580,7 +607,13 @@ def train_sequence_model(
     for parameter in model.fc_autoencoder.decoder.parameters():
         parameter.requires_grad = False
     main_parameters = [p for name, p in model.named_parameters() if p.requires_grad and not name.startswith("fc_autoencoder.decoder")]
-    optimizer = torch.optim.AdamW(main_parameters, lr=float(config["training"]["learning_rate"]), weight_decay=float(config["training"]["weight_decay"]))
+    base_learning_rate = float(config["training"]["learning_rate"])
+    optimizer = torch.optim.AdamW(main_parameters, lr=base_learning_rate, weight_decay=float(config["training"]["weight_decay"]))
+    for group in optimizer.param_groups:
+        group["base_learning_rate"] = float(group["lr"])
+    schedule = dict(config["training"].get("learning_rate_schedule", {}))
+    schedule.setdefault("name", "constant")
+    schedule["base_learning_rate"] = base_learning_rate
     nonoverlap = nonoverlap_horizon(window_length, int(config["data"]["stride"]))
     criterion = CompositeLoss(
         config["training"]["loss_weights"], nonoverlap, int(config["data"]["n_nodes"]),
@@ -616,6 +649,9 @@ def train_sequence_model(
         train_samples=len(train_data), validation_samples=len(val_data), output_dir=str(output_dir),
     )
     for epoch in range(max_epochs):
+        lr_scale = learning_rate_scale(schedule, epoch, max_epochs)
+        for group in optimizer.param_groups:
+            group["lr"] = float(group.get("base_learning_rate", group["lr"])) * lr_scale
         _synchronize(device)
         epoch_started = time.perf_counter()
         if device.type == "cuda":
@@ -623,7 +659,11 @@ def train_sequence_model(
         if finetune_fc_decoder and epoch == int(config["training"]["decoder_frozen_epochs"]):
             for parameter in model.fc_autoencoder.decoder.parameters():
                 parameter.requires_grad = True
-            optimizer.add_param_group({"params": model.fc_autoencoder.decoder.parameters(), "lr": float(config["training"]["learning_rate"]) * float(config["training"]["decoder_learning_rate_scale"])})
+            optimizer.add_param_group({
+                "params": model.fc_autoencoder.decoder.parameters(),
+                "lr": base_learning_rate * float(config["training"]["decoder_learning_rate_scale"]) * lr_scale,
+                "base_learning_rate": base_learning_rate * float(config["training"]["decoder_learning_rate_scale"]),
+            })
         model.train()
         # 冻结权重还不够；必须同时关闭 E0003 encoder/decoder 内的 Dropout。
         model.fc_autoencoder.encoder.eval()
@@ -688,6 +728,8 @@ def train_sequence_model(
             estimated_seconds_if_no_more_improvement=mean_epoch_seconds * max(int(config["training"]["patience"]) - stale, 0),
             train_samples_per_second=train_count / max(train_seconds, 1e-9),
             gpu_peak_memory_gb=peak_memory_gb,
+            learning_rate=float(optimizer.param_groups[0]["lr"]),
+            learning_rate_scale=lr_scale,
         )
         if stale >= int(config["training"]["patience"]):
             emit("early_stopped", task="sequence", model=decoder_type, epoch=epoch + 1, best_epoch=best_epoch + 1, primary_metric=primary_metric, best_primary_value=best)

@@ -52,6 +52,10 @@ training:
   decoder_frozen_epochs: 20
   learning_rate: 0.0003
   decoder_learning_rate_scale: 0.1
+  # By default retain the historical constant learning rate. Experiments may
+  # opt into ``warmup_cosine`` with ``warmup_epochs`` and ``eta_min``.
+  learning_rate_schedule:
+    name: constant
   weight_decay: 0.0001
   gradient_clip: 1.0
   patience: 20

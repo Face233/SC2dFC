@@ -1,0 +1,28 @@
+base: E0022_gcn_transformer_dynamic_only_mse_w1_v1.yaml
+
+training:
+  # Retain E0022's initial LR, but make the high-LR period controlled and
+  # progressively reduce step size rather than relying on a chance trajectory.
+  epochs: 100
+  patience: 101
+  learning_rate: 0.0003
+  learning_rate_schedule:
+    name: warmup_cosine
+    warmup_epochs: 5
+    eta_min: 0.00001
+
+experiment:
+  id: E0024
+  name: gcn_transformer_dynamic_only_mse_w1_warmup_cosine_v1
+  level: 1
+  task: sequence
+  research_question: E0022的晚期验证损失骤降难以复现；在模型、数据、损失和初始学习率均不变时，5轮warm-up加余弦退火能否使Transformer优化轨迹更稳定并改善长期dFC动态
+  hypothesis: 若固定3e-4的更新步长使训练对微小数值扰动敏感，warm-up与逐步衰减将降低不同运行进入不同优化盆地的概率，并在长期预测中提高动态幅值和差分时间一致性；若仍塌缩，则学习率控制不是主要瓶颈。
+  primary_change: 相对E0022，仅将固定AdamW学习率改为前5轮线性warm-up、随后95轮余弦退火（3e-4至1e-5）；固定Transformer、GCN条件、冻结decoder、MSE动态损失、数据与seed。
+  baseline: E0022
+  owner: Face88
+  status: planned
+  ablation: full
+
+decision_rule:
+  description: 固定完成100个epoch且不查看测试集；与E0022/E0023在验证集比较训练曲线稳定性、best dynamic objective、temporal_std_ratio、difference_std_ratio、difference_temporal_pearson、动态幅值、MSE、FCD和跨被试预测差异。若只降低训练目标而长期动态和个体差异仍塌缩，则不将余弦退火视为有效解决方案；若改善，必须以至少两个独立seed重复确认。
