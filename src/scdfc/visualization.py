@@ -303,12 +303,14 @@ def _overview_architecture_text(model: dict[str, Any], training: dict[str, Any])
     else:
         temporal = model_name.upper()
     parts = [f"SC {str(model.get('sc_encoder', 'encoder')).replace('_', '-').upper()}", temporal]
-    output_head = str(model.get("output_head", "output head")).replace("_", " ")
-    decoder_state = "fine-tuned" if training.get("finetune_fc_decoder", False) else "frozen"
-    frozen_epochs = int(training.get("decoder_frozen_epochs", 0))
-    if frozen_epochs:
-        decoder_state += f" for {frozen_epochs} epochs"
-    return " → ".join([*parts, f"{output_head} ({decoder_state})"])
+    output_head = str(model.get("output_head", "output head"))
+    if output_head == "e0003_reconstruction_decoder":
+        output = "E0003 reconstruction decoder (frozen throughout)"
+    elif output_head == "direct_edge_linear":
+        output = "direct edge linear head (trainable)"
+    else:
+        output = output_head.replace("_", " ")
+    return " → ".join([*parts, output])
 
 
 def _overview_design_text(config: dict[str, Any]) -> str:

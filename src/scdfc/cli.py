@@ -185,7 +185,6 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--long-horizon-variance-weight", type=float, default=0.0)
     create.add_argument("--output-head", choices=["e0003_reconstruction_decoder", "direct_edge_linear"], default="e0003_reconstruction_decoder")
     create.add_argument("--gru-layers", type=int, default=2)
-    create.add_argument("--finetune-fc-decoder", action="store_true")
     create.add_argument("--decision-rule", default="Decide after validation aggregation; do not inspect test data")
     create.add_argument("--artifact", help="Path to a frozen A#### artifact YAML; required for sequence tasks")
     create.set_defaults(function=command_experiment_create)

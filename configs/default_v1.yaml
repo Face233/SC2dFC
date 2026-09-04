@@ -49,9 +49,11 @@ training:
   autoencoder_batch_size: 256
   epochs: 200
   autoencoder_epochs: 100
+  # Historical compatibility fields. They are inactive in every registered
+  # experiment because finetune_fc_decoder is false; default.yaml omits them.
+  decoder_frozen_epochs: 20
   learning_rate: 0.0003
-  # Sequence experiments keep the pretrained FC encoder and reconstruction
-  # decoder frozen for the entire run. There is no staged unfreezing policy.
+  decoder_learning_rate_scale: 0.1
   # By default retain the historical constant learning rate. Experiments may
   # opt into ``warmup_cosine`` with ``warmup_epochs`` and ``eta_min``.
   learning_rate_schedule:

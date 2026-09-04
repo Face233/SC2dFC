@@ -1,4 +1,4 @@
-base: ../default.yaml
+base: ../default_v1.yaml
 experiment:
   id: E0011
   name: gcn_gru_long_horizon_variance_v1

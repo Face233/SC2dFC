@@ -1,4 +1,4 @@
-base: ../default.yaml
+base: ../default_v1.yaml
 experiment:
   id: E0007
   name: hybrid_transformer_full_v1

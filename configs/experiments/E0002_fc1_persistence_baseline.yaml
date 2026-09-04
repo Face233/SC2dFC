@@ -1,4 +1,4 @@
-base: ../default.yaml
+base: ../default_v1.yaml
 experiment:
   id: E0002
   name: fc1_persistence_baseline

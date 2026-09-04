@@ -1,4 +1,4 @@
-base: ../default.yaml
+base: ../default_v1.yaml
 experiment:
   id: E0006
   name: gcn_transformer_full_v1

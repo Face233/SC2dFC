@@ -109,7 +109,6 @@ def command_experiment_create(args) -> None:
         document["training"].update({
             "loss_type": args.loss_type,
             "huber_beta": args.huber_beta,
-            "finetune_fc_decoder": args.finetune_fc_decoder,
             "loss_weights": loss_weights,
         })
     artifact = _artifact_reference(root, args.artifact)

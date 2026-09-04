@@ -1,4 +1,4 @@
-base: ../default.yaml
+base: ../default_v1.yaml
 experiment:
   id: E0005
   name: hybrid_gru_full_v1

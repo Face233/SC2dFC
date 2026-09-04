@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from scdfc.visualization import FIXED_EDGE_COUNT, _overview_loss_text, fixed_edge_indices
+from scdfc.visualization import FIXED_EDGE_COUNT, _overview_architecture_text, _overview_loss_text, fixed_edge_indices
 
 
 def test_fixed_edge_selection_is_stable_and_unique():
@@ -16,6 +16,18 @@ def test_fixed_edge_selection_is_stable_and_unique():
 def test_overview_loss_text_shows_only_active_terms_and_loss_family():
     assert _overview_loss_text({"loss_type": "mse", "loss_weights": {"edge": 0, "difference": 3, "variance": 3}}) == "MSE: 3·L_diff + 3·L_var"
     assert _overview_loss_text({"loss_type": "huber", "huber_beta": 0.5, "loss_weights": {"edge": 1}}) == "Huber (β=0.5): 1·L_edge"
+
+
+def test_overview_architecture_reports_effective_output_head_state():
+    base = {"name": "gru", "gru_layers": 2, "sc_encoder": "hcp_gcn"}
+    frozen = _overview_architecture_text(
+        {**base, "output_head": "e0003_reconstruction_decoder"},
+        {"finetune_fc_decoder": False, "decoder_frozen_epochs": 20},
+    )
+    assert frozen.endswith("E0003 reconstruction decoder (frozen throughout)")
+    assert "20 epochs" not in frozen
+    direct = _overview_architecture_text({**base, "output_head": "direct_edge_linear"}, {})
+    assert direct.endswith("direct edge linear head (trainable)")
 
 
 def test_constrained_layout_keeps_header_inside_canvas(tmp_path):

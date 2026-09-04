@@ -637,7 +637,11 @@ def train_sequence_model(
     if primary_metric not in {"objective_loss", "long_residual_pearson"}:
         raise ValueError("Sequence primary_metric must be objective_loss or long_residual_pearson")
     minimize = primary_metric == "objective_loss"
-    finetune_fc_decoder = bool(config["training"].get("finetune_fc_decoder", False))
+    if bool(config["training"].get("finetune_fc_decoder", False)):
+        raise ValueError(
+            "FC decoder fine-tuning is disabled: the pretrained FC encoder and reconstruction decoder "
+            "must remain frozen throughout sequence training"
+        )
     best_epoch = -1
     best, stale = (float("inf") if minimize else -float("inf")), 0
     best_validation_metrics: dict[str, float] = {}
@@ -656,20 +660,11 @@ def train_sequence_model(
         epoch_started = time.perf_counter()
         if device.type == "cuda":
             torch.cuda.reset_peak_memory_stats(device)
-        if finetune_fc_decoder and epoch == int(config["training"]["decoder_frozen_epochs"]):
-            for parameter in model.fc_autoencoder.decoder.parameters():
-                parameter.requires_grad = True
-            optimizer.add_param_group({
-                "params": model.fc_autoencoder.decoder.parameters(),
-                "lr": base_learning_rate * float(config["training"]["decoder_learning_rate_scale"]) * lr_scale,
-                "base_learning_rate": base_learning_rate * float(config["training"]["decoder_learning_rate_scale"]),
-            })
         model.train()
-        # 冻结权重还不够；必须同时关闭 E0003 encoder/decoder 内的 Dropout。
+        # E0003 encoder/decoder remain frozen for the complete run. Keep both
+        # modules in eval mode as well so their Dropout layers stay disabled.
         model.fc_autoencoder.encoder.eval()
-        decoder_trainable = finetune_fc_decoder and epoch >= int(config["training"]["decoder_frozen_epochs"])
-        if not decoder_trainable:
-            model.fc_autoencoder.decoder.eval()
+        model.fc_autoencoder.decoder.eval()
         train_total = 0.0
         train_components = {name: 0.0 for name in criterion.weights}
         train_count = 0
@@ -705,7 +700,7 @@ def train_sequence_model(
                 "warmup_encoder": str(config["model"].get("warmup_encoder", "none")),
                 "warmup_gru_layers": int(config["model"].get("warmup_gru_layers", 1)),
                 "loss_type": criterion.loss_type,
-                "fc_reconstruction_decoder_frozen": not finetune_fc_decoder,
+                "fc_reconstruction_decoder_frozen": True,
             }
             payload.update(checkpoint_metadata or {})
             torch.save(payload, checkpoint)
@@ -741,7 +736,7 @@ def train_sequence_model(
                 "sc_encoder_type": sc_encoder_type, "ablation": ablation, "window_length": window_length,
                 "validation_metrics": validation_metrics, "output_head": str(config["model"].get("output_head", "e0003_reconstruction_decoder")),
                 "loss_type": criterion.loss_type,
-                "fc_reconstruction_decoder_frozen": not finetune_fc_decoder,
+                "fc_reconstruction_decoder_frozen": True,
             }
             last_payload.update(checkpoint_metadata or {})
             torch.save(last_payload, last_checkpoint)

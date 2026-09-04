@@ -121,6 +121,11 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
     if not config.get("decision_rule", {}).get("description"):
         raise ValueError("Managed configs require decision_rule.description")
     if task == "sequence":
+        if bool(config.get("training", {}).get("finetune_fc_decoder", False)):
+            raise ValueError(
+                "FC decoder fine-tuning is not supported by the current experiment policy; "
+                "the pretrained FC encoder and reconstruction decoder remain frozen throughout sequence training"
+            )
         if model_name in {"gru", "tcn", "transformer"} and config.get("model", {}).get("sc_encoder") not in {"hybrid", "hcp_gcn"}:
             raise ValueError("Conditional sequence models require model.sc_encoder to be hybrid or hcp_gcn")
         if model_name in {"gru", "tcn", "transformer"} and config.get("model", {}).get("output_head") not in {"e0003_reconstruction_decoder", "direct_edge_linear"}:
