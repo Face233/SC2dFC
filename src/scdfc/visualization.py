@@ -26,6 +26,7 @@ from matplotlib.font_manager import FontProperties
 
 from .data import DFCSequenceDataset
 from .training import build_sequence_model
+from .metric_records import validate_selection_record
 
 
 FIXED_EDGE_SEED = 42
@@ -348,7 +349,8 @@ def _overview_lines(current: ManagedRun, best: dict[str, Any], evaluation: dict[
     training = config.get("training", {})
     aggregate = evaluation.get("aggregate", {})
     primary_metric = str(best.get("primary_metric", "objective_loss"))
-    primary_value = aggregate.get(primary_metric, best.get("metrics", {}).get(primary_metric))
+    validate_selection_record(best, primary_metric)
+    primary_value = best["metrics"].get(primary_metric)
     result = f"Validation {primary_metric}: {float(primary_value):.4g}" if primary_value is not None else "Validation result unavailable"
     compact_metrics = []
     for key, label in (("mse", "MSE"), ("raw_edge_pearson", "edge r"), ("fcd_pearson", "FCD r")):
@@ -383,8 +385,7 @@ def plot_run_overview(current: ManagedRun, destination: Path) -> Path:
             if row.get("primary_value") is not None and np.isfinite(float(row["primary_value"]))
         ]
         if logged_values:
-            # train.log stores one-based epoch numbers; metrics_best.json stores
-            # the checkpoint epoch zero-based and may be overwritten by evaluation.
+            # train.log stores one-based epoch numbers; selection records use zero-based epochs.
             checkpoint_epoch = (min if primary_metric == "objective_loss" else max)(logged_values)[1]
         else:
             checkpoint_epoch = int(best.get("best_epoch", -1)) + 1

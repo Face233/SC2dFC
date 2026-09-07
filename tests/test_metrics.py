@@ -14,13 +14,14 @@ def test_metrics_are_best_for_exact_prediction():
     assert metrics["fcd_pearson"] > 0.999
 
 
-def test_sequence_metrics_uses_mse_objective_when_configured():
+def test_sequence_metrics_labels_partial_score_separately_from_objective():
     prediction = np.array([[0.0], [2.0], [0.0]])
     target = np.zeros_like(prediction)
     metrics = sequence_metrics(prediction, target, np.zeros_like(target), 1, loss_type="mse")
     assert metrics["mse"] == 4.0 / 3.0
     assert metrics["difference_mse"] == 4.0
-    assert metrics["objective_loss"] == pytest.approx(7.0 / 3.0)
+    assert metrics["edge_difference_score"] == pytest.approx(7.0 / 3.0)
+    assert "objective_loss" not in metrics
 
 
 def test_retrieval_and_subject_bootstrap():

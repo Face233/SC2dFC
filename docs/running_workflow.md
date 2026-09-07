@@ -71,7 +71,7 @@ scdfc summarize --experiment E0003
 scdfc evaluate-run --run-id <level-2-run-id> --final-test --device cuda
 ```
 
-后续序列实验按验证集 `objective_loss`（边 MSE + 0.25 × 一阶差分 MSE）最小选择 checkpoint。相关、拓扑和动态指标用于解释；判断 SC 的增量价值时仍需与 `fc1_only` 对照比较。E0004–E0012 是历史 Huber 运行，结果应按各自冻结配置解读。
+后续序列实验按冻结配置中的完整 `CompositeLoss` 得到验证集 `objective_loss`，并据此选择 checkpoint。该目标可能由 edge、difference、variance 等至多三个启用项组成，不能统一解释为“边 MSE + 0.25 × 差分 MSE”。相关、拓扑和动态指标用于解释；不同损失定义下的 `objective_loss` 不能直接横向排名。E0004–E0012 是历史 Huber 运行，结果应按各自冻结配置和 checkpoint 中的选模记录解读。
 
 ## 4. 查看运行状态
 
@@ -82,7 +82,16 @@ Get-Content outputs\E0003\runs\<run_id>\train.log -Wait
 Get-Content outputs\E0003\runs\<run_id>\metadata.json
 ```
 
-若将输出重定向到文件，保留 `$env:PYTHONUNBUFFERED = "1"`。完成后，检查 `metrics_best.json`、`metrics_last.json`、`evaluation_val.json`（或最终的 `evaluation_test.json`）以及 `metadata.json`。
+若将输出重定向到文件，保留 `$env:PYTHONUNBUFFERED = "1"`。完成后，检查 `metrics_best.json`、`metrics_last.json`、`evaluation_val.json`（或最终的 `evaluation_test.json`）以及 `metadata.json`。`metrics_best.json` 只保存验证集选模记录，评价命令不会覆盖它；通用评价指标只写入对应的 `evaluation_<split>.json`。选模记录包含 `kind=selection`、`split=val`、零基 `best_epoch` 和损失定义。
+
+历史运行若仍使用旧格式，可执行：
+
+```powershell
+python scripts/repair_metric_records.py          # 只预览
+python scripts/repair_metric_records.py --apply  # 备份旧文件后，从 checkpoint 恢复
+```
+
+迁移会把旧文件保存为 `metrics_best.pre_schema_v2.json`。若注册实验的 checkpoint 不在本机，或本地 run 的配置哈希与注册表不一致，汇总会拒绝猜测或混合结果。
 
 `epoch_complete` 还记录 `train_seconds`、`validation_seconds`、`epoch_seconds`、累计平均 epoch 时间、按最大 epoch 估算的剩余时间、假设不再改善时距早停的估算时间、训练吞吐量和峰值 GPU 显存。前 3 个 epoch 后应优先使用这些实测字段更新总耗时预估。
 

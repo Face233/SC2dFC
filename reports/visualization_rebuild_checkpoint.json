@@ -5,7 +5,7 @@
   "paused_at": "2026-08-27T11:44:45+08:00",
   "scope": {
     "completed_experiments": ["E0004", "E0005", "E0006", "E0007", "E0008", "E0009", "E0010", "E0011", "E0012"],
-    "excluded_without_runs": ["E0013", "E0014", "E0015"],
+    "excluded_without_runs": ["E0014", "E0015"],
     "split": "val",
     "visualization_backfill_no_training": true,
     "no_test_split": true

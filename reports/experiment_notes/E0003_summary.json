@@ -2,6 +2,14 @@
   "experiment_id": "E0003",
   "primary_metric": "validation_loss",
   "completed_runs": 1,
+  "split": "val",
+  "metric_source": "selection",
+  "metric_definition": {
+    "implementation": "restored_autoencoder_checkpoint/v1",
+    "weights": {
+      "edge": 1.0
+    }
+  },
   "failed_runs": 1,
   "mean": 0.02410417597127866,
   "std": 0.0,
@@ -61,5 +69,5 @@
       "artifact_manifest": "/XYAIFS00/HOME/sysu_linying/sysu_linying_1/HuangZW/HCP_New/configs/artifacts/A0003.yaml"
     }
   ],
-  "generated_at": "2026-08-12T01:50:30Z"
+  "generated_at": "2026-09-07T06:53:32Z"
 }

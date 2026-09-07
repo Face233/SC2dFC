@@ -5,6 +5,8 @@
 - `audit/split/precompute/train-ae/train/evaluate` 是兼容旧流程的调试命令；旧训练与评价结果不作为正式证据。
 - `freeze-data/experiment/run/evaluate-run/summarize/conclude` 是受管理的科研实验入口。
 
+受管理运行严格区分两类验证产物：`metrics_best.json` 是训练阶段产生的 checkpoint 选模证据；`evaluation_val.json` 是最佳 checkpoint 的通用评价。两者可以都包含名为 `objective_loss` 的指标，但必须携带相同且完整的损失定义，评价过程不得覆盖选模文件。实验汇总只读取带 `kind=selection`、`split=val` 的新版选模记录，并核对 run 与注册实验的配置哈希。
+
 所有命令均在项目根目录、`GCN_mri` 环境中执行。
 
 ## 1. 冻结数据和划分

@@ -2,8 +2,21 @@
   "experiment_id": "E0006",
   "primary_metric": "objective_loss",
   "completed_runs": 1,
+  "split": "val",
+  "metric_source": "selection",
+  "metric_definition": {
+    "implementation": "restored_checkpoint_validation_metrics/v1",
+    "loss_type": "huber_historical",
+    "huber_beta": 1.0,
+    "weights": {
+      "edge": 1.0,
+      "difference": 0.25
+    },
+    "nonoverlap_start": 17,
+    "note": "Value restored from the saved best checkpoint; definition is descriptive and was not recomputed."
+  },
   "failed_runs": 0,
-  "mean": 0.09353129829565959,
+  "mean": 0.09353129980684835,
   "std": 0.0,
   "preprocessing": {
     "dataset_version": "dataset_lr_v1",
@@ -43,5 +56,5 @@
       "checkpoint": "/XYAIFS00/HOME/sysu_linying/sysu_linying_1/HuangZW/HCP_New/outputs/E0006/runs/E0006-s42-20260812T075113Z-caeb70b/checkpoints/best.pt"
     }
   ],
-  "generated_at": "2026-08-12T08:26:35Z"
+  "generated_at": "2026-09-07T06:48:06Z"
 }

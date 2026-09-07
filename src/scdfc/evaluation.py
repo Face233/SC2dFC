@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -14,7 +15,8 @@ from torch.utils.data import DataLoader
 from .config import DEFAULT_SEED, resolve_path
 from .connectivity import edges_to_matrix, inverse_fisher_z, nearest_correlation, nonoverlap_horizon
 from .data import DFCSequenceDataset, group_template_for_warmup, read_cached
-from .training import build_sequence_model, device_from_arg, seed_everything
+from .training import build_sequence_model, device_from_arg, seed_everything, sequence_criterion
+from .metric_records import sequence_objective_definition
 
 
 # ======================== 测试指标与统计检验 ========================
@@ -74,7 +76,7 @@ def sequence_metrics(
     pred_strength = np.abs(edges_to_matrix(pred_r, n_nodes)).sum(-1) / (n_nodes - 1)
     target_strength = np.abs(edges_to_matrix(target_r, n_nodes)).sum(-1) / (n_nodes - 1)
     return {
-        "objective_loss": edge_loss + float(difference_weight) * difference_loss,
+        "edge_difference_score": edge_loss + float(difference_weight) * difference_loss,
         "edge_huber": edge_huber,
         "difference_huber": difference_huber,
         "mse": edge_mse,
@@ -89,6 +91,39 @@ def sequence_metrics(
         "node_strength_mae": float(np.mean(np.abs(pred_strength - target_strength))),
         "fcd_pearson": float(pearsonr(pred_fcd[tri], true_fcd[tri]).statistic),
         "fcd_wasserstein": float(wasserstein_distance(pred_fcd[tri], true_fcd[tri])),
+    }
+
+
+@torch.no_grad()
+def prediction_objective(
+    predictions: np.ndarray, targets: np.ndarray, template: np.ndarray,
+    config: dict[str, Any], nonoverlap: int, device: torch.device | str = "cpu",
+) -> dict[str, Any]:
+    """Evaluate CompositeLoss with training's ordered, sample-weighted batches.
+
+    Contrastive loss is a batch property: never average singleton losses or
+    replace the configured batches with a single full-dataset batch.
+    """
+    if len(predictions) == 0 or predictions.shape != targets.shape:
+        raise ValueError("Objective evaluation requires nonempty, matching prediction and target arrays")
+    criterion = sequence_criterion(config, nonoverlap)
+    batch_size = int(config["training"]["batch_size"])
+    if batch_size < 1:
+        raise ValueError("batch_size must be positive")
+    totals = {name: 0.0 for name in criterion.weights}
+    total = 0.0
+    group = torch.tensor(template, dtype=torch.float32, device=device)
+    for start in range(0, len(predictions), batch_size):
+        pred = torch.tensor(predictions[start:start + batch_size], dtype=torch.float32, device=device)
+        true = torch.tensor(targets[start:start + batch_size], dtype=torch.float32, device=device)
+        loss, components = criterion(pred, true, group)
+        total += float(loss) * len(pred)
+        for name, value in components.items():
+            totals[name] += float(value) * len(pred)
+    return {
+        "value": total / len(predictions),
+        "components": {name: value / len(predictions) for name, value in totals.items()},
+        "definition": sequence_objective_definition(config, nonoverlap),
     }
 
 
@@ -488,6 +523,19 @@ def evaluate_checkpoint(
         row.update(dynamic_state_metrics(state_model.predict(pred), state_model.predict(true), state_model.n_clusters))
     aggregate = {key: float(np.mean([row[key] for row in rows])) for key in rows[0]}
     aggregate.update(retrieval_metrics(predictions, targets, template, nonoverlap, subjects))
+    objective_config = deepcopy(config)
+    recorded_loss_type = payload.get("loss_type")
+    has_replayable_objective = bool(payload.get("objective_definition") or recorded_loss_type)
+    if has_replayable_objective:
+        if recorded_loss_type:
+            objective_config["training"]["loss_type"] = recorded_loss_type
+        objective = prediction_objective(predictions, targets, template, objective_config, nonoverlap, device)
+        aggregate["objective_loss"] = objective["value"]
+    else:
+        objective = {
+            "available": False,
+            "reason": "The historical checkpoint did not record a replayable loss definition; use checkpoint_selection for model selection provenance.",
+        }
     warmup = np.stack([test[index]["fc_warmup"].numpy() for index in range(len(test))])
     if warmup.ndim == 3:
         warmup = warmup[:, -1]
@@ -502,6 +550,13 @@ def evaluate_checkpoint(
     projection_rows = [projection_report(p, int(config["data"]["n_nodes"]), float(config["evaluation"]["projection_epsilon"]))[1] for p in predictions]
     aggregate.update({f"projection_{key}": float(np.mean([row[key] for row in projection_rows])) for key in projection_rows[0]})
     report: dict[str, Any] = {
+        "schema_version": 2,
+        "objective": objective,
+        "checkpoint_selection": {
+            "metrics": payload.get("validation_metrics"),
+            "best_epoch": payload.get("epoch"), "epoch_index_base": 0, "split": "val",
+            "definition": payload.get("objective_definition", {"implementation": "historical; see checkpoint and training log"}),
+        },
         "checkpoint": str(Path(checkpoint).resolve()),
         "split": split_name,
         "window_length": window_length,
@@ -545,6 +600,8 @@ def evaluate_analytic_baseline(
     """Evaluate group mean or first-window persistence with the common metric protocol."""
     if baseline not in {"group_mean", "fc1_persistence"}:
         raise ValueError("baseline must be group_mean or fc1_persistence")
+    if split_name not in {"train", "val", "test"}:
+        raise ValueError("split_name must be train, val, or test")
     seed_everything(int(config["seed"]))
     dataset = DFCSequenceDataset(config, window_length, split_name, stats_path)
     stats = dict(np.load(stats_path))
@@ -553,10 +610,13 @@ def evaluate_analytic_baseline(
     for index in range(len(dataset)):
         sample = dataset[index]
         target = sample["fc_future"].numpy()
+        warmup = sample["fc_warmup"].numpy()
+        if warmup.ndim == 2:
+            warmup = warmup[-1]
         prediction = (
             template[: len(target)]
             if baseline == "group_mean"
-            else np.broadcast_to(sample["fc_warmup"].numpy()[None], target.shape)
+            else np.broadcast_to(warmup[None], target.shape)
         )
         predictions.append(prediction)
         targets.append(target)
@@ -571,7 +631,12 @@ def evaluate_analytic_baseline(
     rows = [sequence_metrics(p, t, template, nonoverlap, **metric_kwargs) for p, t in zip(predictions, targets)]
     aggregate = {key: float(np.mean([row[key] for row in rows])) for key in rows[0]}
     aggregate.update(retrieval_metrics(np.stack(predictions), np.stack(targets), template, nonoverlap, subjects))
+    objective = None
+    if any(float(value) != 0 for value in config["training"].get("loss_weights", {}).values()):
+        objective = prediction_objective(np.stack(predictions), np.stack(targets), template, config, nonoverlap)
+        aggregate["objective_loss"] = objective["value"]
     report = {
+        "schema_version": 2, "objective": objective,
         "baseline": baseline, "split": split_name, "window_length": window_length,
         "n_samples": len(rows), "aggregate": aggregate,
         "per_sample": [{"subject_id": s, "run": r, **m} for s, r, m in zip(subjects, runs, rows)],
@@ -579,8 +644,4 @@ def evaluate_analytic_baseline(
     output_dir = Path(output_dir)
     report_path = output_dir / f"evaluation_{split_name}.json"
     report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-    (output_dir / "metrics_best.json").write_text(
-        json.dumps({"metrics": aggregate, "primary_metric": config["evaluation"]["primary_metric"]}, indent=2),
-        encoding="utf-8",
-    )
     return report_path

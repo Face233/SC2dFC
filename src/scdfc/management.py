@@ -18,6 +18,7 @@ from typing import Any, Iterable
 import yaml
 
 from .config import load_config, resolve_path
+from .metric_records import validate_selection_record
 
 
 SCHEMA_VERSION = 1
@@ -365,7 +366,7 @@ def _read_registry(path: Path) -> list[dict[str, str]]:
 def _write_registry(path: Path, rows: Iterable[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8-sig", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=REGISTRY_COLUMNS, extrasaction="ignore")
+        writer = csv.DictWriter(handle, fieldnames=REGISTRY_COLUMNS, extrasaction="ignore", lineterminator="\n")
         writer.writeheader()
         for row in rows:
             writer.writerow({key: row.get(key, "") for key in REGISTRY_COLUMNS})
@@ -455,15 +456,25 @@ def summarize_experiment(root: str | Path, experiment_id: str) -> dict[str, Any]
     if registry_row is None:
         raise ValueError(f"Experiment {experiment_id} is not registered")
     metric = registry_row["primary_metric"]
+    summary_path = root / "reports" / "experiment_notes" / f"{experiment_id}_summary.json"
+    previous = json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.exists() else {}
+    previous_runs = {item["run_id"]: item for item in previous.get("runs", [])}
     values: list[float] = []
-    failed = 0
-    run_records = []
+    run_records: list[dict[str, Any]] = []
+    local_run_ids: set[str] = set()
     preprocessing: dict[str, Any] | None = None
+    metric_definition: dict[str, Any] | None = None
     for run_dir in sorted((root / "outputs" / experiment_id / "runs").glob("*")):
         metadata_path = run_dir / "metadata.json"
         if not metadata_path.exists():
             continue
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        local_run_ids.add(metadata["run_id"])
+        if metadata.get("config_sha256") != registry_row.get("config_sha256"):
+            raise RuntimeError(
+                f"{metadata['run_id']} config_sha256 does not match registered {experiment_id}; "
+                "register it as a distinct experiment instead of aggregating it here"
+            )
         run_records.append(metadata)
         config_path = run_dir / "config_resolved.yaml"
         if config_path.exists():
@@ -479,26 +490,38 @@ def summarize_experiment(root: str | Path, experiment_id: str) -> dict[str, Any]
                         "summarize them as separate experiments"
                     )
         if metadata.get("status") != "COMPLETED":
-            failed += 1
             continue
         metric_path = run_dir / "metrics_best.json"
-        if metric_path.exists():
-            metrics = json.loads(metric_path.read_text(encoding="utf-8"))
-            candidate = metrics.get("metrics", metrics).get(metric)
-            if candidate is not None:
-                values.append(float(candidate))
+        if not metric_path.exists():
+            raise FileNotFoundError(f"Completed run has no selection metrics: {metric_path}")
+        metrics = json.loads(metric_path.read_text(encoding="utf-8"))
+        validate_selection_record(metrics, metric)
+        definition = metrics["metric_definition"]
+        if metric_definition is not None and definition != metric_definition:
+            raise ValueError(f"{experiment_id} contains incompatible selection metric definitions")
+        metric_definition = definition
+        values.append(float(metrics["metrics"][metric]))
+    missing_completed = [run_id for run_id, item in previous_runs.items()
+                         if item.get("status") == "COMPLETED" and run_id not in local_run_ids]
+    if missing_completed:
+        raise RuntimeError(
+            f"Cannot rebuild {experiment_id}: completed historical runs are unavailable locally: {missing_completed}"
+        )
+    run_records.extend(item for run_id, item in previous_runs.items() if run_id not in local_run_ids)
+    run_records.sort(key=lambda item: (item.get("started_at", ""), item.get("run_id", "")))
+    failed = sum(item.get("status") != "COMPLETED" for item in run_records)
     import numpy as np
     summary = {
         "experiment_id": experiment_id, "primary_metric": metric, "completed_runs": len(values),
+        "split": "val", "metric_source": "selection", "metric_definition": metric_definition,
         "failed_runs": failed, "mean": float(np.mean(values)) if values else None,
         "std": float(np.std(values, ddof=1)) if len(values) > 1 else (0.0 if values else None),
         "preprocessing": preprocessing, "runs": run_records, "generated_at": utc_now(),
     }
-    summary_path = root / "reports" / "experiment_notes" / f"{experiment_id}_summary.json"
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
     registry_row.update({key: summary[key] for key in ["completed_runs", "failed_runs", "mean", "std"]})
-    if values:
+    if values and registry_row.get("status") not in CONCLUSION_STATUSES:
         registry_row["status"] = "AWAITING_CONCLUSION"
     _write_registry(path, rows)
     return summary

@@ -1,29 +1,24 @@
 {
+  "schema_version": 2,
+  "kind": "selection",
+  "split": "val",
+  "primary_metric": "objective_loss",
   "metrics": {
-    "objective_loss": 2.472526827944985,
-    "edge_huber": 0.9362430531012861,
-    "difference_huber": 0.011924394942772917,
-    "mse": 2.472526827944985,
-    "mae": 1.3956473541410663,
-    "raw_edge_pearson": 0.4249212347631213,
-    "raw_edge_spearman": 0.3842120408342459,
-    "long_residual_pearson": -0.006109495962604503,
-    "difference_mse": 0.025299995312396482,
-    "variance_mae": 0.06574014711040485,
-    "dynamic_amplitude_mae": 0.028235202631618404,
-    "node_strength_pearson": 0.38173529675489737,
-    "node_strength_mae": 0.4566810082031202,
-    "fcd_pearson": 0.14938150898662478,
-    "fcd_wasserstein": 0.5021217587247436,
-    "state_occupancy_mae": 0.3613895668956122,
-    "state_transition_mae": 0.1884803561349244,
-    "state_dwell_mae": 48.72292160753535,
-    "retrieval_top1": 0.006329113924050633,
-    "retrieval_top5": 0.04430379746835443,
-    "retrieval_mean_rank": 77.88607594936708,
-    "projection_negative_eigenvalue_fraction": 0.5053966181655346,
-    "projection_minimum_eigenvalue": -11.278471672082249,
-    "projection_projection_rmse": 0.14909934856091875
+    "objective_loss": 0.02050338770392575,
+    "long_residual_pearson": -0.006109496254379614,
+    "validation_variance_loss": 0.00683446256797525
   },
-  "primary_metric": "objective_loss"
+  "best_epoch": 45,
+  "epoch_index_base": 0,
+  "metric_definition": {
+    "implementation": "restored_checkpoint_validation_metrics/v1",
+    "loss_type": "mse",
+    "huber_beta": 1.0,
+    "weights": {
+      "variance": 3.0
+    },
+    "nonoverlap_start": 17,
+    "note": "Value restored from the saved best checkpoint; definition is descriptive and was not recomputed."
+  },
+  "source": "restored_best_checkpoint"
 }

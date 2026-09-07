@@ -1,29 +1,28 @@
 {
+  "schema_version": 2,
+  "kind": "selection",
+  "split": "val",
+  "primary_metric": "objective_loss",
   "metrics": {
-    "objective_loss": 0.0958495669514884,
-    "edge_huber": 0.0946642762120766,
-    "difference_huber": 0.004741162957647179,
-    "mse": 0.19046918227325513,
-    "mae": 0.3465905355501778,
-    "raw_edge_pearson": 0.515280696976034,
-    "raw_edge_spearman": 0.46810124673233494,
-    "long_residual_pearson": 0.07400175694654743,
-    "difference_mse": 0.009482328113922966,
-    "variance_mae": 0.11661432730623439,
-    "dynamic_amplitude_mae": 0.09107402966746801,
-    "node_strength_pearson": 0.5064246828043009,
-    "node_strength_mae": 0.12092243880033493,
-    "fcd_pearson": 0.3218954351282667,
-    "fcd_wasserstein": 0.4791964632076797,
-    "state_occupancy_mae": 0.16976783788386215,
-    "state_transition_mae": 0.08375389306526361,
-    "state_dwell_mae": 38.58552344951731,
-    "retrieval_top1": 0.02531645569620253,
-    "retrieval_top5": 0.17088607594936708,
-    "retrieval_mean_rank": 43.962025316455694,
-    "projection_negative_eigenvalue_fraction": 0.02171576696751244,
-    "projection_minimum_eigenvalue": -3.871142168588276,
-    "projection_projection_rmse": 0.01054208111342137
+    "objective_loss": 0.12058797082569025,
+    "long_residual_pearson": 0.07400175723205969,
+    "validation_edge_loss": 0.09466427819261068,
+    "validation_difference_loss": 0.004741163152163919,
+    "validation_variance_loss": 0.00824613390561146
   },
-  "primary_metric": "objective_loss"
+  "best_epoch": 2,
+  "epoch_index_base": 0,
+  "metric_definition": {
+    "implementation": "restored_checkpoint_validation_metrics/v1",
+    "loss_type": "huber_historical",
+    "huber_beta": 1.0,
+    "weights": {
+      "edge": 1.0,
+      "difference": 0.25,
+      "variance": 3.0
+    },
+    "nonoverlap_start": 17,
+    "note": "Value restored from the saved best checkpoint; definition is descriptive and was not recomputed."
+  },
+  "source": "restored_best_checkpoint"
 }

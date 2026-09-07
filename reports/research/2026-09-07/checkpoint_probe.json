@@ -1,0 +1,71 @@
+[
+  {
+    "experiment": "E0013",
+    "split": "val",
+    "n": 16,
+    "sampling_seed": 42,
+    "checkpoint_epoch_1based": 3,
+    "checkpoint_training_metrics": {
+      "objective_loss": 0.18680195340627356,
+      "long_residual_pearson": 0.08787640738684119,
+      "validation_edge_loss": 0.18443934940084628,
+      "validation_difference_loss": 0.00945042006529962
+    },
+    "intersubject_rms_ratio": 0.21704420423847604,
+    "cross_subject_temporally_centered_prediction_corr": 0.8215285530866216,
+    "cross_subject_temporally_centered_target_corr": 0.003340140959713695,
+    "sc_swap_rms_over_target_spread": 0.007012653225175346,
+    "fc_swap_rms_over_target_spread": 0.31962600955661025,
+    "ae_oracle": {
+      "temporal_std_ratio": 0.8188476860523224,
+      "difference_std_ratio": 0.8021182119846344,
+      "difference_temporal_pearson": 0.7991275191307068
+    }
+  },
+  {
+    "experiment": "E0018",
+    "split": "val",
+    "n": 16,
+    "sampling_seed": 42,
+    "checkpoint_epoch_1based": 19,
+    "checkpoint_training_metrics": {
+      "objective_loss": 0.012745602975917768,
+      "long_residual_pearson": -0.00621088488125817,
+      "validation_difference_loss": 0.009545637742628026,
+      "validation_variance_loss": 0.003199965215606403
+    },
+    "intersubject_rms_ratio": 0.09161367218720783,
+    "cross_subject_temporally_centered_prediction_corr": 0.9942465437396518,
+    "cross_subject_temporally_centered_target_corr": 0.003340140959713695,
+    "sc_swap_rms_over_target_spread": 0.010413300185828459,
+    "fc_swap_rms_over_target_spread": 0.12940779445572959,
+    "ae_oracle": {
+      "temporal_std_ratio": 0.8188476860523224,
+      "difference_std_ratio": 0.8021182119846344,
+      "difference_temporal_pearson": 0.7991275191307068
+    }
+  },
+  {
+    "experiment": "E0024",
+    "split": "val",
+    "n": 16,
+    "sampling_seed": 42,
+    "checkpoint_epoch_1based": 99,
+    "checkpoint_training_metrics": {
+      "objective_loss": 0.014812012462393392,
+      "long_residual_pearson": -0.00954575111052092,
+      "validation_difference_loss": 0.010463541680121724,
+      "validation_variance_loss": 0.004348470808796679
+    },
+    "intersubject_rms_ratio": 0.036415365883531614,
+    "cross_subject_temporally_centered_prediction_corr": 0.9997755957746154,
+    "cross_subject_temporally_centered_target_corr": 0.003340140959713695,
+    "sc_swap_rms_over_target_spread": 0.00428327305195611,
+    "fc_swap_rms_over_target_spread": 0.05440321808345626,
+    "ae_oracle": {
+      "temporal_std_ratio": 0.8188476860523224,
+      "difference_std_ratio": 0.8021182119846344,
+      "difference_temporal_pearson": 0.7991275191307068
+    }
+  }
+]

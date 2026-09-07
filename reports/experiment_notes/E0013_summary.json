@@ -2,8 +2,21 @@
   "experiment_id": "E0013",
   "primary_metric": "objective_loss",
   "completed_runs": 1,
+  "split": "val",
+  "metric_source": "selection",
+  "metric_definition": {
+    "implementation": "restored_checkpoint_validation_metrics/v1",
+    "loss_type": "mse",
+    "huber_beta": 1.0,
+    "weights": {
+      "edge": 1.0,
+      "difference": 0.25
+    },
+    "nonoverlap_start": 17,
+    "note": "Value restored from the saved best checkpoint; definition is descriptive and was not recomputed."
+  },
   "failed_runs": 0,
-  "mean": 0.18519943116817053,
+  "mean": 0.18680195340627356,
   "std": 0.0,
   "preprocessing": {
     "dataset_version": "dataset_lr_v1",
@@ -26,22 +39,22 @@
     {
       "schema_version": 1,
       "experiment_id": "E0013",
-      "run_id": "E0013-s42-20260826T123518Z-9331a35",
+      "run_id": "E0013-s42-20260831T024715Z-28e891f",
       "seed": 42,
       "level": 1,
       "status": "COMPLETED",
-      "started_at": "2026-08-26T12:35:18Z",
-      "config_sha256": "9a6d93da351d65337fb681bc54144cc95c958f772e203b413e5d3de039d32fb4",
+      "started_at": "2026-08-31T02:47:16Z",
+      "config_sha256": "37234ebabbfd8f3d2f92aead89576c147dd1abf1fe0ed29b1219b5284ee196ec",
       "git": {
-        "commit": "9331a356e3e75d37b8869bf72e3cc45a6ea199d9",
+        "commit": "28e891f9b7ee416a167c13a439577d824a285bd0",
         "branch": "main",
         "remote": "https://github.com/Face233/SC2dFC.git",
         "dirty": false,
         "status": []
       },
-      "ended_at": "2026-08-26T12:45:48Z",
-      "checkpoint": "D:\\Code\\Canlab\\HCP_New\\outputs\\E0013\\runs\\E0013-s42-20260826T123518Z-9331a35\\checkpoints\\best.pt"
+      "ended_at": "2026-08-31T02:54:53Z",
+      "checkpoint": "D:\\Code\\HCP_New\\outputs\\E0013\\runs\\E0013-s42-20260831T024715Z-28e891f\\checkpoints\\best.pt"
     }
   ],
-  "generated_at": "2026-08-26T12:50:35Z"
+  "generated_at": "2026-09-07T07:08:16Z"
 }

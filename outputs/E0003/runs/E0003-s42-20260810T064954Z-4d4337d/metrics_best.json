@@ -1,6 +1,18 @@
 {
+  "schema_version": 2,
+  "kind": "selection",
+  "split": "val",
+  "primary_metric": "validation_loss",
   "metrics": {
     "validation_loss": 0.02410417597127866
   },
-  "best_epoch": 99
+  "best_epoch": 99,
+  "epoch_index_base": 0,
+  "metric_definition": {
+    "implementation": "restored_autoencoder_checkpoint/v1",
+    "weights": {
+      "edge": 1.0
+    }
+  },
+  "source": "restored_best_checkpoint"
 }

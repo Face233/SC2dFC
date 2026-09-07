@@ -131,10 +131,10 @@ def test_summary_and_human_conclusion_update_registry(tmp_path: Path):
     with registry.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=REGISTRY_COLUMNS)
         writer.writeheader()
-        writer.writerow({"experiment_id": "E0001", "name": "test", "primary_metric": "mse", "status": "PLANNED"})
+        writer.writerow({"experiment_id": "E0001", "name": "test", "primary_metric": "mse", "status": "PLANNED", "config_sha256": "same"})
     run_dir = tmp_path / "outputs" / "E0001" / "runs" / "E0001-s42-now-aaaaaaa"
     run_dir.mkdir(parents=True)
-    (run_dir / "metadata.json").write_text(json.dumps({"run_id": run_dir.name, "status": "COMPLETED"}), encoding="utf-8")
+    (run_dir / "metadata.json").write_text(json.dumps({"run_id": run_dir.name, "status": "COMPLETED", "config_sha256": "same"}), encoding="utf-8")
     (run_dir / "config_resolved.yaml").write_text(yaml.safe_dump({
         "paths": {"cache_dir": "data/cache/dfc"},
         "data": {
@@ -143,7 +143,9 @@ def test_summary_and_human_conclusion_update_registry(tmp_path: Path):
             "n_nodes": 90, "fisher_clip": 0.999999,
         },
     }), encoding="utf-8")
-    (run_dir / "metrics_best.json").write_text(json.dumps({"metrics": {"mse": 0.25}}), encoding="utf-8")
+    from scdfc.metric_records import selection_record
+    record = selection_record({"mse": 0.25}, "mse", None, definition={"metric": "mse"})
+    (run_dir / "metrics_best.json").write_text(json.dumps(record), encoding="utf-8")
     summary = summarize_experiment(tmp_path, "E0001")
     assert summary["mean"] == 0.25
     assert summary["preprocessing"]["window_length_tr"] == 83
@@ -152,3 +154,19 @@ def test_summary_and_human_conclusion_update_registry(tmp_path: Path):
     row = next(csv.DictReader(registry.open("r", encoding="utf-8-sig")))
     assert row["status"] == "KEEP"
     assert row["conclusion"] == "useful"
+
+
+def test_summary_rejects_run_from_different_registered_config(tmp_path: Path):
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    registry = reports / "experiment_registry.csv"
+    with registry.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=REGISTRY_COLUMNS)
+        writer.writeheader()
+        writer.writerow({"experiment_id": "E0001", "primary_metric": "mse", "config_sha256": "registered"})
+    run = tmp_path / "outputs" / "E0001" / "runs" / "wrong-config"
+    run.mkdir(parents=True)
+    (run / "metadata.json").write_text(json.dumps({
+        "run_id": "wrong-config", "status": "COMPLETED", "config_sha256": "different"}))
+    with pytest.raises(RuntimeError, match="config_sha256"):
+        summarize_experiment(tmp_path, "E0001")

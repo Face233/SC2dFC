@@ -19,6 +19,7 @@ from .models import ConditionalSequenceModel, FCAutoencoder
 from .models.baselines import CommonInputLSTM, CommonInputMLP, DirectSCMLP, GCNGRUBaseline, PCARidgeBaseline
 from .models.sequence import torch_edges_to_matrix
 from .progress import append_jsonl, emit
+from .metric_records import selection_record, sequence_objective_definition
 
 
 def learning_rate_scale(schedule: dict[str, Any], epoch: int, max_epochs: int) -> float:
@@ -174,6 +175,15 @@ class CompositeLoss:
             components["psd"] = psd_penalty(prediction, self.n_nodes)
         total = sum((self.weights[name] * value for name, value in components.items()), prediction.new_zeros(()))
         return total, components
+
+
+def sequence_criterion(config: dict[str, Any], nonoverlap: int) -> CompositeLoss:
+    """Use the same objective construction during training and evaluation."""
+    return CompositeLoss(
+        config["training"]["loss_weights"], nonoverlap, int(config["data"]["n_nodes"]),
+        float(config["training"].get("huber_beta", 1.0)),
+        str(config["training"].get("loss_type", "mse")),
+    )
 
 
 class AutoencoderLoss:
@@ -360,7 +370,8 @@ def train_autoencoder(
             emit("early_stopped", task="autoencoder", epoch=epoch + 1, best_epoch=best_epoch + 1, best_validation_loss=best)
             break
     (output_dir / "metrics_best.json").write_text(
-        json.dumps({"metrics": {"validation_loss": best}, "best_epoch": best_epoch}, indent=2), encoding="utf-8"
+        json.dumps(selection_record({"validation_loss": best}, "validation_loss", best_epoch,
+            definition={"implementation": "AutoencoderLoss/v1", "weights": criterion.weights}), indent=2), encoding="utf-8"
     )
     emit("train_finished", task="autoencoder", best_epoch=best_epoch + 1, best_validation_loss=best, checkpoint=str(checkpoint))
     return checkpoint
@@ -476,21 +487,30 @@ def train_pca_ridge_baseline(
     model.ridge_coef.copy_(torch.from_numpy(ridge.coef_).to(device, dtype=torch.float32))
     model.ridge_intercept.copy_(torch.from_numpy(ridge.intercept_).to(device, dtype=torch.float32))
     loader = DataLoader(val_data, batch_size=int(config["training"]["batch_size"]), shuffle=False, num_workers=0)
-    score = validate(model, loader, nonoverlap_horizon(window_length, int(config["data"]["stride"])), device)
+    nonoverlap = nonoverlap_horizon(window_length, int(config["data"]["stride"]))
+    criterion = sequence_criterion(config, nonoverlap)
+    validation_metrics = validate_sequence(model, loader, criterion, nonoverlap, device)
+    primary_metric = str(config["evaluation"]["primary_metric"])
+    if primary_metric not in validation_metrics:
+        raise ValueError(f"Unsupported PCA-Ridge selection metric: {primary_metric}")
+    score = validation_metrics[primary_metric]
     checkpoint_dir = output_dir / "checkpoints"
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     checkpoint = checkpoint_dir / "best.pt"
     payload = {
         "schema_version": 1, "model": model.state_dict(), "epoch": 0, "score": score,
         "primary_metric": config["evaluation"]["primary_metric"], "decoder_type": "pca_ridge",
+        "validation_metrics": validation_metrics,
+        "objective_definition": sequence_objective_definition(config, nonoverlap),
         "sc_encoder_type": "hybrid", "ablation": "full", "window_length": window_length,
         "ridge_dimensions": {"n_components": n_components, "sc_edges": sc_array.shape[1], "latent_dim": len(warmups[0])},
         **checkpoint_metadata,
     }
     torch.save(payload, checkpoint)
-    (output_dir / "train.log").write_text(json.dumps({"fit": "pca_ridge", "validation_long_residual_pearson": score}) + "\n", encoding="utf-8")
+    (output_dir / "train.log").write_text(json.dumps({"fit": "pca_ridge", **validation_metrics}) + "\n", encoding="utf-8")
     (output_dir / "metrics_best.json").write_text(
-        json.dumps({"metrics": {config["evaluation"]["primary_metric"]: score}, "best_epoch": 0}, indent=2), encoding="utf-8"
+        json.dumps(selection_record(validation_metrics, primary_metric, 0,
+            definition=sequence_objective_definition(config, nonoverlap)), indent=2), encoding="utf-8"
     )
     return checkpoint
 
@@ -615,11 +635,7 @@ def train_sequence_model(
     schedule.setdefault("name", "constant")
     schedule["base_learning_rate"] = base_learning_rate
     nonoverlap = nonoverlap_horizon(window_length, int(config["data"]["stride"]))
-    criterion = CompositeLoss(
-        config["training"]["loss_weights"], nonoverlap, int(config["data"]["n_nodes"]),
-        float(config["training"].get("huber_beta", 1.0)),
-        str(config["training"].get("loss_type", "mse")),
-    )
+    criterion = sequence_criterion(config, nonoverlap)
     conditional_name = (
         decoder_type
         if sc_encoder_type == "hybrid" or decoder_type in baseline_types
@@ -696,6 +712,7 @@ def train_sequence_model(
                 "primary_metric": primary_metric, "decoder_type": decoder_type,
                 "sc_encoder_type": sc_encoder_type, "ablation": ablation, "window_length": window_length,
                 "validation_metrics": validation_metrics, "output_head": str(config["model"].get("output_head", "e0003_reconstruction_decoder")),
+                "objective_definition": sequence_objective_definition(config, nonoverlap),
                 "warmup_windows": int(config.get("data", {}).get("warmup_windows", 1)),
                 "warmup_encoder": str(config["model"].get("warmup_encoder", "none")),
                 "warmup_gru_layers": int(config["model"].get("warmup_gru_layers", 1)),
@@ -735,16 +752,20 @@ def train_sequence_model(
                 "primary_metric": primary_metric, "decoder_type": decoder_type,
                 "sc_encoder_type": sc_encoder_type, "ablation": ablation, "window_length": window_length,
                 "validation_metrics": validation_metrics, "output_head": str(config["model"].get("output_head", "e0003_reconstruction_decoder")),
+                "objective_definition": sequence_objective_definition(config, nonoverlap),
                 "loss_type": criterion.loss_type,
                 "fc_reconstruction_decoder_frozen": True,
             }
             last_payload.update(checkpoint_metadata or {})
             torch.save(last_payload, last_checkpoint)
     (output_dir / "metrics_best.json").write_text(
-        json.dumps({"metrics": best_validation_metrics, "primary_metric": primary_metric, "best_epoch": best_epoch}, indent=2), encoding="utf-8"
+        json.dumps(selection_record(best_validation_metrics, primary_metric, best_epoch,
+            definition=sequence_objective_definition(config, nonoverlap)), indent=2), encoding="utf-8"
     )
     (output_dir / "metrics_last.json").write_text(
-        json.dumps({"metrics": validation_metrics, "primary_metric": primary_metric, "last_epoch": epoch}, indent=2), encoding="utf-8"
+        json.dumps({"schema_version": 2, "kind": "last_validation", "split": "val",
+            "metrics": validation_metrics, "primary_metric": primary_metric, "last_epoch": epoch,
+            "epoch_index_base": 0, "metric_definition": sequence_objective_definition(config, nonoverlap)}, indent=2), encoding="utf-8"
     )
     emit("train_finished", task="sequence", model=decoder_type, best_epoch=best_epoch + 1, primary_metric=primary_metric, best_primary_value=best, checkpoint=str(checkpoint))
     return checkpoint

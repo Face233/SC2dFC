@@ -28,6 +28,7 @@ from .management import (
     write_run_provenance,
 )
 from .training import train_autoencoder, train_sequence_model
+from .metric_records import selection_record
 from .progress import emit
 
 
@@ -175,7 +176,13 @@ def command_run(args) -> None:
             artifact_manifest = _write_artifact_manifest(config, context, checkpoint)
             finish_run(context, "COMPLETED", checkpoint=str(checkpoint), artifact_manifest=str(artifact_manifest))
         elif task == "analytic":
-            evaluate_analytic_baseline(config, window, stats, config["model"]["name"], "val", context.run_dir)
+            report_path = evaluate_analytic_baseline(config, window, stats, config["model"]["name"], "val", context.run_dir)
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            primary = config["evaluation"]["primary_metric"]
+            definition = (report.get("objective") or {}).get("definition") if primary == "objective_loss" else {"metric": primary, "implementation": "sequence_metrics/v2"}
+            record = selection_record(report["aggregate"], primary, None,
+                definition=definition, source="analytic_validation")
+            (context.run_dir / "metrics_best.json").write_text(json.dumps(record, indent=2), encoding="utf-8")
             finish_run(context, "COMPLETED")
         else:
             checkpoint = train_sequence_model(
@@ -227,11 +234,6 @@ def command_evaluate_run(args) -> None:
             save_predictions=args.final_test, device_name=args.device, split_name=split,
             output_dir=run_dir, autoencoder_path=artifact,
         )
-    report = json.loads(report_path.read_text(encoding="utf-8"))
-    (run_dir / "metrics_best.json").write_text(
-        json.dumps({"metrics": report["aggregate"], "primary_metric": config["evaluation"]["primary_metric"]}, indent=2),
-        encoding="utf-8",
-    )
     if lock is not None:
         lock.write_text(json.dumps({"run_id": args.run_id, "completed_at": utc_now(), "config_sha256": metadata["config_sha256"]}, indent=2), encoding="utf-8")
     print(report_path)

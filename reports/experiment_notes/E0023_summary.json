@@ -2,8 +2,21 @@
   "experiment_id": "E0023",
   "primary_metric": "objective_loss",
   "completed_runs": 1,
+  "split": "val",
+  "metric_source": "selection",
+  "metric_definition": {
+    "implementation": "restored_checkpoint_validation_metrics/v1",
+    "loss_type": "mse",
+    "huber_beta": 1.0,
+    "weights": {
+      "difference": 1.0,
+      "variance": 1.0
+    },
+    "nonoverlap_start": 17,
+    "note": "Value restored from the saved best checkpoint; definition is descriptive and was not recomputed."
+  },
   "failed_runs": 0,
-  "mean": 2.0110686938514153,
+  "mean": 0.029258343921620633,
   "std": 0.0,
   "preprocessing": {
     "dataset_version": "dataset_lr_v1",
@@ -43,5 +56,5 @@
       "checkpoint": "D:\\Code\\HCP_New\\outputs\\E0023\\runs\\E0023-s42-20260831T091605Z-5935654\\checkpoints\\best.pt"
     }
   ],
-  "generated_at": "2026-08-31T09:49:43Z"
+  "generated_at": "2026-09-07T06:48:06Z"
 }
