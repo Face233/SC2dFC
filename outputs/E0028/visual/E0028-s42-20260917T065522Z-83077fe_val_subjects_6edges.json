@@ -1,0 +1,40 @@
+{
+  "experiment_id": "E0028",
+  "run_id": "E0028-s42-20260917T065522Z-83077fe",
+  "split": "val",
+  "purpose": "六条固定随机边为行，四名验证集被试为前四列，真实/预测时序对比；第五列为训练集组平均真实时序。",
+  "subject_seed": 42,
+  "edge_seed": 42,
+  "subjects": [
+    "120010",
+    "188448",
+    "308331",
+    "559457"
+  ],
+  "edge_indices": [
+    357,
+    1733,
+    1756,
+    2619,
+    3096,
+    3438
+  ],
+  "edge_labels": [
+    "Frontal_Sup_Orb_L ↔ Frontal_Inf_Tri_L",
+    "Frontal_Sup_Medial_L ↔ Insula_R",
+    "Frontal_Sup_Medial_L ↔ Occipital_Inf_L",
+    "Hippocampus_L ↔ Temporal_Pole_Sup_L",
+    "Lingual_L ↔ Temporal_Mid_L",
+    "Fusiform_R ↔ Temporal_Mid_L"
+  ],
+  "layout": {
+    "rows": "六条共享边",
+    "columns": "验证集被试四列 + 训练集组平均一列"
+  },
+  "training_group_mean": {
+    "split": "train",
+    "source": "training statistics group_template",
+    "warmup_windows": 1
+  },
+  "image": "D:\\Code\\Canlab\\HCP_New\\outputs\\E0028\\visual\\E0028-s42-20260917T065522Z-83077fe_val_subjects_6edges.png"
+}
