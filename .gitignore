@@ -46,6 +46,10 @@ outputs/E0011/*
 outputs/E0012/*
 !outputs/E0012/visual/
 !outputs/E0012/visual/**
+!outputs/E0030/
+outputs/E0030/*
+!outputs/E0030/visual/
+!outputs/E0030/visual/**
 # Do not publish bytecode created while running report entry points.
 outputs/*/visual/**/__pycache__/
 outputs/*/visual/**/*.py[cod]
