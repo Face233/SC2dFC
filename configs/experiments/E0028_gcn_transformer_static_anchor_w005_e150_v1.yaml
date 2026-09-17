@@ -1,0 +1,21 @@
+base: E0027_gcn_transformer_static_anchor_e150_v1.yaml
+
+training:
+  loss_weights:
+    static: 0.05
+
+experiment:
+  id: E0028
+  name: gcn_transformer_static_anchor_w005_e150_v1
+  level: 1
+  task: sequence
+  research_question: 在E0027相同的GCN+Transformer、150轮训练与动态损失条件下，将未来平均FC的static锚点从0.01提高至0.05，能否进一步恢复个体平均FC与静态检索，同时不恶化动态恢复
+  hypothesis: E0027的static项在最优checkpoint仅贡献约0.00096目标值；提高至0.05可加强逐被试均值锚定并改善平均FC和检索，但可能进一步压低时间差分恢复或将预测拉向共享模板。
+  primary_change: 相对E0027仅将逐被试未来平均FC MSE的static权重从0.01提高至0.05；模型、GCN条件编码、冻结decoder、数据、seed、150轮训练、warm-up余弦日程、差分与方差损失均不变。
+  baseline: E0027
+  owner: Face88
+  status: planned
+  ablation: full
+
+decision_rule:
+  description: 完整训练150轮，不早停，不查看测试集；以E0027作为唯一配对参照，记录未加权static损失及其梯度尺度。验证集同时报告平均FC与边MSE、被试检索和跨被试离散度，以及去时间均值后的动态相似性、差分时间相关、差分标准差比和动态幅值。只有静态复原与个体性改善且动态指标未明显恶化时，才认为提高static权重有益；若仅降低边MSE或更接近群体均值，则不视为解决共享轨迹问题。不同损失定义的objective_loss不作横向排名。
