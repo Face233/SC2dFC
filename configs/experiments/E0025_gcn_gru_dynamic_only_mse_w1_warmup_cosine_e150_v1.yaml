@@ -1,0 +1,28 @@
+base: E0018_gcn_gru_dynamic_only_mse_w1_control_v1.yaml
+
+training:
+  epochs: 150
+  # Greater than the full budget: train all 150 epochs, while retaining the
+  # validation-best checkpoint for inspection.
+  patience: 151
+  learning_rate: 0.0003
+  learning_rate_schedule:
+    name: warmup_cosine
+    warmup_epochs: 5
+    eta_min: 0.00001
+
+experiment:
+  id: E0025
+  name: gcn_gru_dynamic_only_mse_w1_warmup_cosine_e150_v1
+  level: 1
+  task: sequence
+  research_question: E0018的GCN+GRU在150轮、前5轮warm-up加余弦退火的完整训练轨迹中，能否改善复原、时间动态和个体差异
+  hypothesis: 若固定学习率或50轮训练预算限制了优化，延长并平滑学习率轨迹可能改善至少一项验证集诊断；若仍出现公共动态与个体差异缺失，则仅调整训练日程不足以解决问题。
+  primary_change: 以E0018为基础，将50轮固定学习率训练改为150轮、前5轮warm-up及余弦退火至1e-5；不改GCN+GRU、条件输入、冻结decoder、MSE差分与方差损失、数据和seed。
+  baseline: E0018
+  owner: Face88
+  status: planned
+  ablation: full
+
+decision_rule:
+  description: 完整训练150轮，不早停，不查看测试集；验证集按预定的复原、个体均值、条件交换敏感性和去均值动态诊断分别报告，不做模型优劣排名。E0018与本实验同时改变学习率日程和训练预算，不能据此单独归因余弦策略；训练目标下降但复原及个体差异未改善，不视为问题已解决。

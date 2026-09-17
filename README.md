@@ -7,4 +7,6 @@ Deterministic prediction of future resting-state dynamic functional connectivity
 - [English](README_EN.md)
 - [简体中文](README_CN.md)
 - [Managed experiment workflow](docs/experiment_management.md)
-- [E0004–E0007 experiment plan](docs/E0004_E0007_experiment_plan.md)
+- [Current project status](docs/project_status.md)
+- [Checkpoint archive status](docs/checkpoint_archive.md)
+- [Historical E0004–E0007 experiment plan](docs/E0004_E0007_experiment_plan.md)

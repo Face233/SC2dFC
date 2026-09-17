@@ -1,6 +1,6 @@
 # 运行流程与实时日志
 
-以下命令均应在项目根目录和 `GCN_mri` Conda 环境中执行：
+以下命令均应在项目根目录和符合依赖要求的环境中执行；`GCN_mri` 是示例 Conda 环境名，并非仓库自带环境：
 
 ```powershell
 conda activate GCN_mri
@@ -35,14 +35,14 @@ scdfc precompute --config configs/default.yaml --windows 42 125
 
 ## 2. 基线、自编码器和模型
 
-按以下顺序运行，以避免把测试集用于选择模型：
+以下是首次建立研究流程时的执行顺序。当前项目已经推进到 E0024，状态见[项目快照](project_status.md)；不要把已完成的单 seed 实验误认为尚未启动，也不要覆写它们的冻结配置：
 
 1. 解析基线：`E0001`（group mean）和 `E0002`（FC1 persistence）。
 2. `E0003` 的 FC 自编码器；成功后会生成 `configs/artifacts/A0003.yaml`。提交该清单后，后续 sequence 实验显式引用它。
 3. 主模型：E0004（GCN+GRU）、E0005（Hybrid+GRU）、E0006（GCN+Transformer）、E0007（Hybrid+Transformer）。
 4. 四个模型先各运行 seed 42；比较验证集后，再为候选模型创建 FC1-only、SC-only 和多 seed 确认实验。
 
-现有已登记实验可直接运行：
+以下命令作为早期受管理流程的示例；运行前须有相同版本的私人数据、缓存和完整 A0003 checkpoint。新问题应创建新 ID，不能借旧 ID 修改参数：
 
 ```powershell
 scdfc run --experiment configs/experiments/E0001_group_mean_baseline.yaml --seed 42 --device cuda
@@ -71,7 +71,9 @@ scdfc summarize --experiment E0003
 scdfc evaluate-run --run-id <level-2-run-id> --final-test --device cuda
 ```
 
-后续序列实验按冻结配置中的完整 `CompositeLoss` 得到验证集 `objective_loss`，并据此选择 checkpoint。该目标可能由 edge、difference、variance 等至多三个启用项组成，不能统一解释为“边 MSE + 0.25 × 差分 MSE”。相关、拓扑和动态指标用于解释；不同损失定义下的 `objective_loss` 不能直接横向排名。E0004–E0012 是历史 Huber 运行，结果应按各自冻结配置和 checkpoint 中的选模记录解读。
+序列实验按冻结配置中的完整 `CompositeLoss` 得到验证集 `objective_loss`，并据此选择 checkpoint。该目标最多启用三个非零分量，不能统一解释为“边 MSE + 0.25 × 差分 MSE”。不同损失定义下的 `objective_loss` 不能直接横向排名。E0004–E0007、E0009–E0012 为历史 Huber 运行；E0008 显式使用 MSE，后续实验也应逐项查看 `loss_type`、权重和 checkpoint 选模记录。
+
+对探索性模型还应执行 `scdfc dynamic-audit --run-id <run_id> --split val`，并分别解释幅度、差分方向、频谱、个体检索和矩阵合法性。E0018/E0022/E0023/E0024 已有 `val_test` 图，测试数据并非完全未见过；后续正式确认需要另定锁定方案。
 
 ## 4. 查看运行状态
 

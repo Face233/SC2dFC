@@ -1,0 +1,22 @@
+base: E0024_gcn_transformer_dynamic_only_mse_w1_warmup_cosine_v1.yaml
+
+training:
+  epochs: 150
+  # Disable early stopping in practice; selection still saves best.pt.
+  patience: 151
+
+experiment:
+  id: E0026
+  name: gcn_transformer_dynamic_only_mse_w1_warmup_cosine_e150_v1
+  level: 1
+  task: sequence
+  research_question: E0024的GCN+Transformer按相同warm-up与余弦日程训练完整150轮后，复原、动态和个体差异是否出现可用的改善
+  hypothesis: 更长训练可能允许E0024继续优化，但若平均FC、时间配对和个体条件敏感性仍差，则延长训练本身不足以形成可用模型。
+  primary_change: 继承E0024的模型、数据、损失、seed和warm-up余弦策略，仅将总训练预算从100轮延长到150轮且不早停；余弦衰减随总轮数延长。
+  baseline: E0024
+  owner: Face88
+  status: planned
+  ablation: full
+
+decision_rule:
+  description: 完整训练150轮，不早停，不查看测试集；验证集分别报告复原误差、平均FC、条件交换敏感性、个体离散程度及去均值动态，不以动态目标或振幅单项改善宣告成功。余弦曲线随150轮拉长，不将结果单独解释为增加50轮的纯效应。

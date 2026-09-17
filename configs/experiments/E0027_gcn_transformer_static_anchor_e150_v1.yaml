@@ -1,0 +1,24 @@
+base: E0026_gcn_transformer_dynamic_only_mse_w1_warmup_cosine_e150_v1.yaml
+
+training:
+  loss_weights:
+    edge: 0.0
+    difference: 1.0
+    variance: 1.0
+    static: 0.01
+
+experiment:
+  id: E0027
+  name: gcn_transformer_static_anchor_e150_v1
+  level: 1
+  task: sequence
+  research_question: 在E0026相同的150轮训练和模型条件下，加入未来平均FC的static锚点能否改善复原和被试间区分，而不损害时间动态
+  hypothesis: static约束可修正差分与方差损失无法识别的逐边均值偏移；但它可能只拉回群体均值，未必恢复真实个体差异或时间配对。
+  primary_change: 相对E0026仅在MSE差分与方差损失上增加0.01倍的逐被试未来平均FC MSE锚点；其余模型、数据、训练日程和seed不变。
+  baseline: E0026
+  owner: Face88
+  status: planned
+  ablation: full
+
+decision_rule:
+  description: 完整训练150轮，不早停，不查看测试集；先检查未加权static损失及其梯度尺度，再按预设0.01权重训练。验证集重点检查平均FC误差、edge MSE、个体间预测离散度、静态检索、SC/FC交换敏感性，同时确认去均值动态、差分时间相关和动态幅值未恶化。不能仅凭新的objective_loss与E0026比较，因为损失定义已变；static只改善群体平均而无个体差异时不视为成功。

@@ -5,9 +5,9 @@
 - `audit/split/precompute/train-ae/train/evaluate` 是兼容旧流程的调试命令；旧训练与评价结果不作为正式证据。
 - `freeze-data/experiment/run/evaluate-run/summarize/conclude` 是受管理的科研实验入口。
 
-受管理运行严格区分两类验证产物：`metrics_best.json` 是训练阶段产生的 checkpoint 选模证据；`evaluation_val.json` 是最佳 checkpoint 的通用评价。两者可以都包含名为 `objective_loss` 的指标，但必须携带相同且完整的损失定义，评价过程不得覆盖选模文件。实验汇总只读取带 `kind=selection`、`split=val` 的新版选模记录，并核对 run 与注册实验的配置哈希。
+受管理运行严格区分两类验证产物：`metrics_best.json` 是训练阶段产生的 checkpoint 选模证据；`evaluation_val.json` 是最佳 checkpoint 的通用评价。两者可能都包含 `objective_loss`，但只有定义一致且可重放时才能比较；旧 checkpoint 无法重放时，评价会明确标记不可用，而不能用通用边分数冒充训练目标。评价过程不得覆盖选模文件。实验汇总只读取带 `kind=selection`、`split=val` 的新版选模记录，并核对 run 与注册实验的配置哈希。
 
-所有命令均在项目根目录、`GCN_mri` 环境中执行。
+所有命令均在项目根目录、满足 `pyproject.toml` 依赖的环境中执行；`GCN_mri` 是示例 Conda 环境名。现有 E0001–E0024 的进度及未收口项见[项目状态](project_status.md)。以下 E0003/E0004 的创建命令展示**项目初建时的流程**；当前编号和工件已被使用，新研究不要重新创建或改写它们，应分配新实验 ID。
 
 ## 1. 冻结数据和划分
 
@@ -26,7 +26,9 @@ scdfc freeze-data `
 生成正式缓存时，`precompute` 会自动只处理冻结划分中的合格被试：
 
 ```powershell
-scdfc precompute --config configs/default.yaml --windows 83 42 125
+scdfc precompute --config configs/default.yaml --windows 83
+# 需要窗长敏感性分析时再运行：
+scdfc precompute --config configs/default.yaml --windows 42 125
 ```
 
 ## 2. 建立冻结的 FC 自编码器
@@ -52,7 +54,7 @@ git commit -m "exp(E0003): register FC autoencoder artifact"
 scdfc run --experiment configs/experiments/E0003_fc_autoencoder_w83_v1.yaml --seed 42
 ```
 
-成功后生成 `configs/artifacts/A0003.yaml`。该小型清单进入 Git，checkpoint 本身继续保留在 `outputs/`；在服务器之间复制 checkpoint 后必须保持清单中的相对路径和 SHA256 一致。
+成功后生成 `configs/artifacts/A0003.yaml`。该小型清单进入 Git，checkpoint 在 `outputs/E0003/runs/<run_id>/checkpoints/best.pt`；需按[归档说明](checkpoint_archive.md)按需取得完整模型，不能把 LFS 指针当作可加载权重。在服务器之间复制 checkpoint 后必须保持清单中的相对路径和 SHA256 一致。E0003 有效训练目标是 Fisher-z 边 MSE，相关和 PSD 自编码器损失未启用。
 
 ## 3. 建立基线或主模型实验
 
@@ -90,7 +92,7 @@ scdfc experiment create `
 
 可选条件模型包括 `gru`、`tcn` 和 `transformer`。当前 E0004–E0007 使用 `gru` 或 `transformer`、`hybrid` 或 `hcp_gcn` SC encoder，并固定 `e0003_reconstruction_decoder` 输出头。其他名称保留用于历史基线。所有学习型模型均不接收扫描方向编码。
 
-每个 seed 单独提交：
+每个已声明 seed 单独运行：
 
 ```powershell
 scdfc run --experiment configs/experiments/E0004_gcn_gru_full_v1.yaml --seed 42 --device cuda
@@ -98,27 +100,27 @@ scdfc run --experiment configs/experiments/E0004_gcn_gru_full_v1.yaml --seed 42 
 
 ## 4. 评价、汇总和科研结论
 
-Level 0/1 只能评价 train/val：
+Level 0/1 只能评价 train/val；用真实运行结束时输出的 run ID，下面是格式示意，不是当前仓库中的实际运行：
 
 ```powershell
 scdfc evaluate-run --run-id E0004-s42-20260724T120000Z-abcdef0 --split val
 ```
 
-只有 Level 2 能显式执行一次最终测试；成功后生成实验级锁文件：
+只有 Level 2 能显式执行一次最终测试；成功后生成实验级锁文件。已有部分 `val_test` 图属于探索性测试集接触，不能把同一测试数据视为完全未见过的最终确认集：
 
 ```powershell
 scdfc evaluate-run --run-id <run_id> --final-test
 ```
 
-全部 seed 完成后：
+全部 seed 完成后再汇总并记录真实人工结论；以下 `KEEP` 文本是格式示意，**不是 E0004 的现有结论**：
 
 ```powershell
 scdfc summarize --experiment E0004
 scdfc conclude `
   --experiment E0004 `
   --status KEEP `
-  --conclusion "多个 seed 均稳定优于 E0002" `
-  --next-step "进入 Level 2 正式确认"
+  --conclusion "<填写验证集证据和局限>" `
+  --next-step "<填写下一步实验或停止理由>"
 git add reports
 git commit -m "docs: conclude E0004"
 ```
