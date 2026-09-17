@@ -1,0 +1,634 @@
+{
+  "schema_version": 2,
+  "checkpoint": "D:\\Code\\Canlab\\HCP_New\\outputs\\E0029\\runs\\E0029-s42-20260917T074229Z-8223ba3\\checkpoints\\best.pt",
+  "split": "val",
+  "n_samples": 158,
+  "window_length": 83,
+  "sample_interval_seconds": 3.5999999999999996,
+  "nonoverlap_horizon": 17,
+  "frequency_bands_hz": {
+    "low": [
+      0.003,
+      0.017
+    ],
+    "mid": [
+      0.017,
+      0.033
+    ]
+  },
+  "methods": {
+    "E0029": {
+      "full": {
+        "temporal_std_ratio": {
+          "median": 1.008886694908142,
+          "iqr": 0.10479074716567993,
+          "n": 158.0,
+          "fraction_below_one": 0.4240506329113924
+        },
+        "difference_std_ratio": {
+          "median": 0.11404435709118843,
+          "iqr": 0.007523383945226669,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_temporal_pearson": {
+          "median": 0.004561144392937422,
+          "iqr": 0.03512901277281344,
+          "n": 158.0
+        },
+        "low_band_power_ratio": {
+          "median": 0.12017703114866465,
+          "iqr": 0.0277912853946346,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "mid_band_power_ratio": {
+          "median": 0.0013977974357553072,
+          "iqr": 0.0012040106215923142,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        }
+      },
+      "nonoverlap": {
+        "temporal_std_ratio": {
+          "median": 1.0540233850479126,
+          "iqr": 0.10672964155673981,
+          "n": 158.0,
+          "fraction_below_one": 0.25949367088607594
+        },
+        "difference_std_ratio": {
+          "median": 0.11477552354335785,
+          "iqr": 0.008012643083930016,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_temporal_pearson": {
+          "median": 0.0028324847808107734,
+          "iqr": 0.03901040134951472,
+          "n": 158.0
+        },
+        "low_band_power_ratio": {
+          "median": 0.13292139199318959,
+          "iqr": 0.032541654220622135,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "mid_band_power_ratio": {
+          "median": 0.001747451206703803,
+          "iqr": 0.0015651700838937672,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        }
+      }
+    },
+    "group_mean": {
+      "full": {
+        "temporal_std_ratio": {
+          "median": 0.10056384280323982,
+          "iqr": 0.01014888659119606,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_std_ratio": {
+          "median": 0.03782833367586136,
+          "iqr": 0.002096937969326973,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_temporal_pearson": {
+          "median": 0.0014394194004125893,
+          "iqr": 0.014729948015883565,
+          "n": 158.0
+        },
+        "low_band_power_ratio": {
+          "median": 0.0012892792356638699,
+          "iqr": 0.0002340713808702652,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "mid_band_power_ratio": {
+          "median": 0.0013062895567747964,
+          "iqr": 0.00023678888104639267,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        }
+      },
+      "nonoverlap": {
+        "temporal_std_ratio": {
+          "median": 0.09190033748745918,
+          "iqr": 0.009333044290542603,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_std_ratio": {
+          "median": 0.036967918276786804,
+          "iqr": 0.002071171998977661,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_temporal_pearson": {
+          "median": -0.0010432814015075564,
+          "iqr": 0.01581949437968433,
+          "n": 158.0
+        },
+        "low_band_power_ratio": {
+          "median": 0.0012381500124682193,
+          "iqr": 0.00024826368533153575,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "mid_band_power_ratio": {
+          "median": 0.0013114891768736762,
+          "iqr": 0.00024265801352382332,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        }
+      }
+    },
+    "fc1_persistence": {
+      "full": {
+        "temporal_std_ratio": {
+          "median": 1.2245325820003927e-06,
+          "iqr": 4.277997049939586e-07,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_std_ratio": {
+          "median": 0.0,
+          "iqr": 0.0,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_temporal_pearson": {
+          "median": NaN,
+          "iqr": NaN,
+          "n": 0.0
+        },
+        "low_band_power_ratio": {
+          "median": 1.9118581702432144e-08,
+          "iqr": 3.387101315609851e-09,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "mid_band_power_ratio": {
+          "median": 2.5971805188394164e-07,
+          "iqr": 4.752269370657198e-08,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        }
+      },
+      "nonoverlap": {
+        "temporal_std_ratio": {
+          "median": 1.139199525823642e-06,
+          "iqr": 3.7625451909661933e-07,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_std_ratio": {
+          "median": 0.0,
+          "iqr": 0.0,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_temporal_pearson": {
+          "median": NaN,
+          "iqr": NaN,
+          "n": 0.0
+        },
+        "low_band_power_ratio": {
+          "median": 2.1517410601092833e-08,
+          "iqr": 4.1163406891980466e-09,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "mid_band_power_ratio": {
+          "median": 2.844345026090229e-07,
+          "iqr": 5.629460882318682e-08,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        }
+      }
+    }
+  },
+  "horizon_segments": [
+    {
+      "name": "overlap_context",
+      "start_index": 0,
+      "stop_index_exclusive": 17,
+      "n_windows": 17,
+      "start_minutes": 0.0,
+      "stop_minutes": 1.02
+    },
+    {
+      "name": "early_long",
+      "start_index": 17,
+      "stop_index_exclusive": 85,
+      "n_windows": 68,
+      "start_minutes": 1.02,
+      "stop_minutes": 5.099999999999999
+    },
+    {
+      "name": "middle_long",
+      "start_index": 85,
+      "stop_index_exclusive": 154,
+      "n_windows": 69,
+      "start_minutes": 5.099999999999999,
+      "stop_minutes": 9.24
+    },
+    {
+      "name": "late_long",
+      "start_index": 154,
+      "stop_index_exclusive": 223,
+      "n_windows": 69,
+      "start_minutes": 9.24,
+      "stop_minutes": 13.379999999999999
+    }
+  ],
+  "horizon_methods": {
+    "E0029": {
+      "overlap_context": {
+        "temporal_std_ratio": {
+          "median": 0.12298428267240524,
+          "iqr": 0.043429648503661156,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_std_ratio": {
+          "median": 0.05292549543082714,
+          "iqr": 0.013110262341797352,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_temporal_pearson": {
+          "median": -0.0017306056688539684,
+          "iqr": 0.07960653398185968,
+          "n": 158.0
+        },
+        "low_band_power_ratio": {
+          "median": 0.008642447559022715,
+          "iqr": 0.006230654215360308,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "mid_band_power_ratio": {
+          "median": 0.001561451538841437,
+          "iqr": 0.0010126459314647868,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        }
+      },
+      "early_long": {
+        "temporal_std_ratio": {
+          "median": 0.07058443129062653,
+          "iqr": 0.020140619948506355,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_std_ratio": {
+          "median": 0.029171104542911053,
+          "iqr": 0.006794373970478773,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_temporal_pearson": {
+          "median": 0.0003878739371430129,
+          "iqr": 0.04834835371002555,
+          "n": 158.0
+        },
+        "low_band_power_ratio": {
+          "median": 0.00118458023362094,
+          "iqr": 0.0006701520294163745,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "mid_band_power_ratio": {
+          "median": 0.00019962207547674675,
+          "iqr": 5.9716126396754414e-05,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        }
+      },
+      "middle_long": {
+        "temporal_std_ratio": {
+          "median": 0.4486958384513855,
+          "iqr": 0.1217949241399765,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_std_ratio": {
+          "median": 0.15440060943365097,
+          "iqr": 0.020570021122694016,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_temporal_pearson": {
+          "median": 0.0026243389293085784,
+          "iqr": 0.06721382960677147,
+          "n": 158.0
+        },
+        "low_band_power_ratio": {
+          "median": 0.04119183928966111,
+          "iqr": 0.024446197367339665,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "mid_band_power_ratio": {
+          "median": 0.0004007313788103373,
+          "iqr": 0.000252377777913214,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        }
+      },
+      "late_long": {
+        "temporal_std_ratio": {
+          "median": 0.11760982498526573,
+          "iqr": 0.04053163714706898,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_std_ratio": {
+          "median": 0.0933547280728817,
+          "iqr": 0.03189696557819843,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_temporal_pearson": {
+          "median": -0.002899688552133739,
+          "iqr": 0.06469567539170384,
+          "n": 158.0
+        },
+        "low_band_power_ratio": {
+          "median": 0.001294456596962109,
+          "iqr": 0.0007059982393027595,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "mid_band_power_ratio": {
+          "median": 0.00030262053497765774,
+          "iqr": 7.354840273900165e-05,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        }
+      }
+    },
+    "group_mean": {
+      "overlap_context": {
+        "temporal_std_ratio": {
+          "median": 0.0622303020209074,
+          "iqr": 0.007428661920130253,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_std_ratio": {
+          "median": 0.043690623715519905,
+          "iqr": 0.0046668266877532005,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_temporal_pearson": {
+          "median": 0.012163521721959114,
+          "iqr": 0.06917783012613654,
+          "n": 158.0
+        },
+        "low_band_power_ratio": {
+          "median": 0.0037357810965567414,
+          "iqr": 0.0014000647837652293,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "mid_band_power_ratio": {
+          "median": 0.0021834792429972633,
+          "iqr": 0.0010258429449370716,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        }
+      },
+      "early_long": {
+        "temporal_std_ratio": {
+          "median": 0.07406682521104813,
+          "iqr": 0.006436528638005257,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_std_ratio": {
+          "median": 0.03745870105922222,
+          "iqr": 0.002249704673886299,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_temporal_pearson": {
+          "median": -0.0015038938727229834,
+          "iqr": 0.02527037844993174,
+          "n": 158.0
+        },
+        "low_band_power_ratio": {
+          "median": 0.0039417915611431095,
+          "iqr": 0.0008521366897341217,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "mid_band_power_ratio": {
+          "median": 0.0013413985289612825,
+          "iqr": 0.00030225120073719956,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        }
+      },
+      "middle_long": {
+        "temporal_std_ratio": {
+          "median": 0.04377368278801441,
+          "iqr": 0.004654817283153534,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_std_ratio": {
+          "median": 0.03745420090854168,
+          "iqr": 0.0028191134333610535,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_temporal_pearson": {
+          "median": 0.00045600034354720265,
+          "iqr": 0.028120893985033035,
+          "n": 158.0
+        },
+        "low_band_power_ratio": {
+          "median": 0.0015113586726124301,
+          "iqr": 0.0003452716449065811,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "mid_band_power_ratio": {
+          "median": 0.0013471150248147326,
+          "iqr": 0.0003210521729607265,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        }
+      },
+      "late_long": {
+        "temporal_std_ratio": {
+          "median": 0.038448773324489594,
+          "iqr": 0.004805145785212517,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_std_ratio": {
+          "median": 0.0368388295173645,
+          "iqr": 0.002996235154569149,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_temporal_pearson": {
+          "median": 0.0003575873706722632,
+          "iqr": 0.03431222168728709,
+          "n": 158.0
+        },
+        "low_band_power_ratio": {
+          "median": 0.0014219378849387116,
+          "iqr": 0.00039274072913391507,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "mid_band_power_ratio": {
+          "median": 0.0015123267116495327,
+          "iqr": 0.0003882229832111203,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        }
+      }
+    },
+    "fc1_persistence": {
+      "overlap_context": {
+        "temporal_std_ratio": {
+          "median": 1.4604349019009533e-07,
+          "iqr": 6.179267941774924e-08,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_std_ratio": {
+          "median": 0.0,
+          "iqr": 0.0,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_temporal_pearson": {
+          "median": NaN,
+          "iqr": NaN,
+          "n": 0.0
+        },
+        "low_band_power_ratio": {
+          "median": 2.836762549434471e-06,
+          "iqr": 1.0419897431848345e-06,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "mid_band_power_ratio": {
+          "median": 7.594916155368634e-06,
+          "iqr": 3.5379798463876326e-06,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        }
+      },
+      "early_long": {
+        "temporal_std_ratio": {
+          "median": 4.1697195740653115e-07,
+          "iqr": 1.5221772997620064e-07,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_std_ratio": {
+          "median": 0.0,
+          "iqr": 0.0,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_temporal_pearson": {
+          "median": NaN,
+          "iqr": NaN,
+          "n": 0.0
+        },
+        "low_band_power_ratio": {
+          "median": 8.502317326609381e-08,
+          "iqr": 1.793464434215798e-08,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "mid_band_power_ratio": {
+          "median": 1.139186981836986e-06,
+          "iqr": 2.587359080663034e-07,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        }
+      },
+      "middle_long": {
+        "temporal_std_ratio": {
+          "median": 4.212777753309638e-07,
+          "iqr": 1.6842231786995399e-07,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_std_ratio": {
+          "median": 0.0,
+          "iqr": 0.0,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_temporal_pearson": {
+          "median": NaN,
+          "iqr": NaN,
+          "n": 0.0
+        },
+        "low_band_power_ratio": {
+          "median": 7.981627490825023e-08,
+          "iqr": 1.7827717051310144e-08,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "mid_band_power_ratio": {
+          "median": 1.0496626328592625e-06,
+          "iqr": 2.655717328209092e-07,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        }
+      },
+      "late_long": {
+        "temporal_std_ratio": {
+          "median": 4.2513886455708416e-07,
+          "iqr": 1.540262104526846e-07,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_std_ratio": {
+          "median": 0.0,
+          "iqr": 0.0,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "difference_temporal_pearson": {
+          "median": NaN,
+          "iqr": NaN,
+          "n": 0.0
+        },
+        "low_band_power_ratio": {
+          "median": 7.752673927861069e-08,
+          "iqr": 2.1067821716522627e-08,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        },
+        "mid_band_power_ratio": {
+          "median": 1.069669861998274e-06,
+          "iqr": 2.7709070175928097e-07,
+          "n": 158.0,
+          "fraction_below_one": 1.0
+        }
+      }
+    }
+  },
+  "decision": {
+    "criterion": "E0029 full difference_std_ratio median < 0.80 and fraction_below_one >= 0.75",
+    "passes": true,
+    "recommended_next_step": "run variance loss experiment A1"
+  },
+  "per_sample_csv": "D:\\Code\\Canlab\\HCP_New\\outputs\\E0029\\runs\\E0029-s42-20260917T074229Z-8223ba3\\dynamic_audit_val\\per_sample.csv",
+  "horizon_per_sample_csv": "D:\\Code\\Canlab\\HCP_New\\outputs\\E0029\\runs\\E0029-s42-20260917T074229Z-8223ba3\\dynamic_audit_val\\horizon_per_sample.csv"
+}

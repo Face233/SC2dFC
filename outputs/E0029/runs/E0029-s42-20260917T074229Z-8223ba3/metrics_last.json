@@ -1,0 +1,28 @@
+{
+  "schema_version": 2,
+  "kind": "last_validation",
+  "split": "val",
+  "metrics": {
+    "objective_loss": 0.02005133711839024,
+    "long_residual_pearson": 0.11637486798005013,
+    "validation_difference_loss": 0.009526438669219046,
+    "validation_variance_loss": 0.003383015801163414,
+    "validation_static_loss": 0.07141882530118845
+  },
+  "primary_metric": "objective_loss",
+  "last_epoch": 149,
+  "epoch_index_base": 0,
+  "metric_definition": {
+    "implementation": "CompositeLoss/v1",
+    "loss_type": "mse",
+    "huber_beta": 1.0,
+    "weights": {
+      "difference": 1.0,
+      "variance": 1.0,
+      "static": 0.1
+    },
+    "nonoverlap_start": 17,
+    "batch_size": 4,
+    "aggregation": "sample-weighted batch mean; contrastive negatives within each ordered batch"
+  }
+}
