@@ -5,58 +5,11 @@ __pycache__/
 *.egg-info/
 build/
 dist/
-outputs/
-# Publish only the reviewed static visual reports; keep runs, checkpoints,
-# evaluation artifacts, and other generated outputs ignored.
-!outputs/
-outputs/*
-!outputs/E0004/
-outputs/E0004/*
-!outputs/E0004/visual/
-!outputs/E0004/visual/**
-!outputs/E0005/
-outputs/E0005/*
-!outputs/E0005/visual/
-!outputs/E0005/visual/**
-!outputs/E0006/
-outputs/E0006/*
-!outputs/E0006/visual/
-!outputs/E0006/visual/**
-!outputs/E0007/
-outputs/E0007/*
-!outputs/E0007/visual/
-!outputs/E0007/visual/**
-!outputs/E0008/
-outputs/E0008/*
-!outputs/E0008/visual/
-!outputs/E0008/visual/**
-!outputs/E0009/
-outputs/E0009/*
-!outputs/E0009/visual/
-!outputs/E0009/visual/**
-!outputs/E0010/
-outputs/E0010/*
-!outputs/E0010/visual/
-!outputs/E0010/visual/**
-!outputs/E0011/
-outputs/E0011/*
-!outputs/E0011/visual/
-!outputs/E0011/visual/**
-!outputs/E0012/
-outputs/E0012/*
-!outputs/E0012/visual/
-!outputs/E0012/visual/**
-!outputs/E0030/
-outputs/E0030/*
-!outputs/E0030/visual/
-!outputs/E0030/visual/**
-# Do not publish bytecode created while running report entry points.
+# Track managed experiment outputs, including checkpoints, metrics, audits,
+# and reproducible visual reports. Generated Python bytecode remains local.
 outputs/*/visual/**/__pycache__/
 outputs/*/visual/**/*.py[cod]
 cache/
-checkpoints/
-*.pt
-*.pth
 
 # Local neuroimaging data, caches and participant metadata (never publish)
 data/
