@@ -1,0 +1,116 @@
+seed: 42
+paths:
+  root: D:\Code\Canlab\HCP_New
+  atlas_labels: data/raw/atlas/ROI_MNI_V4.txt
+  sc_dir: data/raw/sc/HCP_Structure/AAL90
+  timeseries:
+    LR: data/raw/timeseries_lr
+  split_csv: data/manifests/split_lr_v1.csv
+  cache_dir: data/cache/dfc
+  output_dir: outputs
+data:
+  n_nodes: 90
+  n_timepoints: 1200
+  tr_seconds: 0.72
+  window_length: 83
+  stride: 5
+  warmup_windows: 1
+  sensitivity_windows:
+  - 42
+  - 125
+  fisher_clip: 0.999999
+  cache_dtype: float32
+  dataset_version: dataset_lr_v1
+  preprocessing_version: preprocess_lr_v1
+  manifest_path: data/manifests/dataset_lr_v1.json
+  manifest_sha256: 6ebb22662b4deb3fc7e38d45f2b76fc303d5c3ec973d36e6d7d0e2d3ffc29ac3
+  split_version: split_lr_v1
+  split_sha256: e08cd05e20ed048ba976dcf6487ecab8f6ba4671ea90ed778cbe21176b599862
+split:
+  train: 0.7
+  val: 0.15
+  test: 0.15
+model:
+  sc_encoder: hcp_gcn
+  fc_latent_dim: 256
+  hidden_dim: 256
+  sc_graph_layers: 3
+  sc_graph_heads: 4
+  hcp_gcn_hidden_dim: 128
+  hcp_gcn_output_dim: 64
+  tcn_dilations:
+  - 1
+  - 2
+  - 4
+  - 8
+  - 16
+  - 32
+  transformer_layers: 4
+  transformer_heads: 8
+  transformer_ffn_dim: 1024
+  dropout: 0.1
+  baseline_hidden_dim: 256
+  ridge_pca_components: 128
+  ridge_alpha: 1.0
+  warmup_encoder: none
+  warmup_gru_layers: 1
+  name: transformer
+  output_head: e0003_reconstruction_decoder
+  gru_layers: 2
+training:
+  batch_size: 4
+  autoencoder_batch_size: 256
+  epochs: 150
+  autoencoder_epochs: 100
+  decoder_frozen_epochs: 20
+  learning_rate: 0.0003
+  decoder_learning_rate_scale: 0.1
+  learning_rate_schedule:
+    name: warmup_cosine
+    warmup_epochs: 5
+    eta_min: 1.0e-05
+  weight_decay: 0.0001
+  gradient_clip: 1.0
+  patience: 151
+  num_workers: 0
+  seeds:
+  - 42
+  autoencoder_loss_weights:
+    edge: 1.0
+  loss_weights:
+    edge: 0.0
+    difference: 1.0
+    variance: 1.0
+    static: 0.01
+  huber_beta: 1.0
+  finetune_fc_decoder: false
+  loss_type: mse
+evaluation:
+  primary_metric: objective_loss
+  bootstrap_replicates: 2000
+  state_clusters: 5
+  projection_epsilon: 1.0e-06
+experiment:
+  id: E0027
+  name: gcn_transformer_static_anchor_e150_v1
+  level: 1
+  task: sequence
+  research_question: 在E0026相同的150轮训练和模型条件下，加入未来平均FC的static锚点能否改善复原和被试间区分，而不损害时间动态
+  hypothesis: static约束可修正差分与方差损失无法识别的逐边均值偏移；但它可能只拉回群体均值，未必恢复真实个体差异或时间配对。
+  primary_change: 相对E0026仅在MSE差分与方差损失上增加0.01倍的逐被试未来平均FC MSE锚点；其余模型、数据、训练日程和seed不变。
+  baseline: E0026
+  owner: Face88
+  status: planned
+  ablation: full
+decision_rule:
+  description: 完整训练150轮，不早停，不查看测试集；先检查未加权static损失及其梯度尺度，再按预设0.01权重训练。验证集重点检查平均FC误差、edge
+    MSE、个体间预测离散度、静态检索、SC/FC交换敏感性，同时确认去均值动态、差分时间相关和动态幅值未恶化。不能仅凭新的objective_loss与E0026比较，因为损失定义已变；static只改善群体平均而无个体差异时不视为成功。
+artifacts:
+  fc_autoencoder:
+    id: A0003
+    path: outputs/E0003/runs/E0003-s42-20260810T064954Z-4d4337d/checkpoints/best.pt
+    sha256: 2228c6d742c1eb3225eb550ae3839b7be55cbaac8a9bfafa018780a0d961ec97
+_config_source: D:\Code\Canlab\HCP_New\configs\experiments\E0027_gcn_transformer_static_anchor_e150_v1.yaml
+runtime:
+  run_id: E0027-s42-20260917T043831Z-3e974d5
+  config_sha256: f388cd92976d4272dec6a1d5d370d4c53d45a43d54dbd23fdf374218c98ca5cb
