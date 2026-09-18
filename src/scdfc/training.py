@@ -186,6 +186,20 @@ def sequence_criterion(config: dict[str, Any], nonoverlap: int) -> CompositeLoss
     )
 
 
+def loss_inputs(output, target: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    """Return the model branch and target to which the configured loss applies.
+
+    Direct models optimize complete FC trajectories.  The E0031 decomposition
+    instead optimizes only the learned residual after removing its deterministic
+    group-template and context-offset baseline.
+    """
+    if output.dynamic_residual is not None:
+        if output.residual_baseline is None:
+            raise ValueError("Residual output is missing its deterministic baseline")
+        return output.dynamic_residual, target - output.residual_baseline
+    return output.fc_z_edges, target
+
+
 class AutoencoderLoss:
     """Configurable FC autoencoder reconstruction loss using direct MSE."""
 
@@ -410,6 +424,9 @@ def build_sequence_model(
         raise ValueError(f"Unsupported conditional output head: {output_head}")
     warmup_windows = int((checkpoint_payload or {}).get("warmup_windows", config.get("data", {}).get("warmup_windows", 1)))
     group_template = torch.from_numpy(group_template_for_warmup(stats, warmup_windows))
+    output_decomposition = str((checkpoint_payload or {}).get("output_decomposition", model_cfg.get("output_decomposition", "direct")))
+    if output_decomposition == "group_template_context_residual" and warmup_windows != 1:
+        raise ValueError("group_template_context_residual currently requires data.warmup_windows=1")
     if decoder_type == "pca_ridge":
         if checkpoint_payload is None:
             raise ValueError("A fitted checkpoint payload is required to build pca_ridge")
@@ -447,6 +464,11 @@ def build_sequence_model(
         hcp_gcn_output_dim=int(model_cfg.get("hcp_gcn_output_dim", 64)),
         ablation=ablation,
         output_head=output_head,
+        output_decomposition=output_decomposition,
+        # Historical statistics do not contain context_template; the fallback
+        # preserves checkpoint loading, while E0031 writes the dedicated
+        # training-only first-window template above.
+        context_template=torch.from_numpy(stats.get("context_template", stats["fc_mean"])),
         warmup_encoder=str((checkpoint_payload or {}).get("warmup_encoder", model_cfg.get("warmup_encoder", "none"))),
         warmup_gru_layers=int((checkpoint_payload or {}).get("warmup_gru_layers", model_cfg.get("warmup_gru_layers", 1))),
     ).to(device)
@@ -554,7 +576,8 @@ def validate_sequence(
     for batch in loader:
         output = model(batch["sc_matrix"].to(device), batch["sc_edges"].to(device), batch["fc_warmup"].to(device))
         target = batch["fc_future"].to(device)
-        loss, components = criterion(output.fc_z_edges, target, model.group_template)
+        loss_prediction, loss_target = loss_inputs(output, target)
+        loss, components = criterion(loss_prediction, loss_target, model.group_template)
         batch_size = len(target)
         total += float(loss) * batch_size
         for name, value in components.items():
@@ -687,7 +710,8 @@ def train_sequence_model(
         for batch in train_loader:
             output = model(batch["sc_matrix"].to(device), batch["sc_edges"].to(device), batch["fc_warmup"].to(device))
             target = batch["fc_future"].to(device)
-            loss, components = criterion(output.fc_z_edges, target, model.group_template)
+            loss_prediction, loss_target = loss_inputs(output, target)
+            loss, components = criterion(loss_prediction, loss_target, model.group_template)
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), float(config["training"]["gradient_clip"]))
@@ -712,6 +736,7 @@ def train_sequence_model(
                 "primary_metric": primary_metric, "decoder_type": decoder_type,
                 "sc_encoder_type": sc_encoder_type, "ablation": ablation, "window_length": window_length,
                 "validation_metrics": validation_metrics, "output_head": str(config["model"].get("output_head", "e0003_reconstruction_decoder")),
+                "output_decomposition": str(config["model"].get("output_decomposition", "direct")),
                 "objective_definition": sequence_objective_definition(config, nonoverlap),
                 "warmup_windows": int(config.get("data", {}).get("warmup_windows", 1)),
                 "warmup_encoder": str(config["model"].get("warmup_encoder", "none")),
@@ -752,6 +777,7 @@ def train_sequence_model(
                 "primary_metric": primary_metric, "decoder_type": decoder_type,
                 "sc_encoder_type": sc_encoder_type, "ablation": ablation, "window_length": window_length,
                 "validation_metrics": validation_metrics, "output_head": str(config["model"].get("output_head", "e0003_reconstruction_decoder")),
+                "output_decomposition": str(config["model"].get("output_decomposition", "direct")),
                 "objective_definition": sequence_objective_definition(config, nonoverlap),
                 "loss_type": criterion.loss_type,
                 "fc_reconstruction_decoder_frozen": True,

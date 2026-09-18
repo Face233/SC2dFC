@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import numpy as np
 import yaml
 import torch
 
@@ -42,7 +43,14 @@ def _stats_path(config: dict, window: int) -> Path:
 
 def _ensure_stats(config: dict, window: int) -> Path:
     path = _stats_path(config, window)
-    if not path.exists():
+    needs_refresh = not path.exists()
+    if path.exists():
+        with np.load(path) as stats:
+            # Older shared statistics predate the causal FC0 template used by
+            # E0031.  Refreshing is deterministic and preserves all existing
+            # training-only statistics while adding the missing field.
+            needs_refresh = "context_template" not in stats.files
+    if needs_refresh:
         emit("training_statistics_started", window_length=window, output_path=str(path))
         fit_training_statistics(config, window, path)
         emit("training_statistics_finished", window_length=window, output_path=str(path))

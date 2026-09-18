@@ -241,6 +241,7 @@ def fit_training_statistics(config: dict[str, Any], window_length: int, output: 
     train_subjects = set(split.loc[split.split == "train", "subject_id"].astype(str))
     sc_edges: list[np.ndarray] = []
     sequences: list[np.ndarray] = []
+    context_windows: list[np.ndarray] = []
     seen_sc: set[str] = set()
     for subject, run in iter_cached_samples(config, window_length):
         if subject not in train_subjects:
@@ -250,6 +251,10 @@ def fit_training_statistics(config: dict[str, Any], window_length: int, output: 
             seen_sc.add(subject)
         fc, _ = read_cached(config, window_length, subject, run)
         sequences.append(fc[1:])
+        # Keep the training-only first-window mean separately from the future
+        # template.  Residual-decomposition experiments use it to form a
+        # causal subject offset from the observed context FC.
+        context_windows.append(fc[0])
     if not sequences:
         raise ValueError("No cached training sequences found")
     stacked_sc = np.stack(sc_edges)
@@ -260,6 +265,7 @@ def fit_training_statistics(config: dict[str, Any], window_length: int, output: 
         "fc_mean": stacked_fc.mean((0, 1)).astype(np.float32),
         "fc_std": np.maximum(stacked_fc.std((0, 1)), 1e-6).astype(np.float32),
         "group_template": stacked_fc.mean(0).astype(np.float32),
+        "context_template": np.stack(context_windows).mean(0).astype(np.float32),
     }
     output = Path(output)
     output.parent.mkdir(parents=True, exist_ok=True)

@@ -17,6 +17,8 @@ class Prediction:
     fc_z_edges: torch.Tensor
     fc_matrices: torch.Tensor
     latent: torch.Tensor | None = None
+    dynamic_residual: torch.Tensor | None = None
+    residual_baseline: torch.Tensor | None = None
 
 
 # ======================== SC 与首窗 FC 的条件编码 ========================
@@ -293,6 +295,8 @@ class ConditionalSequenceModel(nn.Module):
         hcp_gcn_output_dim: int = 64,
         ablation: str = "full",
         output_head: str = "e0003_reconstruction_decoder",
+        output_decomposition: str = "direct",
+        context_template: torch.Tensor | None = None,
         warmup_encoder: str = "none",
         warmup_gru_layers: int = 1,
     ) -> None:
@@ -308,7 +312,12 @@ class ConditionalSequenceModel(nn.Module):
         self.fc_autoencoder = fc_autoencoder
         if output_head not in {"e0003_reconstruction_decoder", "direct_edge_linear"}:
             raise ValueError(f"Unsupported output_head: {output_head}")
+        if output_decomposition not in {"direct", "group_template_context_residual"}:
+            raise ValueError(f"Unsupported output decomposition: {output_decomposition}")
+        if output_decomposition == "group_template_context_residual" and context_template is None:
+            raise ValueError("context_template is required for group_template_context_residual output")
         self.output_head = output_head
+        self.output_decomposition = output_decomposition
         self.condition_encoder = ConditionEncoder(
             fc_autoencoder,
             n_nodes,
@@ -337,6 +346,10 @@ class ConditionalSequenceModel(nn.Module):
         self.direct_edge_head = nn.Linear(hidden_dim, self.n_edges) if output_head == "direct_edge_linear" else None
         # 模板与 SC 标准化参数随检查点保存，但不参与梯度更新。
         self.register_buffer("group_template", group_template.float())
+        self.register_buffer(
+            "context_template",
+            torch.zeros(self.n_edges) if context_template is None else context_template.float(),
+        )
         self.register_buffer("sc_mean", torch.zeros(self.n_edges) if sc_mean is None else sc_mean.float())
         self.register_buffer("sc_std", torch.ones(self.n_edges) if sc_std is None else sc_std.float())
 
@@ -353,9 +366,27 @@ class ConditionalSequenceModel(nn.Module):
         decoded = self.fc_autoencoder.decode(latent) if self.direct_edge_head is None else self.direct_edge_head(latent)
         # E0004--E0007 只允许冻结的 E0003 reconstruction decoder 映射回 FC；
         # 不使用额外的 4005 维旁路，后续 direct edge head 才是独立 decoder 对照。
-        fc_z = decoded
+        dynamic_residual = None
+        residual_baseline = None
+        if self.output_decomposition == "group_template_context_residual":
+            # The context offset is observable at inference time and remains
+            # constant over the future horizon; the learned branch therefore
+            # only needs to explain the remaining dynamic residual.
+            context = fc_warmup[:, -1] if fc_warmup.ndim == 3 else fc_warmup
+            subject_offset = context - self.context_template[None]
+            residual_baseline = self.group_template[:steps][None] + subject_offset[:, None]
+            dynamic_residual = decoded
+            fc_z = residual_baseline + dynamic_residual
+        else:
+            fc_z = decoded
         matrices = torch_edges_to_matrix(torch.tanh(fc_z), self.n_nodes)
-        return Prediction(fc_z_edges=fc_z, fc_matrices=matrices, latent=latent)
+        return Prediction(
+            fc_z_edges=fc_z,
+            fc_matrices=matrices,
+            latent=latent,
+            dynamic_residual=dynamic_residual,
+            residual_baseline=residual_baseline,
+        )
 
     @torch.no_grad()
     def predict(self, sc: torch.Tensor, fc_warmup: torch.Tensor, sc_edges: torch.Tensor | None = None) -> torch.Tensor:

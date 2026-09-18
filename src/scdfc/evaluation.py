@@ -94,10 +94,30 @@ def sequence_metrics(
     }
 
 
+def context_residual_zero_prediction(
+    warmup: np.ndarray,
+    template: np.ndarray,
+    context_template: np.ndarray,
+    target_shape: tuple[int, ...],
+) -> np.ndarray:
+    """Return the causal E0031 baseline with its learned residual fixed to zero."""
+    if warmup.ndim == 3:
+        warmup = warmup[:, -1]
+    if warmup.ndim != 2 or len(target_shape) != 3:
+        raise ValueError("Expected warmup [sample, edge] and target shape [sample, time, edge]")
+    if warmup.shape[0] != target_shape[0] or warmup.shape[1] != target_shape[2]:
+        raise ValueError("Warmup and target edge dimensions must match")
+    if template.shape[0] < target_shape[1] or context_template.shape != (target_shape[2],):
+        raise ValueError("Template dimensions do not match the prediction target")
+    offset = warmup - context_template[None]
+    return template[None, : target_shape[1]] + offset[:, None]
+
+
 @torch.no_grad()
 def prediction_objective(
     predictions: np.ndarray, targets: np.ndarray, template: np.ndarray,
     config: dict[str, Any], nonoverlap: int, device: torch.device | str = "cpu",
+    residual_baselines: np.ndarray | None = None,
 ) -> dict[str, Any]:
     """Evaluate CompositeLoss with training's ordered, sample-weighted batches.
 
@@ -106,16 +126,21 @@ def prediction_objective(
     """
     if len(predictions) == 0 or predictions.shape != targets.shape:
         raise ValueError("Objective evaluation requires nonempty, matching prediction and target arrays")
+    if residual_baselines is not None and residual_baselines.shape != predictions.shape:
+        raise ValueError("Residual baselines must match prediction and target arrays")
     criterion = sequence_criterion(config, nonoverlap)
     batch_size = int(config["training"]["batch_size"])
     if batch_size < 1:
         raise ValueError("batch_size must be positive")
     totals = {name: 0.0 for name in criterion.weights}
     total = 0.0
-    group = torch.tensor(template, dtype=torch.float32, device=device)
+    group = torch.zeros_like(torch.tensor(template, dtype=torch.float32, device=device)) if residual_baselines is not None else torch.tensor(template, dtype=torch.float32, device=device)
     for start in range(0, len(predictions), batch_size):
         pred = torch.tensor(predictions[start:start + batch_size], dtype=torch.float32, device=device)
         true = torch.tensor(targets[start:start + batch_size], dtype=torch.float32, device=device)
+        if residual_baselines is not None:
+            baseline = torch.tensor(residual_baselines[start:start + batch_size], dtype=torch.float32, device=device)
+            pred, true = pred - baseline, true - baseline
         loss, components = criterion(pred, true, group)
         total += float(loss) * len(pred)
         for name, value in components.items():
@@ -404,6 +429,10 @@ def dynamic_audit_checkpoint(
         "group_mean": np.broadcast_to(template[None], target.shape),
         "fc1_persistence": np.broadcast_to(warmup[:, None], target.shape),
     }
+    if getattr(model, "output_decomposition", "direct") == "group_template_context_residual":
+        methods["context_residual_zero"] = context_residual_zero_prediction(
+            warmup, template, model.context_template.cpu().numpy(), target.shape
+        )
     nonoverlap = nonoverlap_horizon(window_length, int(config["data"]["stride"]))
     interval = float(config["data"]["stride"]) * float(config["data"]["tr_seconds"])
     per_sample: list[dict[str, Any]] = []
@@ -511,6 +540,12 @@ def evaluate_checkpoint(
     loader = DataLoader(test, batch_size=int(config["training"]["batch_size"]), shuffle=False, num_workers=0)
     predictions, targets, subjects, runs = collect_predictions(model, loader, device)
     template = model.group_template.cpu().numpy()
+    warmup = np.stack([test[index]["fc_warmup"].numpy() for index in range(len(test))])
+    residual_baselines = None
+    if getattr(model, "output_decomposition", "direct") == "group_template_context_residual":
+        residual_baselines = context_residual_zero_prediction(
+            warmup, template, model.context_template.cpu().numpy(), targets.shape
+        )
     nonoverlap = nonoverlap_horizon(window_length, int(config["data"]["stride"]))
     metric_kwargs = {
         "huber_beta": float(config["training"].get("huber_beta", 1.0)),
@@ -529,20 +564,24 @@ def evaluate_checkpoint(
     if has_replayable_objective:
         if recorded_loss_type:
             objective_config["training"]["loss_type"] = recorded_loss_type
-        objective = prediction_objective(predictions, targets, template, objective_config, nonoverlap, device)
+        objective = prediction_objective(
+            predictions, targets, template, objective_config, nonoverlap, device,
+            residual_baselines=residual_baselines,
+        )
         aggregate["objective_loss"] = objective["value"]
     else:
         objective = {
             "available": False,
             "reason": "The historical checkpoint did not record a replayable loss definition; use checkpoint_selection for model selection provenance.",
         }
-    warmup = np.stack([test[index]["fc_warmup"].numpy() for index in range(len(test))])
     if warmup.ndim == 3:
         warmup = warmup[:, -1]
     analytic = {
         "group_mean": np.broadcast_to(template[None], targets.shape),
         "fc1_persistence": np.broadcast_to(warmup[:, None], targets.shape),
     }
+    if residual_baselines is not None:
+        analytic["context_residual_zero"] = residual_baselines
     analytic_reports = {}
     for name, baseline_prediction in analytic.items():
         baseline_rows = [sequence_metrics(p, t, template, nonoverlap, **metric_kwargs) for p, t in zip(baseline_prediction, targets)]

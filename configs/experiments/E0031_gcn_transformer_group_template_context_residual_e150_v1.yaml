@@ -1,0 +1,32 @@
+base: E0026_gcn_transformer_dynamic_only_mse_w1_warmup_cosine_e150_v1.yaml
+
+model:
+  # The only architectural change: the learned branch predicts the residual
+  # around a fixed training-only future template plus the observed FC0 offset.
+  output_decomposition: group_template_context_residual
+
+training:
+  # Keep E0026's existing dynamic objective.  E0031 deliberately adds no
+  # pointwise, static, contrastive, Huber, spectral, or shape-loss term.
+  loss_weights:
+    edge: 0.0
+    difference: 1.0
+    variance: 1.0
+    static: 0.0
+    contrastive: 0.0
+
+experiment:
+  id: E0031
+  name: gcn_transformer_group_template_context_residual_e150_v1
+  level: 1
+  task: sequence
+  research_question: 在E0026相同的GCN+Transformer、单窗context和150轮训练条件下，将预测显式拆为训练集群体未来模板、由FC0直接得到的被试边偏移和学习的动态残差，能否使模型在不新增损失项的前提下恢复更多被试特异的未来动态？
+  hypothesis: 让冻结E0003 decoder只预测去除群体模板与可观测FC0偏移后的残差，可减少其用共享平均FC占用容量的需求；若残差确有条件可预测结构，长程残差相关、被试检索或动态时间配对将优于E0026及“动态残差恒为零”基线。若不能超过该零残差基线，则表明当前单窗context下的剩余动态缺少可利用预测信号。
+  primary_change: 相对E0026，仅启用group_template_context_residual输出分解：prediction=training_future_template+(FC0-training_context_template)+decoded_dynamic_residual。群体模板和context模板均只由训练折统计；保留GCN+Transformer、冻结E0003 decoder、warmup_windows=1、差分与方差MSE、数据、seed、批大小和150轮warm-up余弦日程。
+  baseline: E0026
+  owner: Face88
+  status: planned
+  ablation: full
+
+decision_rule:
+  description: 完整训练150轮，不早停，不查看测试集。除E0026、E0028和群体均值外，必须在验证集报告context_residual_zero解析基线，即training_future_template+(FC0-training_context_template)，其学习残差固定为零。只有模型在该基线之上改善长程残差Pearson、被试检索或跨被试距离匹配，且差分标准差比与差分时间Pearson未恶化时，才认为decoder学到了可预测动态残差；仅因模板或FC0偏移降低绝对误差不视为成功。
