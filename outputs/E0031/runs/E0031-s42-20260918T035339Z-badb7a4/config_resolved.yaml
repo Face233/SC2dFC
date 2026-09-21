@@ -1,0 +1,118 @@
+seed: 42
+paths:
+  root: D:\Code\Canlab\HCP_New
+  atlas_labels: data/raw/atlas/ROI_MNI_V4.txt
+  sc_dir: data/raw/sc/HCP_Structure/AAL90
+  timeseries:
+    LR: data/raw/timeseries_lr
+  split_csv: data/manifests/split_lr_v1.csv
+  cache_dir: data/cache/dfc
+  output_dir: outputs
+data:
+  n_nodes: 90
+  n_timepoints: 1200
+  tr_seconds: 0.72
+  window_length: 83
+  stride: 5
+  warmup_windows: 1
+  sensitivity_windows:
+  - 42
+  - 125
+  fisher_clip: 0.999999
+  cache_dtype: float32
+  dataset_version: dataset_lr_v1
+  preprocessing_version: preprocess_lr_v1
+  manifest_path: data/manifests/dataset_lr_v1.json
+  manifest_sha256: 6ebb22662b4deb3fc7e38d45f2b76fc303d5c3ec973d36e6d7d0e2d3ffc29ac3
+  split_version: split_lr_v1
+  split_sha256: e08cd05e20ed048ba976dcf6487ecab8f6ba4671ea90ed778cbe21176b599862
+split:
+  train: 0.7
+  val: 0.15
+  test: 0.15
+model:
+  sc_encoder: hcp_gcn
+  fc_latent_dim: 256
+  hidden_dim: 256
+  sc_graph_layers: 3
+  sc_graph_heads: 4
+  hcp_gcn_hidden_dim: 128
+  hcp_gcn_output_dim: 64
+  tcn_dilations:
+  - 1
+  - 2
+  - 4
+  - 8
+  - 16
+  - 32
+  transformer_layers: 4
+  transformer_heads: 8
+  transformer_ffn_dim: 1024
+  dropout: 0.1
+  baseline_hidden_dim: 256
+  ridge_pca_components: 128
+  ridge_alpha: 1.0
+  warmup_encoder: none
+  warmup_gru_layers: 1
+  name: transformer
+  output_head: e0003_reconstruction_decoder
+  gru_layers: 2
+  output_decomposition: group_template_context_residual
+training:
+  batch_size: 4
+  autoencoder_batch_size: 256
+  epochs: 150
+  autoencoder_epochs: 100
+  decoder_frozen_epochs: 20
+  learning_rate: 0.0003
+  decoder_learning_rate_scale: 0.1
+  learning_rate_schedule:
+    name: warmup_cosine
+    warmup_epochs: 5
+    eta_min: 1.0e-05
+  weight_decay: 0.0001
+  gradient_clip: 1.0
+  patience: 151
+  num_workers: 0
+  seeds:
+  - 42
+  autoencoder_loss_weights:
+    edge: 1.0
+  loss_weights:
+    edge: 0.0
+    difference: 1.0
+    variance: 1.0
+    static: 0.0
+    contrastive: 0.0
+  huber_beta: 1.0
+  finetune_fc_decoder: false
+  loss_type: mse
+evaluation:
+  primary_metric: objective_loss
+  bootstrap_replicates: 2000
+  state_clusters: 5
+  projection_epsilon: 1.0e-06
+experiment:
+  id: E0031
+  name: gcn_transformer_group_template_context_residual_e150_v1
+  level: 1
+  task: sequence
+  research_question: 在E0026相同的GCN+Transformer、单窗context和150轮训练条件下，将预测显式拆为训练集群体未来模板、由FC0直接得到的被试边偏移和学习的动态残差，能否使模型在不新增损失项的前提下恢复更多被试特异的未来动态？
+  hypothesis: 让冻结E0003 decoder只预测去除群体模板与可观测FC0偏移后的残差，可减少其用共享平均FC占用容量的需求；若残差确有条件可预测结构，长程残差相关、被试检索或动态时间配对将优于E0026及“动态残差恒为零”基线。若不能超过该零残差基线，则表明当前单窗context下的剩余动态缺少可利用预测信号。
+  primary_change: 相对E0026，仅启用group_template_context_residual输出分解：prediction=training_future_template+(FC0-training_context_template)+decoded_dynamic_residual。群体模板和context模板均只由训练折统计；保留GCN+Transformer、冻结E0003
+    decoder、warmup_windows=1、差分与方差MSE、数据、seed、批大小和150轮warm-up余弦日程。
+  baseline: E0026
+  owner: Face88
+  status: planned
+  ablation: full
+decision_rule:
+  description: 完整训练150轮，不早停，不查看测试集。除E0026、E0028和群体均值外，必须在验证集报告context_residual_zero解析基线，即training_future_template+(FC0-training_context_template)，其学习残差固定为零。只有模型在该基线之上改善长程残差Pearson、被试检索或跨被试距离匹配，且差分标准差比与差分时间Pearson未恶化时，才认为decoder学到了可预测动态残差；仅因模板或FC0偏移降低绝对误差不视为成功。
+artifacts:
+  fc_autoencoder:
+    id: A0003
+    path: outputs/E0003/runs/E0003-s42-20260810T064954Z-4d4337d/checkpoints/best.pt
+    sha256: 2228c6d742c1eb3225eb550ae3839b7be55cbaac8a9bfafa018780a0d961ec97
+_config_source: D:\Code\Canlab\HCP_New\configs\experiments\E0031_gcn_transformer_group_template_context_residual_e150_v1.yaml
+runtime:
+  run_id: E0031-s42-20260918T035339Z-badb7a4
+  config_sha256: 061aee5a2369147384aa598d36f8d060324f5ecde80f048e196afd2ef5c90eb5

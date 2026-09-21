@@ -170,7 +170,17 @@ def _prediction(root: Path, run: ManagedRun, device: torch.device) -> tuple[np.n
         _artifact_path(root, run.config),
         payload,
     )
-    model.load_state_dict(payload["model"])
+    try:
+        model.load_state_dict(payload["model"])
+    except RuntimeError:
+        # Older direct-decomposition checkpoints predate the persisted
+        # context_template buffer.  The model builder restores that buffer
+        # from the historical training statistics; tolerate only this known
+        # compatibility gap and still fail on every other mismatch.
+        missing, unexpected = model.load_state_dict(payload["model"], strict=False)
+        allowed_missing = {"context_template"} if payload.get("output_decomposition", "direct") == "direct" else set()
+        if set(missing) != allowed_missing or unexpected:
+            raise
     model.eval()
     dataset = DFCSequenceDataset(run.config, int(run.config["data"]["window_length"]), "val", stats_path)
     sample, subject = _subject_sample(dataset)
