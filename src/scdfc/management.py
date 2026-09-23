@@ -108,7 +108,7 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("experiment.task must be sequence, autoencoder, or analytic")
     model_name = config.get("model", {}).get("name")
     allowed_models = {
-        "analytic": {"group_mean", "fc1_persistence"},
+        "analytic": {"group_mean", "fc1_persistence", "fc1_decay_template"},
         "autoencoder": {"fc_autoencoder"},
         "sequence": {"pca_ridge", "mlp", "lstm", "direct_mlp", "gcn_gru", "gru", "tcn", "transformer"},
     }

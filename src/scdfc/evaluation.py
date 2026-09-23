@@ -286,6 +286,32 @@ def subject_bootstrap_difference(main_scores: np.ndarray, baseline_scores: np.nd
     return {"mean_difference": float(difference.mean()), "ci_low": float(low), "ci_high": float(high), "passes": bool(low > 0)}
 
 
+def subject_bootstrap_loss_difference(
+    main_scores: np.ndarray,
+    baseline_scores: np.ndarray,
+    subject_ids: Iterable[str],
+    replicates: int = 2000,
+    seed: int = DEFAULT_SEED,
+) -> dict[str, float]:
+    """Bootstrap ``main - baseline`` losses at the subject level."""
+    subject_ids = np.asarray(list(subject_ids))
+    subjects = np.unique(subject_ids)
+    difference = np.asarray(main_scores, dtype=float) - np.asarray(baseline_scores, dtype=float)
+    values = {subject: difference[subject_ids == subject].mean() for subject in subjects}
+    rng = np.random.default_rng(seed)
+    estimates = np.empty(replicates, dtype=float)
+    for index in range(replicates):
+        sampled = rng.choice(subjects, size=len(subjects), replace=True)
+        estimates[index] = np.mean([values[subject] for subject in sampled])
+    low, high = np.quantile(estimates, [0.025, 0.975])
+    return {
+        "mean_difference": float(difference.mean()),
+        "ci_low": float(low), "ci_high": float(high),
+        "passes": bool(high < 0), "n_subjects": int(len(subjects)),
+        "replicates": int(replicates),
+    }
+
+
 def projection_report(z_edges: np.ndarray, n_nodes: int = 90, epsilon: float = 1e-6) -> tuple[np.ndarray, dict[str, float]]:
     """将预测边转回相关矩阵，并量化 PSD 投影前后的差异。"""
     raw = edges_to_matrix(inverse_fisher_z(z_edges), n_nodes)
@@ -636,31 +662,68 @@ def evaluate_analytic_baseline(
     split_name: str,
     output_dir: str | Path,
 ) -> Path:
-    """Evaluate group mean or first-window persistence with the common metric protocol."""
-    if baseline not in {"group_mean", "fc1_persistence"}:
-        raise ValueError("baseline must be group_mean or fc1_persistence")
+    """Evaluate an analytic baseline with the common validation protocol."""
+    if baseline not in {"group_mean", "fc1_persistence", "fc1_decay_template"}:
+        raise ValueError("baseline must be group_mean, fc1_persistence, or fc1_decay_template")
     if split_name not in {"train", "val", "test"}:
         raise ValueError("split_name must be train, val, or test")
     seed_everything(int(config["seed"]))
     dataset = DFCSequenceDataset(config, window_length, split_name, stats_path)
     stats = dict(np.load(stats_path))
     template = group_template_for_warmup(stats, int(config.get("data", {}).get("warmup_windows", 1)))
-    predictions, targets, subjects, runs = [], [], [], []
+    targets, subjects, runs, warmups = [], [], [], []
     for index in range(len(dataset)):
         sample = dataset[index]
         target = sample["fc_future"].numpy()
         warmup = sample["fc_warmup"].numpy()
         if warmup.ndim == 2:
             warmup = warmup[-1]
-        prediction = (
-            template[: len(target)]
-            if baseline == "group_mean"
-            else np.broadcast_to(warmup[None], target.shape)
-        )
-        predictions.append(prediction)
         targets.append(target)
+        warmups.append(warmup)
         subjects.append(sample["subject_id"])
         runs.append(sample["run_name"])
+    targets_array = np.stack(targets)
+    warmups_array = np.stack(warmups)
+    template = np.asarray(template, dtype=np.float64)
+    context_template = np.asarray(stats.get("context_template", stats["fc_mean"]), dtype=np.float64)
+
+    alpha_raw = None
+    alpha = None
+    training_sample_count = None
+    train_dataset = DFCSequenceDataset(config, window_length, "train", stats_path)
+    training_sample_count = len(train_dataset)
+    numerator = np.zeros(template.shape[0], dtype=np.float64)
+    denominator = np.zeros(template.shape[0], dtype=np.float64)
+    for index in range(len(train_dataset)):
+        sample = train_dataset[index]
+        train_warmup = sample["fc_warmup"].numpy()
+        if train_warmup.ndim == 2:
+            train_warmup = train_warmup[-1]
+        train_target = sample["fc_future"].numpy()
+        delta = train_warmup.astype(np.float64) - context_template
+        centered_target = train_target.astype(np.float64) - template[: len(train_target)]
+        numerator[: len(train_target)] += np.sum(delta[None] * centered_target, axis=1)
+        denominator[: len(train_target)] += np.sum(delta[None] ** 2, axis=1)
+    alpha_raw = numerator / (denominator + 1e-12)
+    alpha = np.clip(alpha_raw, 0.0, 1.0)
+
+    def make_prediction(name: str) -> np.ndarray:
+        if name == "group_mean":
+            return np.broadcast_to(template[None, : targets_array.shape[1]], targets_array.shape).copy()
+        if name == "fc1_persistence":
+            return np.broadcast_to(warmups_array[:, None], targets_array.shape).copy()
+        if name == "context_residual_zero":
+            return context_residual_zero_prediction(warmups_array, template, context_template, targets_array.shape)
+        if name == "fc1_decay_template":
+            if alpha is None:
+                raise RuntimeError("alpha is not fitted")
+            return template[None, : targets_array.shape[1]] + alpha[None, : targets_array.shape[1], None] * (warmups_array - context_template[None])[:, None]
+        raise ValueError(f"Unknown analytic baseline {name}")
+
+    method_names = ["group_mean", "fc1_persistence", "context_residual_zero", "fc1_decay_template"]
+    predictions_by_method = {name: make_prediction(name) for name in method_names}
+    predictions = predictions_by_method[baseline]
+    targets = targets_array
     nonoverlap = nonoverlap_horizon(window_length, int(config["data"]["stride"]))
     metric_kwargs = {
         "huber_beta": float(config["training"].get("huber_beta", 1.0)),
@@ -669,18 +732,80 @@ def evaluate_analytic_baseline(
     }
     rows = [sequence_metrics(p, t, template, nonoverlap, **metric_kwargs) for p, t in zip(predictions, targets)]
     aggregate = {key: float(np.mean([row[key] for row in rows])) for key in rows[0]}
-    aggregate.update(retrieval_metrics(np.stack(predictions), np.stack(targets), template, nonoverlap, subjects))
+    aggregate.update(retrieval_metrics(predictions, targets, template, nonoverlap, subjects))
+    aggregate["long_edge_mse"] = float(np.mean((predictions[:, nonoverlap:] - targets[:, nonoverlap:]) ** 2))
+    aggregate["long_mae"] = float(np.mean(np.abs(predictions[:, nonoverlap:] - targets[:, nonoverlap:])))
     objective = None
     if any(float(value) != 0 for value in config["training"].get("loss_weights", {}).values()):
-        objective = prediction_objective(np.stack(predictions), np.stack(targets), template, config, nonoverlap)
+        objective = prediction_objective(predictions, targets, template, config, nonoverlap)
         aggregate["objective_loss"] = objective["value"]
+
+    boundaries = [
+        ("overlap_context", 0, nonoverlap),
+        ("early_long", nonoverlap, 85),
+        ("middle_long", 85, 154),
+        ("late_long", 154, targets.shape[1]),
+    ]
+    analytic_reports = {}
+    for name, method_predictions in predictions_by_method.items():
+        method_rows = [sequence_metrics(p, t, template, nonoverlap, **metric_kwargs) for p, t in zip(method_predictions, targets)]
+        method_report = {key: float(np.mean([row[key] for row in method_rows])) for key in method_rows[0]}
+        method_report["long_edge_mse"] = float(np.mean((method_predictions[:, nonoverlap:] - targets[:, nonoverlap:]) ** 2))
+        method_report["long_mae"] = float(np.mean(np.abs(method_predictions[:, nonoverlap:] - targets[:, nonoverlap:])))
+        method_report.update(retrieval_metrics(method_predictions, targets, template, nonoverlap, subjects))
+        method_report["per_sample"] = []
+        for prediction, target, subject, run, metrics in zip(method_predictions, targets, subjects, runs, method_rows):
+            sample = {"subject_id": subject, "run": run, **metrics}
+            sample["long_edge_mse"] = float(np.mean((prediction[nonoverlap:] - target[nonoverlap:]) ** 2))
+            sample["horizon_mse"] = {
+                segment: float(np.mean((prediction[start:stop] - target[start:stop]) ** 2))
+                for segment, start, stop in boundaries
+                if start < targets.shape[1] and stop > start
+            }
+            method_report["per_sample"].append(sample)
+        analytic_reports[name] = method_report
+
+    horizon_metrics = {}
+    for name, method_predictions in predictions_by_method.items():
+        horizon_metrics[name] = {
+            segment: {
+                "start_index": int(start), "stop_index_exclusive": int(stop),
+                "n_windows": int(stop - start),
+                "mse": float(np.mean((method_predictions[:, start:stop] - targets[:, start:stop]) ** 2)),
+                "mae": float(np.mean(np.abs(method_predictions[:, start:stop] - targets[:, start:stop]))),
+            }
+            for segment, start, stop in boundaries if start < targets.shape[1] and stop > start
+        }
+
+    bootstrap = {}
+    main_long = np.mean((predictions_by_method["fc1_decay_template"][:, nonoverlap:] - targets[:, nonoverlap:]) ** 2, axis=(1, 2))
+    for comparison in ("group_mean", "context_residual_zero"):
+        comparison_long = np.mean((predictions_by_method[comparison][:, nonoverlap:] - targets[:, nonoverlap:]) ** 2, axis=(1, 2))
+        bootstrap[f"fc1_decay_template_vs_{comparison}"] = subject_bootstrap_loss_difference(
+            main_long, comparison_long, subjects,
+            int(config["evaluation"].get("bootstrap_replicates", 2000)), int(config["seed"]),
+        )
     report = {
         "schema_version": 2, "objective": objective,
         "baseline": baseline, "split": split_name, "window_length": window_length,
         "n_samples": len(rows), "aggregate": aggregate,
+        "analytic_baselines": analytic_reports,
+        "horizon_metrics": horizon_metrics,
+        "bootstrap_loss_differences": bootstrap,
+        "alpha_fit": {
+            "method": "training_only_shared_scalar_per_future_timestep",
+            "clip": [0.0, 1.0], "epsilon": 1e-12,
+            "alpha_raw": None if alpha_raw is None else alpha_raw.tolist(),
+            "alpha": None if alpha is None else alpha.tolist(),
+            "clipped_low_count": 0 if alpha_raw is None else int(np.sum(alpha_raw < 0)),
+            "clipped_high_count": 0 if alpha_raw is None else int(np.sum(alpha_raw > 1)),
+            "training_samples": training_sample_count,
+        },
         "per_sample": [{"subject_id": s, "run": r, **m} for s, r, m in zip(subjects, runs, rows)],
     }
     output_dir = Path(output_dir)
+    if baseline == "fc1_decay_template":
+        np.savez_compressed(output_dir / "alpha_fit.npz", alpha_raw=alpha_raw, alpha=alpha)
     report_path = output_dir / f"evaluation_{split_name}.json"
     report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     return report_path

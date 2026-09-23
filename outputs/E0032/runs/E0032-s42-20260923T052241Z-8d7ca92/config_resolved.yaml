@@ -1,0 +1,100 @@
+seed: 42
+paths:
+  root: D:\Code\Canlab\HCP_New
+  atlas_labels: data/raw/atlas/ROI_MNI_V4.txt
+  sc_dir: data/raw/sc/HCP_Structure/AAL90
+  timeseries:
+    LR: data/raw/timeseries_lr
+  split_csv: data/manifests/split_lr_v1.csv
+  cache_dir: data/cache/dfc
+  output_dir: outputs
+data:
+  n_nodes: 90
+  n_timepoints: 1200
+  tr_seconds: 0.72
+  window_length: 83
+  stride: 5
+  warmup_windows: 1
+  sensitivity_windows:
+  - 42
+  - 125
+  fisher_clip: 0.999999
+  cache_dtype: float32
+  dataset_version: dataset_lr_v1
+  preprocessing_version: preprocess_lr_v1
+  manifest_path: data/manifests/dataset_lr_v1.json
+  manifest_sha256: 6ebb22662b4deb3fc7e38d45f2b76fc303d5c3ec973d36e6d7d0e2d3ffc29ac3
+  split_version: split_lr_v1
+  split_sha256: e08cd05e20ed048ba976dcf6487ecab8f6ba4671ea90ed778cbe21176b599862
+split:
+  train: 0.7
+  val: 0.15
+  test: 0.15
+model:
+  sc_encoder: hybrid
+  fc_latent_dim: 256
+  hidden_dim: 256
+  sc_graph_layers: 3
+  sc_graph_heads: 4
+  hcp_gcn_hidden_dim: 128
+  hcp_gcn_output_dim: 64
+  tcn_dilations:
+  - 1
+  - 2
+  - 4
+  - 8
+  - 16
+  - 32
+  transformer_layers: 4
+  transformer_heads: 8
+  transformer_ffn_dim: 1024
+  dropout: 0.1
+  baseline_hidden_dim: 256
+  ridge_pca_components: 128
+  ridge_alpha: 1.0
+  warmup_encoder: none
+  warmup_gru_layers: 1
+  name: fc1_decay_template
+training:
+  batch_size: 4
+  autoencoder_batch_size: 256
+  epochs: 200
+  autoencoder_epochs: 100
+  learning_rate: 0.0003
+  learning_rate_schedule:
+    name: constant
+  weight_decay: 0.0001
+  gradient_clip: 1.0
+  patience: 20
+  num_workers: 0
+  seeds:
+  - 42
+  autoencoder_loss_weights:
+    edge: 1.0
+  loss_weights:
+    edge: 0.0
+    difference: 0.0
+    variance: 0.0
+evaluation:
+  primary_metric: long_edge_mse
+  bootstrap_replicates: 2000
+  state_clusters: 5
+  projection_epsilon: 1.0e-06
+experiment:
+  id: E0032
+  name: fc1_decay_template_v1
+  level: 1
+  task: analytic
+  research_question: 在只观察首窗FC时，训练集拟合的时距衰减系数能否改善未来FC预测，并量化首窗个体偏移在长期区间的可泛化保留程度？
+  hypothesis: 训练集拟合的alpha[t]会比固定alpha=1更稳健；若长期仍不优于群体模板，则首窗对长期FC的可检出增益有限。
+  primary_change: 以训练折跨被试跨边最小二乘拟合的共享alpha[t]替代固定首窗偏移系数1；不训练神经网络。
+  baseline: E0031
+  owner: Face88
+  status: planned
+  ablation: full
+decision_rule:
+  description: 只使用训练折拟合alpha[t]；在验证集比较群体模板、FC1持续、E0031固定alpha=1零残差和E0032。若E0032相对群体模板及E0031零残差的长期边MSE被试bootstrap区间上界均小于0，确认首窗偏移的时距校准带来可泛化增益；否则保留完整诊断但不宣称长期增益。不得查看测试集或用验证结果重新拟合alpha。
+_config_source: D:\Code\Canlab\HCP_New\configs\experiments\E0032_fc1_decay_template_v1.yaml
+runtime:
+  run_id: E0032-s42-20260923T052241Z-8d7ca92
+  config_sha256: eec6b6bdfddf55a73e4c9251987b23ec9df674f28db253c68db62fe42a94f3de

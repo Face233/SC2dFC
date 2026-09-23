@@ -170,7 +170,7 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--primary-change", required=True)
     create.add_argument("--baseline")
     create.add_argument("--owner", required=True)
-    create.add_argument("--model", default="gru", choices=["fc_autoencoder", "group_mean", "fc1_persistence", "pca_ridge", "mlp", "lstm", "direct_mlp", "gcn_gru", "gru", "tcn", "transformer"])
+    create.add_argument("--model", default="gru", choices=["fc_autoencoder", "group_mean", "fc1_persistence", "fc1_decay_template", "pca_ridge", "mlp", "lstm", "direct_mlp", "gcn_gru", "gru", "tcn", "transformer"])
     create.add_argument("--sc-encoder", choices=["hybrid", "hcp_gcn"], default="hybrid")
     create.add_argument("--ablation", default="full", choices=["full", "fc1_only", "sc_only", "mean_sc", "shuffled_sc"])
     create.add_argument("--seeds", nargs="+", type=int, default=[DEFAULT_SEED])

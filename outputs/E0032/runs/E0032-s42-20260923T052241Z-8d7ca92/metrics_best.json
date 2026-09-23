@@ -1,0 +1,35 @@
+{
+  "schema_version": 2,
+  "kind": "selection",
+  "split": "val",
+  "primary_metric": "long_edge_mse",
+  "metrics": {
+    "edge_difference_score": 0.1790544902213846,
+    "edge_huber": 0.08907770842070416,
+    "difference_huber": 0.004719683874495916,
+    "mse": 0.1790544902213846,
+    "mae": 0.33441487237388184,
+    "raw_edge_pearson": 0.557765876615092,
+    "raw_edge_spearman": 0.5131861090812622,
+    "long_residual_pearson": 0.16521006678281203,
+    "difference_mse": 0.009439369872931142,
+    "variance_mae": 0.12615224551186813,
+    "dynamic_amplitude_mae": 0.0910157539363697,
+    "node_strength_pearson": 0.5353589169058336,
+    "node_strength_mae": 0.10653492688048309,
+    "fcd_pearson": 0.20255419278085535,
+    "fcd_wasserstein": 0.5341774442301488,
+    "retrieval_top1": 0.6772151898734177,
+    "retrieval_top5": 0.8607594936708861,
+    "retrieval_mean_rank": 4.544303797468355,
+    "long_edge_mse": 0.18580106199701507,
+    "long_mae": 0.3426927971093155
+  },
+  "best_epoch": null,
+  "epoch_index_base": 0,
+  "metric_definition": {
+    "metric": "long_edge_mse",
+    "implementation": "sequence_metrics/v2"
+  },
+  "source": "analytic_validation"
+}

@@ -1,0 +1,38 @@
+{
+  "experiments": {
+    "E0026": "E0026-s42-20260917T041533Z-3e974d5",
+    "E0030": "E0030-s42-20260917T122244Z-60c4608",
+    "E0031": "E0031-s42-20260918T035339Z-badb7a4",
+    "E0032": "E0032-s42-20260923T052241Z-8d7ca92"
+  },
+  "split": "val",
+  "purpose": "按旧版多被试时序图样式，六条固定边为行、四名验证集被试为前四列，叠加四个实验预测；第五列为训练集组平均真实时序。",
+  "reference_selection": "D:\\Code\\Canlab\\HCP_New\\outputs\\E0029\\visual\\E0029-s42-20260917T074229Z-8223ba3_val_subjects_6edges.json",
+  "subjects": [
+    "120010",
+    "188448",
+    "308331",
+    "559457"
+  ],
+  "edge_indices": [
+    357,
+    1733,
+    1756,
+    2619,
+    3096,
+    3438
+  ],
+  "edge_labels": [
+    "Frontal_Sup_Orb_L ↔ Frontal_Inf_Tri_L",
+    "Frontal_Sup_Medial_L ↔ Insula_R",
+    "Frontal_Sup_Medial_L ↔ Occipital_Inf_L",
+    "Hippocampus_L ↔ Temporal_Pole_Sup_L",
+    "Lingual_L ↔ Temporal_Mid_L",
+    "Fusiform_R ↔ Temporal_Mid_L"
+  ],
+  "layout": {
+    "rows": "六条共享边",
+    "columns": "验证集被试四列 + 训练集组平均一列"
+  },
+  "image": "D:\\Code\\Canlab\\HCP_New\\outputs\\E0032\\visual\\E0032_multisubject_dynamic_comparison.png"
+}

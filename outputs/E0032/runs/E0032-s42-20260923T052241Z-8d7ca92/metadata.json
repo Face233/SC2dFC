@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "experiment_id": "E0032",
+  "run_id": "E0032-s42-20260923T052241Z-8d7ca92",
+  "seed": 42,
+  "level": 1,
+  "status": "COMPLETED",
+  "started_at": "2026-09-23T05:22:42Z",
+  "config_sha256": "eec6b6bdfddf55a73e4c9251987b23ec9df674f28db253c68db62fe42a94f3de",
+  "git": {
+    "commit": "8d7ca926db96263dca7956e06f143582bbeee630",
+    "branch": "main",
+    "remote": "",
+    "dirty": false,
+    "status": [
+      "LOCAL_RUN_OVERRIDE: existing uncommitted workspace files preserved"
+    ]
+  },
+  "ended_at": "2026-09-23T05:25:39Z"
+}
