@@ -26,7 +26,7 @@ experiment:
 
 model:
   name: encoded_stable_residual_ridge
-  ridge_alpha_grid: [1.0, 10.0, 100.0, 1000.0]
+  ridge_alpha_grid: [1.0, 10.0, 100.0, 1000.0, 10000.0, 100000.0, 1000000.0, 10000000.0, 100000000.0, 10000000000.0]
   cv_folds: 5
 
 artifacts:
