@@ -104,13 +104,14 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
     if not evaluation.get("primary_metric"):
         raise ValueError("Managed configs require evaluation.primary_metric")
     task = experiment.get("task", "sequence")
-    if task not in {"sequence", "autoencoder", "analytic"}:
-        raise ValueError("experiment.task must be sequence, autoencoder, or analytic")
+    if task not in {"sequence", "autoencoder", "analytic", "residual_ridge"}:
+        raise ValueError("experiment.task must be sequence, autoencoder, analytic, or residual_ridge")
     model_name = config.get("model", {}).get("name")
     allowed_models = {
         "analytic": {"group_mean", "fc1_persistence", "fc1_decay_template"},
         "autoencoder": {"fc_autoencoder"},
         "sequence": {"pca_ridge", "mlp", "lstm", "direct_mlp", "gcn_gru", "gru", "tcn", "transformer"},
+        "residual_ridge": {"encoded_stable_residual_ridge"},
     }
     if model_name not in allowed_models[task]:
         raise ValueError(f"model.name {model_name!r} is not valid for task {task!r}")
@@ -119,6 +120,20 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Sequence primary_metric must be objective_loss or long_residual_pearson")
     if task == "autoencoder" and primary_metric != "validation_loss":
         raise ValueError("Autoencoder experiments must use validation_loss as the primary metric")
+    if task == "residual_ridge":
+        if primary_metric != "long_edge_mse":
+            raise ValueError("Residual Ridge must select on long_edge_mse")
+        if int(config.get("data", {}).get("warmup_windows", 1)) != 1:
+            raise ValueError("Residual Ridge requires one warmup FC window")
+        candidates = config.get("model", {}).get("ridge_alpha_grid", [])
+        if not isinstance(candidates, list) or not candidates or any(float(value) <= 0 for value in candidates):
+            raise ValueError("Residual Ridge requires positive model.ridge_alpha_grid")
+        if int(config.get("model", {}).get("cv_folds", 0)) < 2:
+            raise ValueError("Residual Ridge requires model.cv_folds >= 2")
+        for name in ("fc_autoencoder", "alpha_fit"):
+            reference = config.get("artifacts", {}).get(name, {})
+            if any(not reference.get(key) for key in ("path", "sha256")):
+                raise ValueError(f"Residual Ridge requires artifacts.{name}.path and sha256")
     if not config.get("decision_rule", {}).get("description"):
         raise ValueError("Managed configs require decision_rule.description")
     if task == "sequence":
@@ -245,7 +260,7 @@ def freeze_dataset(
 
 
 def verify_artifact(config: dict[str, Any]) -> Path | None:
-    if config["experiment"].get("task", "sequence") != "sequence":
+    if config["experiment"].get("task", "sequence") not in {"sequence", "residual_ridge"}:
         return None
     reference = config["artifacts"]["fc_autoencoder"]
     path = Path(reference["path"])
@@ -256,6 +271,20 @@ def verify_artifact(config: dict[str, Any]) -> Path | None:
     actual = file_sha256(path)
     if actual != str(reference["sha256"]):
         raise ValueError(f"Artifact checksum mismatch: expected {reference['sha256']}, got {actual}")
+    return path
+
+
+def verify_decay_artifact(config: dict[str, Any]) -> Path:
+    """Verify the frozen E0032 alpha fit used by residual experiments."""
+    reference = config["artifacts"]["alpha_fit"]
+    path = Path(reference["path"])
+    if not path.is_absolute():
+        path = Path(config["paths"]["root"]) / path
+    if not path.exists():
+        raise FileNotFoundError(f"E0032 alpha artifact not found: {path}")
+    actual = file_sha256(path)
+    if actual != str(reference["sha256"]):
+        raise ValueError(f"E0032 alpha artifact checksum mismatch: expected {reference['sha256']}, got {actual}")
     return path
 
 

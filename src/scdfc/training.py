@@ -193,10 +193,12 @@ def loss_inputs(output, target: torch.Tensor) -> tuple[torch.Tensor, torch.Tenso
     instead optimizes only the learned residual after removing its deterministic
     group-template and context-offset baseline.
     """
-    if output.dynamic_residual is not None:
-        if output.residual_baseline is None:
+    dynamic_residual = getattr(output, "dynamic_residual", None)
+    if dynamic_residual is not None:
+        baseline = getattr(output, "residual_baseline", None)
+        if baseline is None:
             raise ValueError("Residual output is missing its deterministic baseline")
-        return output.dynamic_residual, target - output.residual_baseline
+        return dynamic_residual, target - baseline
     return output.fc_z_edges, target
 
 

@@ -25,12 +25,14 @@ from .management import (
     utc_now,
     validate_experiment_config,
     verify_artifact,
+    verify_decay_artifact,
     verify_data_bindings,
     write_run_provenance,
 )
 from .training import train_autoencoder, train_sequence_model
 from .metric_records import selection_record
 from .progress import emit
+from .residual_ridge import evaluate_residual_ridge, run_residual_ridge
 
 
 def _root() -> Path:
@@ -170,6 +172,7 @@ def command_run(args) -> None:
     config = validate_experiment_config(load_config(args.experiment))
     data_manifest = verify_data_bindings(config)
     artifact_path = verify_artifact(config)
+    decay_path = verify_decay_artifact(config) if config["experiment"].get("task") == "residual_ridge" else None
     context = create_run_context(config, args.seed)
     try:
         emit("run_started", experiment_id=context.experiment_id, run_id=context.run_id, seed=args.seed, run_dir=str(context.run_dir))
@@ -192,6 +195,11 @@ def command_run(args) -> None:
                 definition=definition, source="analytic_validation")
             (context.run_dir / "metrics_best.json").write_text(json.dumps(record, indent=2), encoding="utf-8")
             finish_run(context, "COMPLETED")
+        elif task == "residual_ridge":
+            checkpoint = run_residual_ridge(
+                config, window, stats, artifact_path, decay_path, context.run_dir, metadata, args.device,
+            )
+            finish_run(context, "COMPLETED", checkpoint=str(checkpoint))
         else:
             checkpoint = train_sequence_model(
                 config, window, config["model"]["name"], stats,
@@ -225,12 +233,23 @@ def command_evaluate_run(args) -> None:
         lock = None
     verify_data_bindings(config)
     artifact = verify_artifact(config)
+    decay = verify_decay_artifact(config) if config["experiment"].get("task") == "residual_ridge" else None
     window = int(config["data"]["window_length"])
     task = config["experiment"].get("task")
     if task == "autoencoder":
         raise ValueError("Autoencoder runs are evaluated during training; use summarize directly")
     if task == "analytic":
         report_path = evaluate_analytic_baseline(config, window, _stats_path(config, window), config["model"]["name"], split, run_dir)
+    elif task == "residual_ridge":
+        checkpoint = run_dir / "checkpoints" / "best.pt"
+        payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
+        for key, expected in {"experiment_id": metadata["experiment_id"], "run_id": args.run_id,
+                              "config_sha256": metadata["config_sha256"]}.items():
+            if payload.get(key) != expected:
+                raise RuntimeError(f"Checkpoint {key} does not match run metadata")
+        report_path = evaluate_residual_ridge(
+            config, window, _stats_path(config, window), artifact, decay, checkpoint, run_dir, split, args.device,
+        )
     else:
         checkpoint = run_dir / "checkpoints" / "best.pt"
         checkpoint_payload = torch.load(checkpoint, map_location="cpu", weights_only=False)

@@ -73,6 +73,21 @@ def test_managed_gru_experiment_accepts_objective_loss(tmp_path: Path):
     assert validate_experiment_config(config)["model"]["name"] == "gru"
 
 
+def test_residual_ridge_requires_frozen_encoder_and_decay_artifacts(tmp_path: Path):
+    config = managed_config(tmp_path)
+    config["experiment"]["task"] = "residual_ridge"
+    config["model"] = {"name": "encoded_stable_residual_ridge", "ridge_alpha_grid": [1.0, 10.0], "cv_folds": 3}
+    config["evaluation"]["primary_metric"] = "long_edge_mse"
+    config["artifacts"] = {
+        "fc_autoencoder": {"path": "encoder.pt", "sha256": "a"},
+        "alpha_fit": {"path": "alpha.npz", "sha256": "b"},
+    }
+    assert validate_experiment_config(config)["experiment"]["task"] == "residual_ridge"
+    del config["artifacts"]["alpha_fit"]
+    with pytest.raises(ValueError, match="artifacts.alpha_fit"):
+        validate_experiment_config(config)
+
+
 def test_managed_gru_experiment_accepts_direct_edge_head(tmp_path: Path):
     config = managed_config(tmp_path)
     config["experiment"]["task"] = "sequence"

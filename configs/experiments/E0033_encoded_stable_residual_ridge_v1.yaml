@@ -1,0 +1,53 @@
+base: ../default.yaml
+
+paths:
+  split_csv: data/manifests/split_lr_v1.csv
+
+data:
+  dataset_version: dataset_lr_v1
+  preprocessing_version: preprocess_lr_v1
+  manifest_path: data/manifests/dataset_lr_v1.json
+  manifest_sha256: 6ebb22662b4deb3fc7e38d45f2b76fc303d5c3ec973d36e6d7d0e2d3ffc29ac3
+  split_version: split_lr_v1
+  split_sha256: e08cd05e20ed048ba976dcf6487ecab8f6ba4671ea90ed778cbe21176b599862
+
+experiment:
+  id: E0033
+  name: encoded_stable_residual_ridge_v1
+  level: 1
+  task: residual_ridge
+  research_question: E0003冻结编码的首窗FC能否预测E0032基线之外的稳定个体残差，并降低无重叠长期FC误差？
+  hypothesis: 若首窗FC包含E0032共享标量衰减未解释的稳定个体信息，冻结E0003编码加Ridge预测的固定边偏移会在验证集降低长期边MSE；它不会改善逐窗动态形状。
+  primary_change: 固定E0032的训练折模板和alpha，在其零残差预测上增加从首窗FC的E0003冻结256维编码到未来时间均值残差的多输出Ridge映射；不使用SC或FC decoder。
+  baseline: E0032
+  owner: Face88
+  status: planned
+  ablation: fc1_only
+
+model:
+  name: encoded_stable_residual_ridge
+  ridge_alpha_grid: [1.0, 10.0, 100.0, 1000.0]
+  cv_folds: 5
+
+artifacts:
+  fc_autoencoder:
+    id: A0003
+    path: outputs/E0003/runs/E0003-s42-20260810T064954Z-4d4337d/checkpoints/best.pt
+    sha256: 2228c6d742c1eb3225eb550ae3839b7be55cbaac8a9bfafa018780a0d961ec97
+  alpha_fit:
+    id: E0032-alpha-fit
+    path: outputs/E0032/runs/E0032-s42-20260923T052241Z-8d7ca92/alpha_fit.npz
+    sha256: dcb8a74c2a06d753791a7b2dbe1be582c57c3e6a77e7562a957b575359689efa
+
+training:
+  seeds: [42]
+  loss_weights:
+    edge: 0.0
+    difference: 0.0
+
+evaluation:
+  primary_metric: long_edge_mse
+  bootstrap_replicates: 2000
+
+decision_rule:
+  description: 仅使用训练折选择Ridge惩罚；正式验证集比较E0033与同被试E0032的t=17:223边MSE，报告被试配对bootstrap区间。仅当差值区间上界小于0且稳定残差MSE优于零预测时，认为有额外稳定个体信息；不得将其解释为动态时间对齐改善。不查看测试集。
