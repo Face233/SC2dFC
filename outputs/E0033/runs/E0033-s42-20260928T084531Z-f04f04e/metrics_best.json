@@ -1,0 +1,26 @@
+{
+  "schema_version": 2,
+  "kind": "selection",
+  "split": "val",
+  "primary_metric": "long_edge_mse",
+  "metrics": {
+    "long_edge_mse": 0.1828705859866849,
+    "e0032_long_edge_mse": 0.18580106199701504,
+    "stable_residual_mse": 0.04994938314558369,
+    "zero_stable_residual_mse": 0.052665597180326804,
+    "stable_residual_edge_pearson": 0.16347777097166916,
+    "stable_between_subject_std_ratio": 0.3082050093951157,
+    "retrieval_top1": 0.6455696202531646,
+    "retrieval_top5": 0.7911392405063291,
+    "retrieval_mean_rank": 6.069620253164557
+  },
+  "best_epoch": null,
+  "epoch_index_base": 0,
+  "metric_definition": {
+    "implementation": "encoded_stable_residual_ridge/v1",
+    "split": "val",
+    "nonoverlap_start": 17,
+    "ridge_alpha_selected_on": "grouped_train_cv"
+  },
+  "source": "ridge_validation"
+}
