@@ -1,0 +1,26 @@
+base: E0036_fc1_direct_residual_transformer_mse_v1.yaml
+
+training:
+  loss_type: mse
+  loss_weights:
+    edge: 1.0
+    difference: 0.25
+    variance: 1.0
+    static: 0.0
+    contrastive: 0.0
+
+experiment:
+  id: E0038
+  name: fc1_direct_residual_transformer_mse_difference_variance_v1
+  level: 1
+  task: sequence
+  research_question: 在E0036相同FC1直接残差Transformer上加入差分与时间方差损失，能否改善真实未来动态而保持长期边MSE？
+  hypothesis: 差分约束可能提高相邻窗变化的对齐，方差约束可能减轻动态振幅坍缩；只有真实时间相关改善且长期MSE未明显恶化才支持联合目标有效。
+  primary_change: 相对E0036仅将损失从逐点MSE改为逐点MSE加0.25倍相邻窗差分MSE加1.0倍逐边时间方差MSE；架构、冻结工件、FC1-only输入和训练预算不变。
+  baseline: E0036
+  owner: Face88
+  status: planned
+  ablation: fc1_only
+
+decision_rule:
+  description: 完成150轮并按验证集t=17:223的边MSE选模；与同seed的E0036按被试配对比较长期MSE、真实及去模板时间Pearson、动态差分相关和动态标准差比。方差单独增加不算时间预测改善；不查看测试集。

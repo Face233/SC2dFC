@@ -109,6 +109,20 @@ def test_e0036_e0037_configs_share_protocol_except_sc_ablation():
     assert all(value == 0 for name, value in fc_only["training"]["loss_weights"].items() if name != "edge")
 
 
+def test_e0038_changes_only_difference_and_variance_objective():
+    base = Path(__file__).resolve().parents[1] / "configs" / "experiments"
+    e0036 = validate_experiment_config(load_config(base / "E0036_fc1_direct_residual_transformer_mse_v1.yaml"))
+    e0038 = validate_experiment_config(load_config(base / "E0038_fc1_direct_residual_transformer_mse_difference_variance_v1.yaml"))
+    for section in ("data", "model", "artifacts", "evaluation"):
+        assert e0038[section] == e0036[section]
+    expected_training = dict(e0036["training"])
+    expected_training["loss_weights"] = {
+        **expected_training["loss_weights"], "difference": 0.25, "variance": 1.0,
+    }
+    assert e0038["training"] == expected_training
+    assert e0038["experiment"]["ablation"] == "fc1_only"
+
+
 def test_managed_sequence_config_rejects_fc_decoder_finetuning(tmp_path: Path):
     config = managed_config(tmp_path)
     config["experiment"]["task"] = "sequence"
