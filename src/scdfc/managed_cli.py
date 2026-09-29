@@ -33,6 +33,7 @@ from .training import train_autoencoder, train_sequence_model
 from .metric_records import selection_record
 from .progress import emit
 from .residual_ridge import evaluate_residual_ridge, run_residual_ridge
+from .residual_dynamic_ridge import evaluate_residual_dynamic_ridge, run_residual_dynamic_ridge
 
 
 def _root() -> Path:
@@ -172,7 +173,7 @@ def command_run(args) -> None:
     config = validate_experiment_config(load_config(args.experiment))
     data_manifest = verify_data_bindings(config)
     artifact_path = verify_artifact(config)
-    decay_path = verify_decay_artifact(config) if config["experiment"].get("task") == "residual_ridge" else None
+    decay_path = verify_decay_artifact(config) if config["experiment"].get("task") in {"residual_ridge", "residual_dynamic_ridge"} else None
     context = create_run_context(config, args.seed)
     try:
         emit("run_started", experiment_id=context.experiment_id, run_id=context.run_id, seed=args.seed, run_dir=str(context.run_dir))
@@ -197,6 +198,11 @@ def command_run(args) -> None:
             finish_run(context, "COMPLETED")
         elif task == "residual_ridge":
             checkpoint = run_residual_ridge(
+                config, window, stats, artifact_path, decay_path, context.run_dir, metadata, args.device,
+            )
+            finish_run(context, "COMPLETED", checkpoint=str(checkpoint))
+        elif task == "residual_dynamic_ridge":
+            checkpoint = run_residual_dynamic_ridge(
                 config, window, stats, artifact_path, decay_path, context.run_dir, metadata, args.device,
             )
             finish_run(context, "COMPLETED", checkpoint=str(checkpoint))
@@ -233,7 +239,7 @@ def command_evaluate_run(args) -> None:
         lock = None
     verify_data_bindings(config)
     artifact = verify_artifact(config)
-    decay = verify_decay_artifact(config) if config["experiment"].get("task") == "residual_ridge" else None
+    decay = verify_decay_artifact(config) if config["experiment"].get("task") in {"residual_ridge", "residual_dynamic_ridge"} else None
     window = int(config["data"]["window_length"])
     task = config["experiment"].get("task")
     if task == "autoencoder":
@@ -248,6 +254,16 @@ def command_evaluate_run(args) -> None:
             if payload.get(key) != expected:
                 raise RuntimeError(f"Checkpoint {key} does not match run metadata")
         report_path = evaluate_residual_ridge(
+            config, window, _stats_path(config, window), artifact, decay, checkpoint, run_dir, split, args.device,
+        )
+    elif task == "residual_dynamic_ridge":
+        checkpoint = run_dir / "checkpoints" / "best.pt"
+        payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
+        for key, expected in {"experiment_id": metadata["experiment_id"], "run_id": args.run_id,
+                              "config_sha256": metadata["config_sha256"]}.items():
+            if payload.get(key) != expected:
+                raise RuntimeError(f"Checkpoint {key} does not match run metadata")
+        report_path = evaluate_residual_dynamic_ridge(
             config, window, _stats_path(config, window), artifact, decay, checkpoint, run_dir, split, args.device,
         )
     else:

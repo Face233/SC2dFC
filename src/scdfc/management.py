@@ -104,14 +104,15 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
     if not evaluation.get("primary_metric"):
         raise ValueError("Managed configs require evaluation.primary_metric")
     task = experiment.get("task", "sequence")
-    if task not in {"sequence", "autoencoder", "analytic", "residual_ridge"}:
-        raise ValueError("experiment.task must be sequence, autoencoder, analytic, or residual_ridge")
+    if task not in {"sequence", "autoencoder", "analytic", "residual_ridge", "residual_dynamic_ridge"}:
+        raise ValueError("Unsupported experiment.task")
     model_name = config.get("model", {}).get("name")
     allowed_models = {
         "analytic": {"group_mean", "fc1_persistence", "fc1_decay_template"},
         "autoencoder": {"fc_autoencoder"},
         "sequence": {"pca_ridge", "mlp", "lstm", "direct_mlp", "gcn_gru", "gru", "tcn", "transformer"},
         "residual_ridge": {"encoded_stable_residual_ridge"},
+        "residual_dynamic_ridge": {"encoded_dynamic_residual_ridge"},
     }
     if model_name not in allowed_models[task]:
         raise ValueError(f"model.name {model_name!r} is not valid for task {task!r}")
@@ -134,6 +135,24 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
             reference = config.get("artifacts", {}).get(name, {})
             if any(not reference.get(key) for key in ("path", "sha256")):
                 raise ValueError(f"Residual Ridge requires artifacts.{name}.path and sha256")
+    if task == "residual_dynamic_ridge":
+        if primary_metric != "long_edge_mse":
+            raise ValueError("Dynamic residual Ridge must select on long_edge_mse")
+        if int(data.get("warmup_windows", 1)) != 1:
+            raise ValueError("Dynamic residual Ridge requires one warmup FC window")
+        model = config.get("model", {})
+        ranks = model.get("pca_components_grid", [])
+        penalties = model.get("ridge_alpha_grid", [])
+        if not isinstance(ranks, list) or not ranks or any(int(k) < 1 for k in ranks):
+            raise ValueError("Dynamic residual Ridge requires positive PCA ranks")
+        if not isinstance(penalties, list) or not penalties or any(float(a) <= 0 for a in penalties):
+            raise ValueError("Dynamic residual Ridge requires positive Ridge penalties")
+        if int(model.get("cv_folds", 0)) < 2 or int(model.get("pca_fit_windows_per_subject", 0)) < 1:
+            raise ValueError("Dynamic residual Ridge requires CV folds and PCA fit windows")
+        for name in ("fc_autoencoder", "alpha_fit") + (("stable_ridge",) if model.get("include_stable") else ()):
+            reference = config.get("artifacts", {}).get(name, {})
+            if any(not reference.get(key) for key in ("path", "sha256")):
+                raise ValueError(f"Dynamic residual Ridge requires artifacts.{name}.path and sha256")
     if not config.get("decision_rule", {}).get("description"):
         raise ValueError("Managed configs require decision_rule.description")
     if task == "sequence":
@@ -260,7 +279,7 @@ def freeze_dataset(
 
 
 def verify_artifact(config: dict[str, Any]) -> Path | None:
-    if config["experiment"].get("task", "sequence") not in {"sequence", "residual_ridge"}:
+    if config["experiment"].get("task", "sequence") not in {"sequence", "residual_ridge", "residual_dynamic_ridge"}:
         return None
     reference = config["artifacts"]["fc_autoencoder"]
     path = Path(reference["path"])
