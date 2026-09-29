@@ -1,0 +1,55 @@
+{
+  "experiment_id": "E0038",
+  "primary_metric": "long_edge_mse",
+  "completed_runs": 1,
+  "split": "val",
+  "metric_source": "selection",
+  "metric_definition": {
+    "implementation": "sequence_validation_long_edge_mse/v1",
+    "split": "val",
+    "nonoverlap_start": 17,
+    "aggregation": "mean squared Fisher-z edge error per subject/run, then mean over samples"
+  },
+  "failed_runs": 0,
+  "mean": 0.18426791927482508,
+  "std": 0.0,
+  "preprocessing": {
+    "dataset_version": "dataset_lr_v1",
+    "preprocessing_version": "preprocess_lr_v1",
+    "split_version": "split_lr_v1",
+    "window_length_tr": 83,
+    "stride_tr": 5,
+    "tr_seconds": 0.72,
+    "window_length_seconds": 59.76,
+    "stride_seconds": 3.5999999999999996,
+    "n_timepoints": 1200,
+    "n_dfc_windows_per_run": 224,
+    "n_nodes": 90,
+    "fisher_clip": 0.999999,
+    "estimator": "rectangular_pearson",
+    "fc_representation": "Fisher-z transformed upper-triangle edges",
+    "cache_path": "data/cache/dfc/window_83.zarr"
+  },
+  "runs": [
+    {
+      "schema_version": 1,
+      "experiment_id": "E0038",
+      "run_id": "E0038-s42-20260929T094027Z-ad7ce6a",
+      "seed": 42,
+      "level": 1,
+      "status": "COMPLETED",
+      "started_at": "2026-09-29T09:40:27Z",
+      "config_sha256": "cdfd056b8c217e5930bc28fde0832b790eeb67259b4e5034f8e27c34a55b3ae6",
+      "git": {
+        "commit": "ad7ce6ab4703a9601e9c3e5bba5a78429eba225f",
+        "branch": "main",
+        "remote": "https://github.com/Face233/SC2dFC.git",
+        "dirty": false,
+        "status": []
+      },
+      "ended_at": "2026-09-29T10:00:04Z",
+      "checkpoint": "D:\\Code\\Canlab\\HCP_New\\outputs\\E0038\\runs\\E0038-s42-20260929T094027Z-ad7ce6a\\checkpoints\\best.pt"
+    }
+  ],
+  "generated_at": "2026-09-29T10:03:45Z"
+}

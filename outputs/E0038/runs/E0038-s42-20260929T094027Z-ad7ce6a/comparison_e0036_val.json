@@ -1,0 +1,47 @@
+{
+  "comparison": "E0038 minus E0036",
+  "split": "val",
+  "n_samples": 158,
+  "n_subjects": 158,
+  "bootstrap_replicates": 10000,
+  "metrics": {
+    "long_edge_mse": {
+      "mean_difference": -2.6286780079708825e-05,
+      "ci_low": -0.0005141262908147859,
+      "ci_high": 0.00044205906694825674,
+      "passes": false,
+      "n_subjects": 158,
+      "replicates": 10000
+    },
+    "time_pearson": {
+      "mean_difference": 4.227613754676584e-05,
+      "ci_low": 3.479863839338923e-06,
+      "ci_high": 8.047320192003374e-05,
+      "passes": true
+    },
+    "template_adjusted_time_pearson": {
+      "mean_difference": 0.0004931781975157512,
+      "ci_low": -4.386267300324566e-05,
+      "ci_high": 0.0010331026897629383,
+      "passes": false
+    },
+    "dynamic_time_pearson": {
+      "mean_difference": 0.003414324091541466,
+      "ci_low": 0.0010898816232700575,
+      "ci_high": 0.005880958894630555,
+      "passes": true
+    },
+    "dynamic_difference_time_pearson": {
+      "mean_difference": -9.469435439360162e-05,
+      "ci_low": -0.0001991188033510793,
+      "ci_high": 1.2896186926435437e-05,
+      "passes": false
+    },
+    "dynamic_std_ratio": {
+      "mean_difference": 0.0006329129727062168,
+      "ci_low": 0.0005982359193959509,
+      "ci_high": 0.0006692932314855412,
+      "passes": true
+    }
+  }
+}
