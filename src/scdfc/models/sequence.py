@@ -96,6 +96,7 @@ class ConditionEncoder(nn.Module):
         ablation: str = "full",
         warmup_encoder: str = "none",
         warmup_gru_layers: int = 1,
+        fusion_type: str = "gated",
     ) -> None:
         super().__init__()
         if sc_encoder_type not in {"hybrid", "hcp_gcn"}:
@@ -106,9 +107,12 @@ class ConditionEncoder(nn.Module):
             raise ValueError("warmup_encoder must be 'none' or 'gru'")
         if warmup_gru_layers < 1:
             raise ValueError("warmup_gru_layers must be positive")
+        if fusion_type not in {"gated", "concat_projection"}:
+            raise ValueError(f"Unknown fusion type: {fusion_type}")
         self.fc_autoencoder = fc_autoencoder
         self.sc_encoder_type = sc_encoder_type
         self.ablation = ablation
+        self.fusion_type = fusion_type
         if sc_encoder_type == "hybrid":
             self.graph = SCGraphEncoder(n_nodes, 128, graph_layers, graph_heads, dropout)
             self.edge_mlp = nn.Sequential(nn.Linear(n_edges, 512), nn.GELU(), nn.Dropout(dropout), nn.Linear(512, 128))
@@ -126,7 +130,7 @@ class ConditionEncoder(nn.Module):
         combined = 256 + fc_dim
         # 门控融合确保模型可按被试调整各类条件信息的贡献。
         self.value = nn.Linear(combined, hidden_dim)
-        self.gate = nn.Sequential(nn.Linear(combined, hidden_dim), nn.Sigmoid())
+        self.gate = nn.Sequential(nn.Linear(combined, hidden_dim), nn.Sigmoid()) if fusion_type == "gated" else None
         self.condition_norm = nn.LayerNorm(hidden_dim)
 
     def encode_modalities(
@@ -169,7 +173,9 @@ class ConditionEncoder(nn.Module):
         elif self.ablation == "sc_only":
             warmup = torch.zeros_like(warmup)
         combined = torch.cat([sc_global, warmup], dim=-1)
-        condition = self.value(combined) * self.gate(combined)
+        condition = self.value(combined)
+        if self.gate is not None:
+            condition = condition * self.gate(combined)
         return self.condition_norm(condition)
 
 
@@ -299,6 +305,8 @@ class ConditionalSequenceModel(nn.Module):
         context_template: torch.Tensor | None = None,
         warmup_encoder: str = "none",
         warmup_gru_layers: int = 1,
+        fusion_type: str = "gated",
+        decay_alpha: torch.Tensor | None = None,
     ) -> None:
         super().__init__()
         self.n_nodes = n_nodes
@@ -312,10 +320,15 @@ class ConditionalSequenceModel(nn.Module):
         self.fc_autoencoder = fc_autoencoder
         if output_head not in {"e0003_reconstruction_decoder", "direct_edge_linear"}:
             raise ValueError(f"Unsupported output_head: {output_head}")
-        if output_decomposition not in {"direct", "group_template_context_residual"}:
+        if output_decomposition not in {"direct", "group_template_context_residual", "e0032_decay_residual"}:
             raise ValueError(f"Unsupported output decomposition: {output_decomposition}")
-        if output_decomposition == "group_template_context_residual" and context_template is None:
-            raise ValueError("context_template is required for group_template_context_residual output")
+        if output_decomposition != "direct" and context_template is None:
+            raise ValueError("context_template is required for residual output")
+        if output_decomposition == "e0032_decay_residual":
+            if decay_alpha is None or decay_alpha.ndim != 1 or len(decay_alpha) < len(group_template):
+                raise ValueError("e0032_decay_residual requires one alpha per future window")
+            if output_head != "direct_edge_linear":
+                raise ValueError("e0032_decay_residual requires direct_edge_linear output")
         self.output_head = output_head
         self.output_decomposition = output_decomposition
         self.condition_encoder = ConditionEncoder(
@@ -332,6 +345,7 @@ class ConditionalSequenceModel(nn.Module):
             ablation,
             warmup_encoder,
             warmup_gru_layers,
+            fusion_type,
         )
         if decoder_type == "tcn":
             self.temporal = TCNDecoder(hidden_dim, 256, tcn_dilations, dropout)
@@ -352,6 +366,7 @@ class ConditionalSequenceModel(nn.Module):
         )
         self.register_buffer("sc_mean", torch.zeros(self.n_edges) if sc_mean is None else sc_mean.float())
         self.register_buffer("sc_std", torch.ones(self.n_edges) if sc_std is None else sc_std.float())
+        self.register_buffer("decay_alpha", torch.empty(0) if decay_alpha is None else decay_alpha.float())
 
     def forward(
         self,
@@ -368,13 +383,16 @@ class ConditionalSequenceModel(nn.Module):
         # 不使用额外的 4005 维旁路，后续 direct edge head 才是独立 decoder 对照。
         dynamic_residual = None
         residual_baseline = None
-        if self.output_decomposition == "group_template_context_residual":
+        if self.output_decomposition in {"group_template_context_residual", "e0032_decay_residual"}:
             # The context offset is observable at inference time and remains
             # constant over the future horizon; the learned branch therefore
             # only needs to explain the remaining dynamic residual.
             context = fc_warmup[:, -1] if fc_warmup.ndim == 3 else fc_warmup
             subject_offset = context - self.context_template[None]
-            residual_baseline = self.group_template[:steps][None] + subject_offset[:, None]
+            if self.output_decomposition == "e0032_decay_residual":
+                residual_baseline = self.group_template[:steps][None] + self.decay_alpha[:steps][None, :, None] * subject_offset[:, None]
+            else:
+                residual_baseline = self.group_template[:steps][None] + subject_offset[:, None]
             dynamic_residual = decoded
             fc_z = residual_baseline + dynamic_residual
         else:

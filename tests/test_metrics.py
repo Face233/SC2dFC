@@ -1,7 +1,20 @@
 import numpy as np
 import pytest
 
-from scdfc.evaluation import _dynamic_audit_horizons, dynamic_calibration_metrics, dynamic_state_metrics, retrieval_metrics, sequence_metrics, subject_bootstrap_difference
+from scdfc.evaluation import _dynamic_audit_horizons, _e0032_sequence_diagnostics, e0032_zero_residual_prediction, dynamic_calibration_metrics, dynamic_state_metrics, retrieval_metrics, sequence_metrics, subject_bootstrap_difference
+
+
+def test_e0032_baseline_and_temporal_diagnostics():
+    template = np.zeros((4, 2), dtype=float)
+    warmup = np.array([[2.0, 3.0]])
+    baseline = e0032_zero_residual_prediction(warmup, template, np.array([1.0, 1.0]),
+                                               np.array([1.0, 0.5, 0.25, 0.0]), (1, 4, 2))
+    np.testing.assert_allclose(baseline[0, 1], [0.5, 1.0])
+    target = baseline[0] + np.arange(4)[:, None]
+    metrics = _e0032_sequence_diagnostics(target.copy(), target, baseline[0], template, 1)
+    assert metrics["time_pearson"] == pytest.approx(1.0)
+    assert metrics["template_adjusted_time_pearson"] == pytest.approx(1.0)
+    assert metrics["time_pearson_valid_fraction"] == 1.0
 
 
 def test_metrics_are_best_for_exact_prediction():

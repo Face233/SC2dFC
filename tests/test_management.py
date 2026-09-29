@@ -97,6 +97,18 @@ def test_managed_gru_experiment_accepts_direct_edge_head(tmp_path: Path):
     assert validate_experiment_config(config)["model"]["output_head"] == "direct_edge_linear"
 
 
+def test_e0036_e0037_configs_share_protocol_except_sc_ablation():
+    base = Path(__file__).resolve().parents[1] / "configs" / "experiments"
+    fc_only = validate_experiment_config(load_config(base / "E0036_fc1_direct_residual_transformer_mse_v1.yaml"))
+    with_sc = validate_experiment_config(load_config(base / "E0037_fc1_sc_direct_residual_transformer_mse_v1.yaml"))
+    for section in ("data", "model", "artifacts", "training", "evaluation"):
+        assert fc_only[section] == with_sc[section]
+    assert fc_only["experiment"]["ablation"] == "fc1_only"
+    assert with_sc["experiment"]["ablation"] == "full"
+    assert fc_only["training"]["loss_weights"]["edge"] == 1.0
+    assert all(value == 0 for name, value in fc_only["training"]["loss_weights"].items() if name != "edge")
+
+
 def test_managed_sequence_config_rejects_fc_decoder_finetuning(tmp_path: Path):
     config = managed_config(tmp_path)
     config["experiment"]["task"] = "sequence"

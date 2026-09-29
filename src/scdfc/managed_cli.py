@@ -173,7 +173,7 @@ def command_run(args) -> None:
     config = validate_experiment_config(load_config(args.experiment))
     data_manifest = verify_data_bindings(config)
     artifact_path = verify_artifact(config)
-    decay_path = verify_decay_artifact(config) if config["experiment"].get("task") in {"residual_ridge", "residual_dynamic_ridge"} else None
+    decay_path = verify_decay_artifact(config) if config["experiment"].get("task") in {"residual_ridge", "residual_dynamic_ridge"} or config.get("model", {}).get("output_decomposition") == "e0032_decay_residual" else None
     context = create_run_context(config, args.seed)
     try:
         emit("run_started", experiment_id=context.experiment_id, run_id=context.run_id, seed=args.seed, run_dir=str(context.run_dir))
@@ -239,7 +239,7 @@ def command_evaluate_run(args) -> None:
         lock = None
     verify_data_bindings(config)
     artifact = verify_artifact(config)
-    decay = verify_decay_artifact(config) if config["experiment"].get("task") in {"residual_ridge", "residual_dynamic_ridge"} else None
+    decay = verify_decay_artifact(config) if config["experiment"].get("task") in {"residual_ridge", "residual_dynamic_ridge"} or config.get("model", {}).get("output_decomposition") == "e0032_decay_residual" else None
     window = int(config["data"]["window_length"])
     task = config["experiment"].get("task")
     if task == "autoencoder":
@@ -272,8 +272,29 @@ def command_evaluate_run(args) -> None:
         for key, expected in {"experiment_id": metadata["experiment_id"], "run_id": args.run_id, "config_sha256": metadata["config_sha256"]}.items():
             if checkpoint_payload.get(key) != expected:
                 raise RuntimeError(f"Checkpoint {key} does not match run metadata")
+        baseline_checkpoint = None
+        baseline_run_id = getattr(args, "baseline_run_id", None)
+        if baseline_run_id:
+            if config.get("model", {}).get("output_decomposition") != "e0032_decay_residual" or config["experiment"].get("ablation") != "full":
+                raise ValueError("--baseline-run-id is available only for the E0037 full SC residual experiment")
+            baseline_dir = find_run(root, baseline_run_id)
+            baseline_metadata = json.loads((baseline_dir / "metadata.json").read_text(encoding="utf-8"))
+            baseline_config = load_config(baseline_dir / "config_resolved.yaml")
+            if baseline_metadata["experiment_id"] != "E0036" or baseline_config["experiment"].get("ablation") != "fc1_only":
+                raise ValueError("Paired baseline must be an E0036 FC1-only run")
+            if baseline_metadata["seed"] != metadata["seed"] or any(
+                baseline_config[section] != config[section] for section in ("data", "model", "artifacts", "training")
+            ):
+                raise ValueError("E0036 paired baseline must match seed, data, model, artifacts and training")
+            baseline_checkpoint = baseline_dir / "checkpoints" / "best.pt"
+            baseline_payload = torch.load(baseline_checkpoint, map_location="cpu", weights_only=False)
+            for key, expected in {"experiment_id": "E0036", "run_id": baseline_run_id,
+                                  "config_sha256": baseline_metadata["config_sha256"]}.items():
+                if baseline_payload.get(key) != expected:
+                    raise RuntimeError(f"Baseline checkpoint {key} does not match run metadata")
         report_path = evaluate_checkpoint(
             config, window, checkpoint, _stats_path(config, window),
+            baseline_checkpoint=baseline_checkpoint,
             save_predictions=args.final_test, device_name=args.device, split_name=split,
             output_dir=run_dir, autoencoder_path=artifact,
         )

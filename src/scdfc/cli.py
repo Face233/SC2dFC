@@ -200,6 +200,7 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate_run.add_argument("--split", choices=["train", "val"], default="val")
     evaluate_run.add_argument("--final-test", action="store_true")
     evaluate_run.add_argument("--device")
+    evaluate_run.add_argument("--baseline-run-id", help="E0036 FC1-only run for paired E0037 validation comparison")
     evaluate_run.set_defaults(function=command_evaluate_run)
 
     dynamic_audit = subparsers.add_parser("dynamic-audit", help="Audit dynamic amplitude and temporal power on train/validation data")

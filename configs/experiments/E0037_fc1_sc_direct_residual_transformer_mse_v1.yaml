@@ -1,0 +1,17 @@
+base: E0036_fc1_direct_residual_transformer_mse_v1.yaml
+
+experiment:
+  id: E0037
+  name: fc1_sc_direct_residual_transformer_mse_v1
+  level: 1
+  task: sequence
+  research_question: 在相同直接残差Transformer和纯MSE训练协议下，匹配被试的SC是否提供FC1之外的长期预测或时间轨迹信息？
+  hypothesis: 若SC有FC1以外的可用信息，E0037相对E0036将改善长期边MSE或真实时间相关，且匹配SC优于交换SC。
+  primary_change: 相对E0036仅启用编码后的真实被试SC-GCN表示；E0032基线、FC encoder、concat投影、Transformer、残差边头、损失、预算和选模规则保持一致。
+  baseline: E0036
+  owner: Face88
+  status: planned
+  ablation: full
+
+decision_rule:
+  description: 完成150轮并用验证集t=17:223的边MSE选模；与同seed的E0036做被试级配对MSE和逐边时间Pearson比较，并执行冻结模型SC交换诊断。只有匹配SC提升预测指标且交换SC削弱表现时，才支持SC的增量价值；不查看测试集。

@@ -4,7 +4,8 @@ import pytest
 import torch
 import numpy as np
 
-from scdfc.training import AutoencoderLoss, CompositeLoss, learning_rate_scale, long_horizon_variance_loss
+from scdfc.training import AutoencoderLoss, CompositeLoss, build_sequence_model, learning_rate_scale, long_horizon_variance_loss, loss_inputs
+from scdfc.management import file_sha256
 from scdfc.evaluation import _load_model
 from scdfc.models import CommonInputLSTM, CommonInputMLP, ConditionalSequenceModel, FCAutoencoder, HCPGCNEncoder, PCARidgeBaseline
 from scdfc.models.baselines import DirectSCMLP, GCNGRUBaseline
@@ -96,6 +97,67 @@ def test_information_ablation_zeros_embeddings_after_encoding(ablation, zero_sli
     model(sc, edges, torch.rand(2, 6))
     handle.remove()
     assert torch.count_nonzero(captured["combined"][:, zero_slice]) == 0
+
+
+def test_e0032_residual_model_replays_alpha_and_uses_only_matched_sc():
+    torch.manual_seed(7)
+    autoencoder = FCAutoencoder(6, latent_dim=4, dropout=0)
+    template = torch.arange(18, dtype=torch.float32).reshape(3, 6) / 10
+    context = torch.full((6,), 0.2)
+    alpha = torch.tensor([1.0, 0.5, 0.0])
+    model = ConditionalSequenceModel(
+        autoencoder, template, decoder_type="transformer", n_nodes=4, hidden_dim=4,
+        transformer_layers=1, transformer_heads=2, transformer_ffn_dim=16,
+        sc_encoder_type="hcp_gcn", hcp_gcn_hidden_dim=8, hcp_gcn_output_dim=4,
+        output_head="direct_edge_linear", output_decomposition="e0032_decay_residual",
+        context_template=context, decay_alpha=alpha, fusion_type="concat_projection",
+        ablation="fc1_only", dropout=0,
+    ).eval()
+    warmup = torch.arange(12, dtype=torch.float32).reshape(2, 6) / 10
+    sc = torch.rand(2, 4, 4)
+    sc = (sc + sc.transpose(1, 2)) / 2
+    edges = sc[:, torch.triu_indices(4, 4, 1)[0], torch.triu_indices(4, 4, 1)[1]]
+    first = model(sc, edges, warmup)
+    expected_baseline = template[None] + alpha[None, :, None] * (warmup - context)[:, None]
+    torch.testing.assert_close(first.residual_baseline, expected_baseline)
+    torch.testing.assert_close(first.fc_z_edges, expected_baseline + first.dynamic_residual)
+    prediction, target = loss_inputs(first, first.fc_z_edges + 0.25)
+    torch.testing.assert_close(prediction, first.dynamic_residual)
+    torch.testing.assert_close(target, first.dynamic_residual + 0.25)
+    torch.testing.assert_close(model(sc.flip(0), edges.flip(0), warmup).fc_z_edges, first.fc_z_edges)
+    model.condition_encoder.ablation = "full"
+    assert not torch.allclose(model(sc.flip(0), edges.flip(0), warmup).fc_z_edges,
+                              model(sc, edges, warmup).fc_z_edges)
+
+
+def test_e0032_sequence_builder_verifies_frozen_alpha_artifact(tmp_path):
+    autoencoder = FCAutoencoder(6, latent_dim=4, dropout=0)
+    autoencoder_path = tmp_path / "autoencoder.pt"
+    torch.save({"model": autoencoder.state_dict()}, autoencoder_path)
+    stats_path = tmp_path / "training_stats.npz"
+    np.savez_compressed(stats_path, group_template=np.zeros((3, 6), np.float32),
+                        context_template=np.zeros(6, np.float32), fc_mean=np.zeros(6, np.float32),
+                        sc_mean=np.zeros(6, np.float32), sc_std=np.ones(6, np.float32))
+    alpha_path = tmp_path / "alpha_fit.npz"
+    np.savez_compressed(alpha_path, alpha=np.array([1.0, 0.5, 0.0], np.float32))
+    config = {
+        "paths": {"root": str(tmp_path)},
+        "data": {"n_nodes": 4, "warmup_windows": 1},
+        "model": {"fc_latent_dim": 4, "hidden_dim": 4, "dropout": 0.0,
+                  "sc_graph_layers": 1, "sc_graph_heads": 2,
+                  "transformer_layers": 1, "transformer_heads": 2, "transformer_ffn_dim": 16,
+                  "tcn_dilations": [1], "sc_encoder": "hcp_gcn", "hcp_gcn_hidden_dim": 8,
+                  "hcp_gcn_output_dim": 4, "output_head": "direct_edge_linear",
+                  "output_decomposition": "e0032_decay_residual", "fusion_type": "concat_projection"},
+        "artifacts": {"alpha_fit": {"path": str(alpha_path), "sha256": file_sha256(alpha_path)}},
+    }
+    model = build_sequence_model(config, 3, "transformer", stats_path, torch.device("cpu"),
+                                 autoencoder_path=autoencoder_path, ablation="fc1_only")
+    torch.testing.assert_close(model.decay_alpha, torch.tensor([1.0, 0.5, 0.0]))
+    config["artifacts"]["alpha_fit"]["sha256"] = "wrong"
+    with pytest.raises(ValueError, match="checksum mismatch"):
+        build_sequence_model(config, 3, "transformer", stats_path, torch.device("cpu"),
+                             autoencoder_path=autoencoder_path, ablation="fc1_only")
 
 
 def test_warmup_gru_encodes_multiple_fc_windows_and_backpropagates():

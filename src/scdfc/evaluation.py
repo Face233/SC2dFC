@@ -80,6 +80,7 @@ def sequence_metrics(
         "edge_huber": edge_huber,
         "difference_huber": difference_huber,
         "mse": edge_mse,
+        "long_edge_mse": float(np.mean((prediction[nonoverlap:] - target[nonoverlap:]) ** 2)),
         "mae": float(np.mean(np.abs(prediction - target))),
         "raw_edge_pearson": float(np.nanmean(raw_corr)),
         "raw_edge_spearman": float(np.nanmean(raw_spearman)),
@@ -111,6 +112,54 @@ def context_residual_zero_prediction(
         raise ValueError("Template dimensions do not match the prediction target")
     offset = warmup - context_template[None]
     return template[None, : target_shape[1]] + offset[:, None]
+
+
+def e0032_zero_residual_prediction(
+    warmup: np.ndarray, template: np.ndarray, context_template: np.ndarray,
+    alpha: np.ndarray, target_shape: tuple[int, ...],
+) -> np.ndarray:
+    """Replay the frozen E0032 baseline for a batch of first-window FC inputs."""
+    if warmup.ndim == 3:
+        warmup = warmup[:, -1]
+    if warmup.shape != (target_shape[0], target_shape[2]) or context_template.shape != (target_shape[2],):
+        raise ValueError("E0032 warmup/context dimensions do not match targets")
+    if template.shape[0] < target_shape[1] or len(alpha) < target_shape[1]:
+        raise ValueError("E0032 template/alpha do not cover the prediction horizon")
+    return template[None, :target_shape[1]] + alpha[None, :target_shape[1], None] * (warmup - context_template[None])[:, None]
+
+
+def _edge_time_pearson(prediction: np.ndarray, target: np.ndarray) -> tuple[float | None, float]:
+    """Mean edgewise temporal Pearson, excluding flat edges."""
+    left = prediction - prediction.mean(0, keepdims=True)
+    right = target - target.mean(0, keepdims=True)
+    norm_left = np.linalg.norm(left, axis=0)
+    norm_right = np.linalg.norm(right, axis=0)
+    valid = (norm_left > 1e-7) & (norm_right > 1e-7)
+    if not np.any(valid):
+        return None, 0.0
+    values = np.sum(left[:, valid] * right[:, valid], axis=0) / (norm_left[valid] * norm_right[valid])
+    return float(np.mean(np.clip(values, -1, 1))), float(np.mean(valid))
+
+
+def _e0032_sequence_diagnostics(
+    prediction: np.ndarray, target: np.ndarray, baseline: np.ndarray,
+    template: np.ndarray, nonoverlap: int,
+) -> dict[str, float | None]:
+    pred, true = prediction[nonoverlap:], target[nonoverlap:]
+    pred_residual, true_residual = pred - baseline[nonoverlap:], true - baseline[nonoverlap:]
+    pred_dynamic = pred_residual - pred_residual.mean(0, keepdims=True)
+    true_dynamic = true_residual - true_residual.mean(0, keepdims=True)
+    raw_corr, raw_valid = _edge_time_pearson(pred, true)
+    adjusted_corr, adjusted_valid = _edge_time_pearson(pred - template[nonoverlap:], true - template[nonoverlap:])
+    dynamic_corr, dynamic_valid = _edge_time_pearson(pred_dynamic, true_dynamic)
+    diff_corr, diff_valid = _edge_time_pearson(np.diff(pred_dynamic, axis=0), np.diff(true_dynamic, axis=0))
+    return {
+        "time_pearson": raw_corr, "time_pearson_valid_fraction": raw_valid,
+        "template_adjusted_time_pearson": adjusted_corr, "template_adjusted_valid_fraction": adjusted_valid,
+        "dynamic_time_pearson": dynamic_corr, "dynamic_valid_fraction": dynamic_valid,
+        "dynamic_difference_time_pearson": diff_corr, "difference_valid_fraction": diff_valid,
+        "dynamic_std_ratio": float(np.std(pred_dynamic) / max(np.std(true_dynamic), 1e-12)),
+    }
 
 
 @torch.no_grad()
@@ -330,6 +379,8 @@ def projection_report(z_edges: np.ndarray, n_nodes: int = 90, epsilon: float = 1
 def _load_model(config, window_length, checkpoint, stats_path, device, autoencoder_path=None):
     """按检查点记录的模型类型恢复模型和参数。"""
     payload = torch.load(checkpoint, map_location=device, weights_only=False)
+    if payload.get("output_decomposition") == "e0032_decay_residual" and payload.get("alpha_fit_sha256") != config.get("artifacts", {}).get("alpha_fit", {}).get("sha256"):
+        raise ValueError("Checkpoint E0032 alpha artifact checksum differs from evaluation config")
     model = build_sequence_model(
         config,
         window_length,
@@ -375,6 +426,33 @@ def collect_predictions(model, loader, device):
         subjects.extend(batch["subject_id"])
         runs.extend(batch["run_name"])
     return np.concatenate(predictions), np.concatenate(targets), subjects, runs
+
+
+@torch.no_grad()
+def collect_sc_swapped_predictions(model, dataset: DFCSequenceDataset, device: torch.device, batch_size: int) -> np.ndarray:
+    """Keep each FC1 fixed while replacing SC with another subject's SC."""
+    subjects = [subject for subject, _run in dataset.samples]
+    if len(set(subjects)) < 2:
+        raise ValueError("SC swap requires at least two subjects")
+    replacements = []
+    for index, subject in enumerate(subjects):
+        candidate = (index + max(1, len(subjects) // 2)) % len(subjects)
+        while subjects[candidate] == subject:
+            candidate = (candidate + 1) % len(subjects)
+        replacements.append(candidate)
+    outputs = []
+    for start in range(0, len(dataset), batch_size):
+        indices = range(start, min(start + batch_size, len(dataset)))
+        own = [dataset[index] for index in indices]
+        other = [dataset[replacements[index]] for index in indices]
+        result = model(
+            torch.stack([sample["sc_matrix"] for sample in other]).to(device),
+            torch.stack([sample["sc_edges"] for sample in other]).to(device),
+            torch.stack([sample["fc_warmup"] for sample in own]).to(device),
+            steps=own[0]["fc_future"].shape[0],
+        )
+        outputs.append(result.fc_z_edges.cpu().numpy())
+    return np.concatenate(outputs)
 
 
 def _dynamic_audit_aggregate(rows: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
@@ -458,6 +536,10 @@ def dynamic_audit_checkpoint(
     if getattr(model, "output_decomposition", "direct") == "group_template_context_residual":
         methods["context_residual_zero"] = context_residual_zero_prediction(
             warmup, template, model.context_template.cpu().numpy(), target.shape
+        )
+    elif getattr(model, "output_decomposition", "direct") == "e0032_decay_residual":
+        methods["e0032_zero_residual"] = e0032_zero_residual_prediction(
+            warmup, template, model.context_template.cpu().numpy(), model.decay_alpha.cpu().numpy(), target.shape
         )
     nonoverlap = nonoverlap_horizon(window_length, int(config["data"]["stride"]))
     interval = float(config["data"]["stride"]) * float(config["data"]["tr_seconds"])
@@ -568,9 +650,14 @@ def evaluate_checkpoint(
     template = model.group_template.cpu().numpy()
     warmup = np.stack([test[index]["fc_warmup"].numpy() for index in range(len(test))])
     residual_baselines = None
-    if getattr(model, "output_decomposition", "direct") == "group_template_context_residual":
+    decomposition = getattr(model, "output_decomposition", "direct")
+    if decomposition == "group_template_context_residual":
         residual_baselines = context_residual_zero_prediction(
             warmup, template, model.context_template.cpu().numpy(), targets.shape
+        )
+    elif decomposition == "e0032_decay_residual":
+        residual_baselines = e0032_zero_residual_prediction(
+            warmup, template, model.context_template.cpu().numpy(), model.decay_alpha.cpu().numpy(), targets.shape
         )
     nonoverlap = nonoverlap_horizon(window_length, int(config["data"]["stride"]))
     metric_kwargs = {
@@ -579,10 +666,14 @@ def evaluate_checkpoint(
         "loss_type": str(config["training"].get("loss_type", "mse")),
     }
     rows = [sequence_metrics(p, t, template, nonoverlap, **metric_kwargs) for p, t in zip(predictions, targets)]
+    if decomposition == "e0032_decay_residual":
+        for row, pred, true, baseline in zip(rows, predictions, targets, residual_baselines):
+            row.update(_e0032_sequence_diagnostics(pred, true, baseline, template, nonoverlap))
     state_model = fit_state_model(train, int(config["evaluation"]["state_clusters"]), int(config["seed"]))
     for row, pred, true in zip(rows, predictions, targets):
         row.update(dynamic_state_metrics(state_model.predict(pred), state_model.predict(true), state_model.n_clusters))
-    aggregate = {key: float(np.mean([row[key] for row in rows])) for key in rows[0]}
+    aggregate = {key: (float(np.mean([row[key] for row in rows if row[key] is not None]))
+                       if any(row[key] is not None for row in rows) else None) for key in rows[0]}
     aggregate.update(retrieval_metrics(predictions, targets, template, nonoverlap, subjects))
     objective_config = deepcopy(config)
     recorded_loss_type = payload.get("loss_type")
@@ -607,11 +698,15 @@ def evaluate_checkpoint(
         "fc1_persistence": np.broadcast_to(warmup[:, None], targets.shape),
     }
     if residual_baselines is not None:
-        analytic["context_residual_zero"] = residual_baselines
+        analytic["e0032_zero_residual" if decomposition == "e0032_decay_residual" else "context_residual_zero"] = residual_baselines
     analytic_reports = {}
     for name, baseline_prediction in analytic.items():
         baseline_rows = [sequence_metrics(p, t, template, nonoverlap, **metric_kwargs) for p, t in zip(baseline_prediction, targets)]
-        analytic_reports[name] = {key: float(np.mean([row[key] for row in baseline_rows])) for key in baseline_rows[0]}
+        if decomposition == "e0032_decay_residual":
+            for row, pred, true, baseline in zip(baseline_rows, baseline_prediction, targets, residual_baselines):
+                row.update(_e0032_sequence_diagnostics(pred, true, baseline, template, nonoverlap))
+        analytic_reports[name] = {key: (float(np.mean([row[key] for row in baseline_rows if row[key] is not None]))
+                                      if any(row[key] is not None for row in baseline_rows) else None) for key in baseline_rows[0]}
     projection_rows = [projection_report(p, int(config["data"]["n_nodes"]), float(config["evaluation"]["projection_epsilon"]))[1] for p in predictions]
     aggregate.update({f"projection_{key}": float(np.mean([row[key] for row in projection_rows])) for key in projection_rows[0]})
     report: dict[str, Any] = {
@@ -620,7 +715,7 @@ def evaluate_checkpoint(
         "checkpoint_selection": {
             "metrics": payload.get("validation_metrics"),
             "best_epoch": payload.get("epoch"), "epoch_index_base": 0, "split": "val",
-            "definition": payload.get("objective_definition", {"implementation": "historical; see checkpoint and training log"}),
+            "definition": payload.get("selection_definition", payload.get("objective_definition", {"implementation": "historical; see checkpoint and training log"})),
         },
         "checkpoint": str(Path(checkpoint).resolve()),
         "split": split_name,
@@ -631,6 +726,39 @@ def evaluate_checkpoint(
         "analytic_baselines": analytic_reports,
         "per_sample": [{"subject_id": s, "run": r, **m} for s, r, m in zip(subjects, runs, rows)],
     }
+    if decomposition == "e0032_decay_residual":
+        report["bootstrap_loss_differences"] = {
+            "model_vs_e0032": subject_bootstrap_loss_difference(
+                np.asarray([row["long_edge_mse"] for row in rows]),
+                np.mean((residual_baselines[:, nonoverlap:] - targets[:, nonoverlap:]) ** 2, axis=(1, 2)),
+                subjects, int(config["evaluation"].get("bootstrap_replicates", 2000)), int(config["seed"]),
+            )
+        }
+        boundaries = [("overlap_context", 0, nonoverlap), ("early_long", nonoverlap, 85),
+                      ("middle_long", 85, 154), ("late_long", 154, targets.shape[1])]
+        report["horizon_metrics"] = {
+            name: {segment: {"start_index": start, "stop_index_exclusive": min(stop, targets.shape[1]),
+                             "mse": float(np.mean((values[:, start:min(stop, targets.shape[1])] - targets[:, start:min(stop, targets.shape[1])]) ** 2))}
+                   for segment, start, stop in boundaries if start < min(stop, targets.shape[1])}
+            for name, values in {"model": predictions, "e0032_zero_residual": residual_baselines}.items()
+        }
+        if payload.get("ablation") == "full":
+            swapped = collect_sc_swapped_predictions(model, test, device, int(config["training"]["batch_size"]))
+            swapped_long = np.mean((swapped[:, nonoverlap:] - targets[:, nonoverlap:]) ** 2, axis=(1, 2))
+            matched_long = np.asarray([row["long_edge_mse"] for row in rows])
+            swapped_time = [
+                _edge_time_pearson(pred[nonoverlap:], true[nonoverlap:])[0]
+                for pred, true in zip(swapped, targets)
+            ]
+            report["sc_swap_diagnostic"] = {
+                "swapped_long_edge_mse": float(np.mean(swapped_long)),
+                "swapped_time_pearson": float(np.mean([value for value in swapped_time if value is not None])),
+                "matched_minus_swapped_long_mse": subject_bootstrap_loss_difference(
+                    matched_long, swapped_long, subjects,
+                    int(config["evaluation"].get("bootstrap_replicates", 2000)), int(config["seed"]),
+                ),
+                "output_change_mse": float(np.mean((predictions - swapped) ** 2)),
+            }
     if baseline_checkpoint:
         baseline_model, baseline_payload = _load_model(config, window_length, baseline_checkpoint, Path(stats_path), device, autoencoder_path)
         baseline_test = DFCSequenceDataset(config, window_length, split_name, stats_path, baseline_payload.get("ablation", "fc1_only"))
@@ -638,9 +766,26 @@ def evaluate_checkpoint(
         baseline_predictions, baseline_targets, baseline_subjects, _ = collect_predictions(baseline_model, baseline_loader, device)
         if subjects != baseline_subjects:
             raise ValueError("Main and baseline checkpoints do not cover the same ordered samples")
-        main_scores = np.asarray([row["long_residual_pearson"] for row in rows])
-        baseline_scores = np.asarray([sequence_metrics(p, t, template, nonoverlap, **metric_kwargs)["long_residual_pearson"] for p, t in zip(baseline_predictions, baseline_targets)])
-        report["success_gate"] = subject_bootstrap_difference(main_scores, baseline_scores, subjects, int(config["evaluation"]["bootstrap_replicates"]), int(config["seed"]))
+        if decomposition == "e0032_decay_residual":
+            main_long = np.asarray([row["long_edge_mse"] for row in rows])
+            baseline_long = np.mean((baseline_predictions[:, nonoverlap:] - targets[:, nonoverlap:]) ** 2, axis=(1, 2))
+            main_time = np.asarray([row["time_pearson"] for row in rows], dtype=float)
+            baseline_time = np.asarray([_edge_time_pearson(pred[nonoverlap:], true[nonoverlap:])[0]
+                                        for pred, true in zip(baseline_predictions, targets)], dtype=float)
+            valid = np.isfinite(main_time) & np.isfinite(baseline_time)
+            report["paired_model_comparison"] = {
+                "baseline_checkpoint": str(Path(baseline_checkpoint).resolve()),
+                "long_edge_mse": subject_bootstrap_loss_difference(
+                    main_long, baseline_long, subjects,
+                    int(config["evaluation"]["bootstrap_replicates"]), int(config["seed"])),
+                "time_pearson": subject_bootstrap_difference(
+                    main_time[valid], baseline_time[valid], np.asarray(subjects)[valid],
+                    int(config["evaluation"]["bootstrap_replicates"]), int(config["seed"])) if np.any(valid) else None,
+            }
+        else:
+            main_scores = np.asarray([row["long_residual_pearson"] for row in rows])
+            baseline_scores = np.asarray([sequence_metrics(p, t, template, nonoverlap, **metric_kwargs)["long_residual_pearson"] for p, t in zip(baseline_predictions, baseline_targets)])
+            report["success_gate"] = subject_bootstrap_difference(main_scores, baseline_scores, subjects, int(config["evaluation"]["bootstrap_replicates"]), int(config["seed"]))
     output_dir = Path(output_dir) if output_dir is not None else Path(checkpoint).resolve().parent
     report_path = output_dir / f"evaluation_{split_name}.json"
     report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")

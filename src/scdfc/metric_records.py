@@ -41,3 +41,14 @@ def sequence_objective_definition(config: dict[str, Any], nonoverlap: int) -> di
         "batch_size": int(training["batch_size"]),
         "aggregation": "sample-weighted batch mean; contrastive negatives within each ordered batch",
     }
+
+
+def sequence_selection_definition(config: dict[str, Any], nonoverlap: int) -> dict[str, Any]:
+    if config["evaluation"]["primary_metric"] == "long_edge_mse":
+        return {
+            "implementation": "sequence_validation_long_edge_mse/v1",
+            "split": "val",
+            "nonoverlap_start": nonoverlap,
+            "aggregation": "mean squared Fisher-z edge error per subject/run, then mean over samples",
+        }
+    return sequence_objective_definition(config, nonoverlap)

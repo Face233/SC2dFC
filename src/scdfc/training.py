@@ -19,7 +19,8 @@ from .models import ConditionalSequenceModel, FCAutoencoder
 from .models.baselines import CommonInputLSTM, CommonInputMLP, DirectSCMLP, GCNGRUBaseline, PCARidgeBaseline
 from .models.sequence import torch_edges_to_matrix
 from .progress import append_jsonl, emit
-from .metric_records import selection_record, sequence_objective_definition
+from .metric_records import selection_record, sequence_objective_definition, sequence_selection_definition
+from .management import verify_decay_artifact
 
 
 def learning_rate_scale(schedule: dict[str, Any], epoch: int, max_epochs: int) -> float:
@@ -427,8 +428,15 @@ def build_sequence_model(
     warmup_windows = int((checkpoint_payload or {}).get("warmup_windows", config.get("data", {}).get("warmup_windows", 1)))
     group_template = torch.from_numpy(group_template_for_warmup(stats, warmup_windows))
     output_decomposition = str((checkpoint_payload or {}).get("output_decomposition", model_cfg.get("output_decomposition", "direct")))
-    if output_decomposition == "group_template_context_residual" and warmup_windows != 1:
-        raise ValueError("group_template_context_residual currently requires data.warmup_windows=1")
+    if output_decomposition in {"group_template_context_residual", "e0032_decay_residual"} and warmup_windows != 1:
+        raise ValueError(f"{output_decomposition} requires data.warmup_windows=1")
+    decay_alpha = None
+    if output_decomposition == "e0032_decay_residual":
+        decay_path = verify_decay_artifact(config)
+        with np.load(decay_path) as decay_artifact:
+            decay_alpha = np.asarray(decay_artifact["alpha"], dtype=np.float32)
+        if decay_alpha.ndim != 1 or len(decay_alpha) != len(group_template) or not np.isfinite(decay_alpha).all():
+            raise ValueError("E0032 alpha length or values do not match the future template")
     if decoder_type == "pca_ridge":
         if checkpoint_payload is None:
             raise ValueError("A fitted checkpoint payload is required to build pca_ridge")
@@ -473,6 +481,8 @@ def build_sequence_model(
         context_template=torch.from_numpy(stats.get("context_template", stats["fc_mean"])),
         warmup_encoder=str((checkpoint_payload or {}).get("warmup_encoder", model_cfg.get("warmup_encoder", "none"))),
         warmup_gru_layers=int((checkpoint_payload or {}).get("warmup_gru_layers", model_cfg.get("warmup_gru_layers", 1))),
+        fusion_type=str((checkpoint_payload or {}).get("fusion_type", model_cfg.get("fusion_type", "gated"))),
+        decay_alpha=None if decay_alpha is None else torch.from_numpy(decay_alpha),
     ).to(device)
 
 
@@ -575,6 +585,7 @@ def validate_sequence(
     component_totals: dict[str, float] = {name: 0.0 for name in criterion.weights}
     count = 0
     residual_scores = []
+    long_squared_error = 0.0
     for batch in loader:
         output = model(batch["sc_matrix"].to(device), batch["sc_edges"].to(device), batch["fc_warmup"].to(device))
         target = batch["fc_future"].to(device)
@@ -586,9 +597,11 @@ def validate_sequence(
             component_totals[name] += float(value) * batch_size
         count += batch_size
         residual_scores.extend(_long_residual_score(output.fc_z_edges, target, model.group_template, nonoverlap).cpu().tolist())
+        long_squared_error += float((output.fc_z_edges[:, nonoverlap:] - target[:, nonoverlap:]).square().mean(dim=(1, 2)).sum())
     metrics = {
         "objective_loss": total / max(count, 1),
         "long_residual_pearson": float(np.mean(residual_scores)),
+        "long_edge_mse": long_squared_error / max(count, 1),
     }
     metrics.update({f"validation_{name}_loss": value / max(count, 1) for name, value in component_totals.items()})
     return metrics
@@ -675,9 +688,9 @@ def train_sequence_model(
     last_checkpoint = checkpoint_dir / "last.pt"
     log_path = output_dir / "train.log"
     primary_metric = str(config.get("evaluation", {}).get("primary_metric", "long_residual_pearson"))
-    if primary_metric not in {"objective_loss", "long_residual_pearson"}:
-        raise ValueError("Sequence primary_metric must be objective_loss or long_residual_pearson")
-    minimize = primary_metric == "objective_loss"
+    if primary_metric not in {"objective_loss", "long_residual_pearson", "long_edge_mse"}:
+        raise ValueError("Sequence primary_metric must be objective_loss, long_residual_pearson or long_edge_mse")
+    minimize = primary_metric in {"objective_loss", "long_edge_mse"}
     if bool(config["training"].get("finetune_fc_decoder", False)):
         raise ValueError(
             "FC decoder fine-tuning is disabled: the pretrained FC encoder and reconstruction decoder "
@@ -739,7 +752,10 @@ def train_sequence_model(
                 "sc_encoder_type": sc_encoder_type, "ablation": ablation, "window_length": window_length,
                 "validation_metrics": validation_metrics, "output_head": str(config["model"].get("output_head", "e0003_reconstruction_decoder")),
                 "output_decomposition": str(config["model"].get("output_decomposition", "direct")),
+                "fusion_type": str(config["model"].get("fusion_type", "gated")),
+                "alpha_fit_sha256": config.get("artifacts", {}).get("alpha_fit", {}).get("sha256"),
                 "objective_definition": sequence_objective_definition(config, nonoverlap),
+                "selection_definition": sequence_selection_definition(config, nonoverlap),
                 "warmup_windows": int(config.get("data", {}).get("warmup_windows", 1)),
                 "warmup_encoder": str(config["model"].get("warmup_encoder", "none")),
                 "warmup_gru_layers": int(config["model"].get("warmup_gru_layers", 1)),
@@ -780,7 +796,10 @@ def train_sequence_model(
                 "sc_encoder_type": sc_encoder_type, "ablation": ablation, "window_length": window_length,
                 "validation_metrics": validation_metrics, "output_head": str(config["model"].get("output_head", "e0003_reconstruction_decoder")),
                 "output_decomposition": str(config["model"].get("output_decomposition", "direct")),
+                "fusion_type": str(config["model"].get("fusion_type", "gated")),
+                "alpha_fit_sha256": config.get("artifacts", {}).get("alpha_fit", {}).get("sha256"),
                 "objective_definition": sequence_objective_definition(config, nonoverlap),
+                "selection_definition": sequence_selection_definition(config, nonoverlap),
                 "loss_type": criterion.loss_type,
                 "fc_reconstruction_decoder_frozen": True,
             }
@@ -788,12 +807,12 @@ def train_sequence_model(
             torch.save(last_payload, last_checkpoint)
     (output_dir / "metrics_best.json").write_text(
         json.dumps(selection_record(best_validation_metrics, primary_metric, best_epoch,
-            definition=sequence_objective_definition(config, nonoverlap)), indent=2), encoding="utf-8"
+            definition=sequence_selection_definition(config, nonoverlap)), indent=2), encoding="utf-8"
     )
     (output_dir / "metrics_last.json").write_text(
         json.dumps({"schema_version": 2, "kind": "last_validation", "split": "val",
             "metrics": validation_metrics, "primary_metric": primary_metric, "last_epoch": epoch,
-            "epoch_index_base": 0, "metric_definition": sequence_objective_definition(config, nonoverlap)}, indent=2), encoding="utf-8"
+            "epoch_index_base": 0, "metric_definition": sequence_selection_definition(config, nonoverlap)}, indent=2), encoding="utf-8"
     )
     emit("train_finished", task="sequence", model=decoder_type, best_epoch=best_epoch + 1, primary_metric=primary_metric, best_primary_value=best, checkpoint=str(checkpoint))
     return checkpoint

@@ -117,8 +117,8 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
     if model_name not in allowed_models[task]:
         raise ValueError(f"model.name {model_name!r} is not valid for task {task!r}")
     primary_metric = str(config["evaluation"]["primary_metric"])
-    if task == "sequence" and primary_metric not in {"objective_loss", "long_residual_pearson"}:
-        raise ValueError("Sequence primary_metric must be objective_loss or long_residual_pearson")
+    if task == "sequence" and primary_metric not in {"objective_loss", "long_residual_pearson", "long_edge_mse"}:
+        raise ValueError("Sequence primary_metric must be objective_loss, long_residual_pearson or long_edge_mse")
     if task == "autoencoder" and primary_metric != "validation_loss":
         raise ValueError("Autoencoder experiments must use validation_loss as the primary metric")
     if task == "residual_ridge":
@@ -156,6 +156,21 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
     if not config.get("decision_rule", {}).get("description"):
         raise ValueError("Managed configs require decision_rule.description")
     if task == "sequence":
+        model = config.get("model", {})
+        if model.get("output_decomposition") == "e0032_decay_residual":
+            if model_name != "transformer" or model.get("output_head") != "direct_edge_linear" or model.get("sc_encoder") != "hcp_gcn" or model.get("fusion_type") != "concat_projection":
+                raise ValueError("E0032 decay residual requires transformer, direct_edge_linear, hcp_gcn and concat_projection")
+            if int(data.get("warmup_windows", 1)) != 1 or primary_metric != "long_edge_mse":
+                raise ValueError("E0032 decay residual requires one FC warmup and long_edge_mse selection")
+            if experiment.get("ablation") not in {"fc1_only", "full"}:
+                raise ValueError("E0032 decay residual requires fc1_only or full ablation")
+            if str(config.get("training", {}).get("loss_type", "mse")) != "mse" or config.get("training", {}).get("loss_weights", {}).get("edge") != 1.0 or any(
+                float(value) != 0 for key, value in config.get("training", {}).get("loss_weights", {}).items() if key != "edge"
+            ):
+                raise ValueError("E0032 decay residual requires pure edge MSE")
+            reference = config.get("artifacts", {}).get("alpha_fit", {})
+            if any(not reference.get(key) for key in ("id", "path", "sha256")):
+                raise ValueError("E0032 decay residual requires artifacts.alpha_fit.id, path and sha256")
         if bool(config.get("training", {}).get("finetune_fc_decoder", False)):
             raise ValueError(
                 "FC decoder fine-tuning is not supported by the current experiment policy; "
