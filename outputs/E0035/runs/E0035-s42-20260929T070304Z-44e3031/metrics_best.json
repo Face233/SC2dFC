@@ -1,0 +1,36 @@
+{
+  "schema_version": 2,
+  "kind": "selection",
+  "split": "val",
+  "primary_metric": "long_edge_mse",
+  "metrics": {
+    "long_edge_mse": 0.1829198334083657,
+    "zero_dynamic_long_edge_mse": 0.1828705860488615,
+    "e0032_long_edge_mse": 0.1858010619312902,
+    "dynamic_mse": 0.12802947288967836,
+    "zero_dynamic_mse": 0.12799426427559008,
+    "pca_oracle_dynamic_mse": 0.08755006263904934,
+    "time_pearson": 0.0662065275451905,
+    "zero_dynamic_time_pearson": 0.07047343172245747,
+    "time_pearson_valid_fraction": 1.0,
+    "template_adjusted_time_pearson": 0.011133529198911522,
+    "zero_dynamic_template_adjusted_time_pearson": 0.01734303170365286,
+    "template_adjusted_valid_fraction": 1.0,
+    "dynamic_time_pearson": 0.0032821112969013363,
+    "dynamic_valid_fraction": 1.0,
+    "shifted_dynamic_time_pearson": 0.007883296169528412,
+    "dynamic_difference_time_pearson": -0.0009543877399279618,
+    "difference_valid_fraction": 1.0,
+    "dynamic_std_ratio": 0.033072715947354045
+  },
+  "best_epoch": null,
+  "epoch_index_base": 0,
+  "metric_definition": {
+    "implementation": "encoded_dynamic_residual_ridge/v1",
+    "split": "val",
+    "include_stable": true,
+    "nonoverlap_start": 17,
+    "parameters_selected_on": "grouped_train_cv"
+  },
+  "source": "dynamic_ridge_validation"
+}

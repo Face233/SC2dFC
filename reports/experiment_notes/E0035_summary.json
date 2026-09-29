@@ -1,0 +1,56 @@
+{
+  "experiment_id": "E0035",
+  "primary_metric": "long_edge_mse",
+  "completed_runs": 1,
+  "split": "val",
+  "metric_source": "selection",
+  "metric_definition": {
+    "implementation": "encoded_dynamic_residual_ridge/v1",
+    "split": "val",
+    "include_stable": true,
+    "nonoverlap_start": 17,
+    "parameters_selected_on": "grouped_train_cv"
+  },
+  "failed_runs": 0,
+  "mean": 0.1829198334083657,
+  "std": 0.0,
+  "preprocessing": {
+    "dataset_version": "dataset_lr_v1",
+    "preprocessing_version": "preprocess_lr_v1",
+    "split_version": "split_lr_v1",
+    "window_length_tr": 83,
+    "stride_tr": 5,
+    "tr_seconds": 0.72,
+    "window_length_seconds": 59.76,
+    "stride_seconds": 3.5999999999999996,
+    "n_timepoints": 1200,
+    "n_dfc_windows_per_run": 224,
+    "n_nodes": 90,
+    "fisher_clip": 0.999999,
+    "estimator": "rectangular_pearson",
+    "fc_representation": "Fisher-z transformed upper-triangle edges",
+    "cache_path": "data/cache/dfc/window_83.zarr"
+  },
+  "runs": [
+    {
+      "schema_version": 1,
+      "experiment_id": "E0035",
+      "run_id": "E0035-s42-20260929T070304Z-44e3031",
+      "seed": 42,
+      "level": 1,
+      "status": "COMPLETED",
+      "started_at": "2026-09-29T07:03:05Z",
+      "config_sha256": "be4065b93c4367716151260a16cfe503fd3056f09f7ef59761e3319dc6e20bc5",
+      "git": {
+        "commit": "44e3031269534d25d7bc894a4b8f90c5834fcf78",
+        "branch": "main",
+        "remote": "https://github.com/Face233/SC2dFC.git",
+        "dirty": false,
+        "status": []
+      },
+      "ended_at": "2026-09-29T07:03:32Z",
+      "checkpoint": "D:\\Code\\Canlab\\HCP_New\\outputs\\E0035\\runs\\E0035-s42-20260929T070304Z-44e3031\\checkpoints\\best.pt"
+    }
+  ],
+  "generated_at": "2026-09-29T07:05:10Z"
+}

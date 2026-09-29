@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "split": "val",
+  "n_subjects": 158,
+  "nonoverlap_start": 17,
+  "device": "cuda",
+  "status": "posthoc exploratory; not part of the registered primary metrics",
+  "dynamic_similarity_definition": "Pearson correlation between each pair of flattened non-overlap trajectories after subtracting each edge's temporal mean per subject",
+  "static_similarity_definition": "Project existing static retrieval: predicted and true mean FC on indices [17,223), subtract group template, center each edge vector, cosine/Pearson rank.",
+  "chance": {
+    "top1": 0.006329113924050633,
+    "top5": 0.03164556962025317,
+    "top10": 0.06329113924050633
+  },
+  "methods": {
+    "E0034": {
+      "dynamic_topk": {
+        "top1": 0.006329113924050633,
+        "top5": 0.02531645569620253,
+        "top10": 0.04430379746835443,
+        "mean_rank": 78.60759493670886,
+        "median_rank": 77.5
+      },
+      "static_topk": {
+        "top1": 0.6708860759493671,
+        "top5": 0.8607594936708861,
+        "top10": 0.9050632911392406,
+        "mean_rank": 4.4113924050632916,
+        "median_rank": 1.0
+      },
+      "mean_diagonal_dynamic_similarity": 0.08164318650960922,
+      "mean_other_subject_dynamic_similarity": 0.07584252209852928,
+      "mean_dynamic_match_margin": 0.005800665788906864,
+      "full_mse_recomputed": 0.17903581261634827
+    },
+    "E0035": {
+      "dynamic_topk": {
+        "top1": 0.006329113924050633,
+        "top5": 0.02531645569620253,
+        "top10": 0.04430379746835443,
+        "mean_rank": 78.60759493670886,
+        "median_rank": 77.5
+      },
+      "static_topk": {
+        "top1": 0.6392405063291139,
+        "top5": 0.7848101265822784,
+        "top10": 0.8924050632911392,
+        "mean_rank": 6.1075949367088604,
+        "median_rank": 1.0
+      },
+      "mean_diagonal_dynamic_similarity": 0.08164319396018982,
+      "mean_other_subject_dynamic_similarity": 0.07584252236764642,
+      "mean_dynamic_match_margin": 0.005800671815058757,
+      "full_mse_recomputed": 0.17631958425045013
+    }
+  },
+  "dynamic_topk_definition": "Rank the matching subject's true de-meaned non-overlap dynamic trajectory against true dynamics from all validation subjects using Pearson similarity"
+}
