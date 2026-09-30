@@ -1,0 +1,88 @@
+{
+  "comparison": "E0039 minus E0036/E0038",
+  "split": "val",
+  "n_samples": 158,
+  "bootstrap_replicates": 10000,
+  "vs_baselines": {
+    "E0036": {
+      "long_edge_mse": {
+        "mean_difference": 0.0028160999092874646,
+        "ci_low": -0.00012122207568793351,
+        "ci_high": 0.005706556256907648,
+        "passes": false,
+        "n_subjects": 158,
+        "replicates": 10000
+      },
+      "time_pearson": {
+        "mean_difference": -3.033138839586909e-05,
+        "ci_low": -7.60307658575711e-05,
+        "ci_high": 1.90457339469296e-05,
+        "passes": false
+      },
+      "template_adjusted_time_pearson": {
+        "mean_difference": -0.0001674661197503616,
+        "ci_low": -0.0010080468976031878,
+        "ci_high": 0.0006755888944213964,
+        "passes": false
+      },
+      "dynamic_time_pearson": {
+        "mean_difference": -0.001957817095634583,
+        "ci_low": -0.007576087759799762,
+        "ci_high": 0.0036857535574849978,
+        "passes": false
+      },
+      "dynamic_difference_time_pearson": {
+        "mean_difference": 0.0002939214856568573,
+        "ci_low": -0.0001780557027535031,
+        "ci_high": 0.0007621326329845492,
+        "passes": false
+      },
+      "dynamic_std_ratio": {
+        "mean_difference": -0.0014938853278238903,
+        "ci_low": -0.0015257951957336664,
+        "ci_high": -0.0014636549891914497,
+        "passes": false
+      }
+    },
+    "E0038": {
+      "long_edge_mse": {
+        "mean_difference": 0.0028423866893671737,
+        "ci_low": 0.00010944728185481665,
+        "ci_high": 0.005562423070586179,
+        "passes": false,
+        "n_subjects": 158,
+        "replicates": 10000
+      },
+      "time_pearson": {
+        "mean_difference": -7.260752594263493e-05,
+        "ci_low": -0.00014785101804499148,
+        "ci_high": 9.240605242114149e-06,
+        "passes": false
+      },
+      "template_adjusted_time_pearson": {
+        "mean_difference": -0.0006606443172661127,
+        "ci_low": -0.0019037835181619281,
+        "ci_high": 0.0005879808894641874,
+        "passes": false
+      },
+      "dynamic_time_pearson": {
+        "mean_difference": -0.0053721411871760485,
+        "ci_low": -0.01178344092188351,
+        "ci_high": 0.0010492009069401227,
+        "passes": false
+      },
+      "dynamic_difference_time_pearson": {
+        "mean_difference": 0.0003886158400504589,
+        "ci_low": -0.0001070867910478147,
+        "ci_high": 0.0008758798092616461,
+        "passes": false
+      },
+      "dynamic_std_ratio": {
+        "mean_difference": -0.0021267983005301074,
+        "ci_low": -0.002183066627572149,
+        "ci_high": -0.0020719634871701476,
+        "passes": false
+      }
+    }
+  }
+}
