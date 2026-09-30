@@ -165,13 +165,18 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
             if experiment.get("ablation") not in {"fc1_only", "full"}:
                 raise ValueError("E0032 decay residual requires fc1_only or full ablation")
             weights = config.get("training", {}).get("loss_weights", {})
+            edge_weight = float(weights.get("edge", 0))
+            difference_weight = float(weights.get("difference", 0))
+            variance_weight = float(weights.get("variance", 0))
             if (
                 str(config.get("training", {}).get("loss_type", "mse")) != "mse"
-                or float(weights.get("edge", 0)) != 1.0
-                or any(float(weights.get(key, 0)) < 0 for key in ("difference", "variance"))
+                or edge_weight not in {0.0, 1.0}
+                or difference_weight < 0
+                or variance_weight < 0
+                or (edge_weight == 0 and (difference_weight == 0 or variance_weight == 0))
                 or any(float(value) != 0 for key, value in weights.items() if key not in {"edge", "difference", "variance"})
             ):
-                raise ValueError("E0032 decay residual requires edge MSE with optional nonnegative difference and variance losses")
+                raise ValueError("E0032 decay residual requires edge MSE with optional nonnegative difference/variance, or positive difference and variance without edge MSE")
             reference = config.get("artifacts", {}).get("alpha_fit", {})
             if any(not reference.get(key) for key in ("id", "path", "sha256")):
                 raise ValueError("E0032 decay residual requires artifacts.alpha_fit.id, path and sha256")

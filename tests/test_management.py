@@ -123,6 +123,23 @@ def test_e0038_changes_only_difference_and_variance_objective():
     assert e0038["experiment"]["ablation"] == "fc1_only"
 
 
+def test_e0039_uses_only_equal_difference_and_variance_weights():
+    base = Path(__file__).resolve().parents[1] / "configs" / "experiments"
+    e0036 = validate_experiment_config(load_config(base / "E0036_fc1_direct_residual_transformer_mse_v1.yaml"))
+    e0039 = validate_experiment_config(load_config(base / "E0039_fc1_direct_residual_transformer_difference_variance_only_v1.yaml"))
+    for section in ("data", "model", "artifacts", "evaluation"):
+        assert e0039[section] == e0036[section]
+    expected_training = dict(e0036["training"])
+    expected_training["loss_weights"] = {
+        **expected_training["loss_weights"], "edge": 0.0, "difference": 1.0, "variance": 1.0,
+    }
+    assert e0039["training"] == expected_training
+    assert e0039["experiment"]["ablation"] == "fc1_only"
+    e0039["training"]["loss_weights"]["variance"] = 0.0
+    with pytest.raises(ValueError, match="positive difference and variance"):
+        validate_experiment_config(e0039)
+
+
 def test_managed_sequence_config_rejects_fc_decoder_finetuning(tmp_path: Path):
     config = managed_config(tmp_path)
     config["experiment"]["task"] = "sequence"
