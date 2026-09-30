@@ -1,0 +1,37 @@
+{
+  "experiments": {
+    "E0032": "E0032-s42-20260923T052241Z-8d7ca92",
+    "E0036": "E0036-s42-20260929T082122Z-b5b871f",
+    "E0038": "E0038-s42-20260929T094027Z-ad7ce6a",
+    "E0039": "E0039-s42-20260930T075338Z-7762d90"
+  },
+  "split": "val",
+  "subjects": [
+    "120010",
+    "188448",
+    "308331",
+    "559457"
+  ],
+  "edge_indices": [
+    357,
+    1733,
+    1756,
+    2619,
+    3096,
+    3438
+  ],
+  "edge_labels": [
+    "Frontal_Sup_Orb_L ↔ Frontal_Inf_Tri_L",
+    "Frontal_Sup_Medial_L ↔ Insula_R",
+    "Frontal_Sup_Medial_L ↔ Occipital_Inf_L",
+    "Hippocampus_L ↔ Temporal_Pole_Sup_L",
+    "Lingual_L ↔ Temporal_Mid_L",
+    "Fusiform_R ↔ Temporal_Mid_L"
+  ],
+  "reference_selection": "D:\\Code\\Canlab\\HCP_New\\outputs\\E0029\\visual\\E0029-s42-20260917T074229Z-8223ba3_val_subjects_6edges.json",
+  "figures": [
+    "D:\\Code\\Canlab\\HCP_New\\outputs\\E0039\\visual\\E0032_E0036_E0038_E0039_multisubject_comparison.png",
+    "D:\\Code\\Canlab\\HCP_New\\outputs\\E0039\\visual\\E0039_validation_metric_comparison.png"
+  ],
+  "note": "E0032 layout and fixed subjects/edges; plots generated from immutable configs and checkpoints."
+}
