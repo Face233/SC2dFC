@@ -1,0 +1,10 @@
+base: E0040_history_k1_full_forecast_v1.yaml
+data:
+  warmup_windows: 5
+experiment:
+  id: E0041
+  name: history_k5_full_forecast_v1
+  research_question: 在相同第20窗截止点与204窗目标下，最近5窗历史是否优于仅最后一窗？
+  hypothesis: 更多历史可能改善空间与时间预测；仅近端或稳定成分改善不代表长期动态预测成功。
+  primary_change: 相对E0040只将K从1改为5；输入第16至20窗，所有模型、标签、损失和预算相同。
+  baseline: E0040

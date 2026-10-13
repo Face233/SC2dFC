@@ -110,14 +110,14 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
     allowed_models = {
         "analytic": {"group_mean", "fc1_persistence", "fc1_decay_template"},
         "autoencoder": {"fc_autoencoder"},
-        "sequence": {"pca_ridge", "mlp", "lstm", "direct_mlp", "gcn_gru", "gru", "tcn", "transformer"},
+        "sequence": {"pca_ridge", "mlp", "lstm", "direct_mlp", "gcn_gru", "gru", "tcn", "transformer", "fc_history_gru_query_residual"},
         "residual_ridge": {"encoded_stable_residual_ridge"},
         "residual_dynamic_ridge": {"encoded_dynamic_residual_ridge"},
     }
     if model_name not in allowed_models[task]:
         raise ValueError(f"model.name {model_name!r} is not valid for task {task!r}")
     primary_metric = str(config["evaluation"]["primary_metric"])
-    if task == "sequence" and primary_metric not in {"objective_loss", "long_residual_pearson", "long_edge_mse"}:
+    if task == "sequence" and primary_metric not in {"objective_loss", "long_residual_pearson", "long_edge_mse", "forecast_nonoverlap_mse"}:
         raise ValueError("Sequence primary_metric must be objective_loss, long_residual_pearson or long_edge_mse")
     if task == "autoencoder" and primary_metric != "validation_loss":
         raise ValueError("Autoencoder experiments must use validation_loss as the primary metric")
@@ -157,6 +157,35 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Managed configs require decision_rule.description")
     if task == "sequence":
         model = config.get("model", {})
+        history_model = model_name == "fc_history_gru_query_residual"
+        if history_model:
+            from .connectivity import nonoverlap_horizon
+            origins = data.get("forecast_origins")
+            k, steps = data.get("warmup_windows"), data.get("forecast_windows")
+            if (not isinstance(origins, list) or len(origins) != 1 or type(origins[0]) is not int
+                    or type(k) is not int or k < 1 or origins[0] < k - 1
+                    or type(steps) is not int or steps < 1):
+                raise ValueError("History forecasts need one common origin, positive K and H, and enough history")
+            windows = (int(data["n_timepoints"]) - int(data["window_length"])) // int(data["stride"]) + 1
+            nonoverlap = nonoverlap_horizon(int(data["window_length"]), int(data["stride"]))
+            if steps != windows - origins[0] - 1 or steps <= nonoverlap + 1:
+                raise ValueError("H must cover all remaining windows and include a nonoverlap interval")
+            if (primary_metric != "forecast_nonoverlap_mse"
+                    or model.get("output_decomposition") != "last_observed_fc_residual"
+                    or experiment.get("ablation") != "fc1_only"
+                    or model.get("warmup_encoder") != "gru"
+                    or int(model.get("warmup_gru_layers", 1)) != 1
+                    or int(model["hidden_dim"]) != int(model["fc_latent_dim"])):
+                raise ValueError("History model requires FC-only single-layer GRU, matching dimensions and forecast MSE selection")
+            weights = {key: float(value) for key, value in config["training"]["loss_weights"].items() if float(value)}
+            if config["training"].get("loss_type") != "mse" or weights != {"edge": 1.0}:
+                raise ValueError("History length experiments require pure edge MSE")
+            if int(evaluation.get("nonoverlap_start", nonoverlap)) != nonoverlap:
+                raise ValueError("History forecast nonoverlap_start must use the project's conservative interval")
+            if int(config["training"]["batch_size"]) < 1 or int(config["training"]["epochs"]) < 1:
+                raise ValueError("History batch size and epochs must be positive")
+        elif data.get("forecast_origins") is not None or primary_metric == "forecast_nonoverlap_mse":
+            raise ValueError("Common forecast origins and forecast MSE require the history model")
         if model.get("output_decomposition") == "e0032_decay_residual":
             if model_name != "transformer" or model.get("output_head") != "direct_edge_linear" or model.get("sc_encoder") != "hcp_gcn" or model.get("fusion_type") != "concat_projection":
                 raise ValueError("E0032 decay residual requires transformer, direct_edge_linear, hcp_gcn and concat_projection")

@@ -1,0 +1,62 @@
+base: E0004_gcn_gru_full_v1.yaml
+
+data:
+  warmup_windows: 1
+  forecast_origins: [19]
+  forecast_windows: 204
+
+model:
+  name: fc_history_gru_query_residual
+  sc_encoder: none
+  output_head: direct_edge_linear
+  output_decomposition: last_observed_fc_residual
+  warmup_encoder: gru
+  warmup_gru_layers: 1
+  hidden_dim: 256
+  fc_latent_dim: 256
+  dropout: 0.1
+
+training:
+  seeds: [42, 43, 44]
+  batch_size: 16
+  epochs: 150
+  patience: 151
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  gradient_clip: 1.0
+  learning_rate_schedule:
+    name: warmup_cosine
+    warmup_epochs: 5
+    eta_min: 0.0
+  loss_type: mse
+  loss_weights:
+    edge: 1.0
+    difference: 0.0
+
+evaluation:
+  primary_metric: forecast_nonoverlap_mse
+  nonoverlap_start: 17
+  bootstrap_replicates: 10000
+
+baselines:
+  history_ridge:
+    pca_components: 128
+    cv_folds: 5
+    pca_fit_windows_per_subject: 16
+    alpha_grid: [1, 10, 100, 1000, 10000, 100000]
+
+experiment:
+  id: E0040
+  name: history_k1_full_forecast_v1
+  level: 1
+  task: sequence
+  research_question: 在共同第20窗截止点，最后一窗FC经共享encoder和历史GRU能否预测余下204窗？
+  hypothesis: K=1建立参数匹配参照；多历史收益必须在同一目标区间相对该组配对验证。
+  primary_change: 新建FC-only历史GRU加共享时距query预测头，输入第20窗、输出相对该窗的全部未来变化量。
+  baseline: E0032
+  owner: Face88
+  status: planned
+  ablation: fc1_only
+
+decision_rule:
+  description: 完整150轮，以验证集未来索引17:204的被试平均边MSE选模；报告全段及无重叠空间r、时间r、去模板时间r、有效比例与解析基线；先seed42，不查看test。

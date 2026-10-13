@@ -41,7 +41,9 @@ def _root() -> Path:
 
 
 def _stats_path(config: dict, window: int) -> Path:
-    return resolve_path(config, "output_dir") / "shared" / config["data"]["dataset_version"] / f"window_{window}" / "training_stats.npz"
+    filename = ("history_training_stats.npz" if config.get("model", {}).get("name") == "fc_history_gru_query_residual"
+                else "training_stats.npz")
+    return resolve_path(config, "output_dir") / "shared" / config["data"]["dataset_version"] / f"window_{window}" / filename
 
 
 def _ensure_stats(config: dict, window: int) -> Path:
@@ -229,6 +231,8 @@ def command_evaluate_run(args) -> None:
     config = load_config(run_dir / "config_resolved.yaml")
     if config_sha256(config) != metadata["config_sha256"]:
         raise RuntimeError("Resolved config no longer matches the run metadata")
+    if config.get("model", {}).get("name") == "fc_history_gru_query_residual":
+        config["paths"]["root"] = str(root)
     level = int(metadata["level"])
     split = permitted_evaluation_split(level, args.split, args.final_test)
     if args.final_test:
@@ -244,7 +248,43 @@ def command_evaluate_run(args) -> None:
     task = config["experiment"].get("task")
     if task == "autoencoder":
         raise ValueError("Autoencoder runs are evaluated during training; use summarize directly")
-    if task == "analytic":
+    if config.get("model", {}).get("name") == "fc_history_gru_query_residual":
+        from .history_forecast import evaluate_history_forecast
+        checkpoint = run_dir / "checkpoints" / "best.pt"
+        checkpoint_payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
+        for key, expected in {"experiment_id": metadata["experiment_id"], "run_id": args.run_id,
+                              "config_sha256": metadata["config_sha256"]}.items():
+            if checkpoint_payload.get(key) != expected:
+                raise RuntimeError(f"Checkpoint {key} does not match run metadata")
+        baseline_checkpoint, baseline_config = None, None
+        if getattr(args, "baseline_run_id", None):
+            baseline_dir = find_run(root, args.baseline_run_id)
+            baseline_metadata = json.loads((baseline_dir / "metadata.json").read_text(encoding="utf-8"))
+            baseline_config = load_config(baseline_dir / "config_resolved.yaml")
+            if config_sha256(baseline_config) != baseline_metadata["config_sha256"]:
+                raise RuntimeError("Baseline resolved config no longer matches its run")
+            baseline_data = {k: v for k, v in baseline_config["data"].items() if k != "warmup_windows"}
+            main_data = {k: v for k, v in config["data"].items() if k != "warmup_windows"}
+            if (baseline_metadata.get("status") != "COMPLETED"
+                    or baseline_metadata["seed"] != metadata["seed"]
+                    or baseline_config["data"].get("warmup_windows") != 1
+                    or baseline_data != main_data
+                    or any(baseline_config[section] != config[section] for section in ("model", "training", "artifacts"))):
+                raise ValueError("History baseline must be a completed, same-seed K=1 run with matching protocol")
+            baseline_config["paths"]["root"] = str(root)
+            baseline_checkpoint = baseline_dir / "checkpoints" / "best.pt"
+            baseline_payload = torch.load(baseline_checkpoint, map_location="cpu", weights_only=False)
+            for key, expected in {"experiment_id": baseline_metadata["experiment_id"],
+                                  "run_id": args.baseline_run_id,
+                                  "config_sha256": baseline_metadata["config_sha256"]}.items():
+                if baseline_payload.get(key) != expected:
+                    raise RuntimeError(f"Baseline checkpoint {key} does not match its run")
+        report_path = evaluate_history_forecast(
+            config, window, checkpoint, _stats_path(config, window), baseline_checkpoint,
+            args.final_test or getattr(args, "save_predictions", False), args.device,
+            split, run_dir, artifact, baseline_config,
+        )
+    elif task == "analytic":
         report_path = evaluate_analytic_baseline(config, window, _stats_path(config, window), config["model"]["name"], split, run_dir)
     elif task == "residual_ridge":
         checkpoint = run_dir / "checkpoints" / "best.pt"
@@ -332,6 +372,37 @@ def command_dynamic_audit(args) -> None:
 
 def command_summarize(args) -> None:
     print(json.dumps(summarize_experiment(_root(), args.experiment), indent=2, ensure_ascii=False))
+
+
+def command_history_ridge(args) -> None:
+    """Derived train-CV reference; never accesses test or changes run selection."""
+    from .history_ridge import run_history_ridge
+    root = _root()
+    run_dir = find_run(root, args.run_id)
+    metadata = json.loads((run_dir / "metadata.json").read_text(encoding="utf-8"))
+    config = load_config(run_dir / "config_resolved.yaml")
+    if config_sha256(config) != metadata["config_sha256"]:
+        raise RuntimeError("Resolved config no longer matches the run")
+    if metadata.get("status") != "COMPLETED" or config["model"]["name"] != "fc_history_gru_query_residual":
+        raise ValueError("History Ridge requires a completed history forecast run")
+    config["paths"]["root"] = str(root)
+    verify_data_bindings(config)
+    artifact = verify_artifact(config)
+    checkpoint = run_dir / "checkpoints/best.pt"
+    payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
+    for key, expected in {"experiment_id": metadata["experiment_id"], "run_id": args.run_id,
+                          "config_sha256": metadata["config_sha256"]}.items():
+        if payload.get(key) != expected:
+            raise RuntimeError(f"Checkpoint {key} does not match run metadata")
+    config["seed"] = metadata["seed"]
+    print(run_history_ridge(config, int(config["data"]["window_length"]), checkpoint,
+                            _stats_path(config, int(config["data"]["window_length"])), artifact,
+                            run_dir, args.device))
+
+
+def command_history_summary(args) -> None:
+    from .history_summary import summarize_history_runs
+    print(summarize_history_runs(_root(), args.run_ids, args.output_dir))
 
 
 def command_conclude(args) -> None:

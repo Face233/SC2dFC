@@ -21,6 +21,8 @@ from .managed_cli import (
     command_evaluate_run,
     command_experiment_create,
     command_freeze_data,
+    command_history_ridge,
+    command_history_summary,
     command_run,
     command_summarize,
 )
@@ -200,8 +202,19 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate_run.add_argument("--split", choices=["train", "val"], default="val")
     evaluate_run.add_argument("--final-test", action="store_true")
     evaluate_run.add_argument("--device")
-    evaluate_run.add_argument("--baseline-run-id", help="E0036 FC1-only run for paired E0037 validation comparison")
+    evaluate_run.add_argument("--baseline-run-id", help="Paired E0036 run for E0037, or same-seed K=1 history run")
+    evaluate_run.add_argument("--save-predictions", action="store_true", help="Save private forecast prediction arrays")
     evaluate_run.set_defaults(function=command_evaluate_run)
+
+    ridge = subparsers.add_parser("history-ridge", help="Fit a training-CV PCA/Ridge reference for a completed history run")
+    ridge.add_argument("--run-id", required=True)
+    ridge.add_argument("--device", default="cpu")
+    ridge.set_defaults(function=command_history_ridge)
+
+    history_summary = subparsers.add_parser("history-summary", help="Compare evaluated history runs across K and seeds")
+    history_summary.add_argument("--run-ids", nargs="+", required=True)
+    history_summary.add_argument("--output-dir")
+    history_summary.set_defaults(function=command_history_summary)
 
     dynamic_audit = subparsers.add_parser("dynamic-audit", help="Audit dynamic amplitude and temporal power on train/validation data")
     dynamic_audit.add_argument("--run-id", required=True)

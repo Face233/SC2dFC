@@ -1,0 +1,10 @@
+base: E0040_history_k1_full_forecast_v1.yaml
+data:
+  warmup_windows: 10
+experiment:
+  id: E0042
+  name: history_k10_full_forecast_v1
+  research_question: 在相同第20窗截止点与204窗目标下，最近10窗历史是否优于仅最后一窗？
+  hypothesis: 延长有效历史可能增加可预测信息；用被试配对比较与K1和K5定位收益。
+  primary_change: 相对E0040只将K从1改为10；输入第11至20窗，所有模型、标签、损失和预算相同。
+  baseline: E0040

@@ -217,6 +217,10 @@ def iter_cached_samples(config: dict[str, Any], window_length: int) -> Iterator[
         return
     for subject in sorted(root["subjects"].group_keys()):
         for run in sorted(root[f"subjects/{subject}"].group_keys()):
+            if config.get("data", {}).get("forecast_origins") is not None:
+                active_runs = config["paths"].get("timeseries", {})
+                if active_runs and run not in active_runs:
+                    continue
             yield subject, run
 
 
@@ -292,6 +296,16 @@ def group_template_for_warmup(stats: dict[str, np.ndarray], warmup_windows: int)
     return template[offset:]
 
 
+def group_template_for_forecast(stats: dict[str, np.ndarray], data: dict) -> np.ndarray:
+    """Stored template row 0 is FC[1]; origin a predicts FC[a+1:]."""
+    origin = int(data["forecast_origins"][0])
+    steps = int(data["forecast_windows"])
+    template = stats["group_template"][origin:]
+    if len(template) != steps:
+        raise ValueError("Forecast template must cover all windows after the common origin")
+    return template
+
+
 class DFCSequenceDataset(Dataset):
     """Return SC, K FC warmup windows, and the strictly future FC target."""
     def __init__(
@@ -315,12 +329,37 @@ class DFCSequenceDataset(Dataset):
         self.warmup_windows = int(config.get("data", {}).get("warmup_windows", 1))
         if self.warmup_windows < 1:
             raise ValueError("data.warmup_windows must be at least 1")
+        origins = config.get("data", {}).get("forecast_origins")
+        self.forecast_origin = None
+        if origins is not None:
+            if not isinstance(origins, list) or len(origins) != 1 or type(origins[0]) is not int:
+                raise ValueError("Full-remaining forecasts require one integer common origin")
+            self.forecast_origin = origins[0]
+            if self.forecast_origin < self.warmup_windows - 1:
+                raise ValueError("Not enough history before the common forecast origin")
 
     def __len__(self) -> int:
         return len(self.samples)
 
     def __getitem__(self, index: int) -> dict[str, Any]:
         subject, run = self.samples[index]
+        if self.forecast_origin is not None:
+            # FC-only forecasts neither load nor encode any subject's SC.
+            fc, starts = read_cached(self.config, self.window_length, subject, run)
+            a = self.forecast_origin
+            steps = int(self.config["data"]["forecast_windows"])
+            if len(fc) - a - 1 != steps:
+                raise ValueError("Cache does not match the full-remaining forecast length")
+            history = fc[a - self.warmup_windows + 1:a + 1]
+            nodes = int(self.config["data"]["n_nodes"])
+            return {
+                "subject_id": subject, "run_name": run,
+                "forecast_origin": a,
+                "sc_matrix": torch.zeros(nodes, nodes), "sc_edges": torch.zeros(fc.shape[1]),
+                "fc_warmup": torch.from_numpy(history), "last_fc": torch.from_numpy(fc[a]),
+                "fc_future": torch.from_numpy(fc[a + 1:]),
+                "window_starts": torch.from_numpy(starts[a + 1:]),
+            }
         sc_matrix = load_sc(self.config, subject)
         sc_edges = np.log1p(matrix_to_edges(sc_matrix))
         sc_edges = (sc_edges - self.stats["sc_mean"]) / self.stats["sc_std"]

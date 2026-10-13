@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 
 from .config import DEFAULT_SEED, resolve_path
 from .connectivity import nonoverlap_horizon
-from .data import DFCSequenceDataset, FCWindowDataset, group_template_for_warmup
+from .data import DFCSequenceDataset, FCWindowDataset, group_template_for_warmup, group_template_for_forecast
 from .models import ConditionalSequenceModel, FCAutoencoder
 from .models.baselines import CommonInputLSTM, CommonInputMLP, DirectSCMLP, GCNGRUBaseline, PCARidgeBaseline
 from .models.sequence import torch_edges_to_matrix
@@ -426,6 +426,18 @@ def build_sequence_model(
     if decoder_type in {"gru", "tcn", "transformer"} and output_head not in {"e0003_reconstruction_decoder", "direct_edge_linear"}:
         raise ValueError(f"Unsupported conditional output head: {output_head}")
     warmup_windows = int((checkpoint_payload or {}).get("warmup_windows", config.get("data", {}).get("warmup_windows", 1)))
+    if decoder_type == "fc_history_gru_query_residual":
+        from .models.history import FCHistoryGRU
+        data = config["data"]
+        for key in ("warmup_windows", "forecast_windows", "forecast_origins"):
+            if checkpoint_payload is not None and checkpoint_payload.get(key) != data[key]:
+                raise ValueError(f"Checkpoint forecast protocol differs: {key}")
+        return FCHistoryGRU(
+            autoencoder, torch.from_numpy(group_template_for_forecast(stats, data)),
+            n_nodes=int(data["n_nodes"]), hidden_dim=int(model_cfg["hidden_dim"]),
+            dropout=float(model_cfg["dropout"]), warmup_windows=warmup_windows,
+            forecast_origin=int(data["forecast_origins"][0]),
+        ).to(device)
     group_template = torch.from_numpy(group_template_for_warmup(stats, warmup_windows))
     output_decomposition = str((checkpoint_payload or {}).get("output_decomposition", model_cfg.get("output_decomposition", "direct")))
     if output_decomposition in {"group_template_context_residual", "e0032_decay_residual"} and warmup_windows != 1:
@@ -586,6 +598,7 @@ def validate_sequence(
     count = 0
     residual_scores = []
     long_squared_error = 0.0
+    forecast_scores: dict[str, list[tuple[float, float]]] = {}
     for batch in loader:
         output = model(batch["sc_matrix"].to(device), batch["sc_edges"].to(device), batch["fc_warmup"].to(device))
         target = batch["fc_future"].to(device)
@@ -598,12 +611,21 @@ def validate_sequence(
         count += batch_size
         residual_scores.extend(_long_residual_score(output.fc_z_edges, target, model.group_template, nonoverlap).cpu().tolist())
         long_squared_error += float((output.fc_z_edges[:, nonoverlap:] - target[:, nonoverlap:]).square().mean(dim=(1, 2)).sum())
+        if getattr(model, "output_decomposition", "") == "last_observed_fc_residual":
+            full = (output.fc_z_edges - target).square().mean(dim=(1, 2)).cpu().tolist()
+            long = (output.fc_z_edges[:, nonoverlap:] - target[:, nonoverlap:]).square().mean(dim=(1, 2)).cpu().tolist()
+            for subject, f, l in zip(batch["subject_id"], full, long):
+                forecast_scores.setdefault(subject, []).append((f, l))
     metrics = {
         "objective_loss": total / max(count, 1),
         "long_residual_pearson": float(np.mean(residual_scores)),
         "long_edge_mse": long_squared_error / max(count, 1),
     }
     metrics.update({f"validation_{name}_loss": value / max(count, 1) for name, value in component_totals.items()})
+    if forecast_scores:
+        subject_scores = np.asarray([np.mean(values, axis=0) for values in forecast_scores.values()])
+        metrics.update(forecast_mse=float(subject_scores[:, 0].mean()),
+                       forecast_nonoverlap_mse=float(subject_scores[:, 1].mean()))
     return metrics
 
 
@@ -631,6 +653,8 @@ def train_sequence_model(
         )
     train_data = DFCSequenceDataset(config, window_length, "train", stats_path, ablation)
     val_data = DFCSequenceDataset(config, window_length, "val", stats_path, ablation)
+    if decoder_type == "fc_history_gru_query_residual" and (not len(train_data) or not len(val_data)):
+        raise ValueError("History forecasts require nonempty train and validation subjects")
     num_workers = int(config["training"]["num_workers"])
     train_loader = DataLoader(
         train_data,
@@ -688,9 +712,26 @@ def train_sequence_model(
     last_checkpoint = checkpoint_dir / "last.pt"
     log_path = output_dir / "train.log"
     primary_metric = str(config.get("evaluation", {}).get("primary_metric", "long_residual_pearson"))
-    if primary_metric not in {"objective_loss", "long_residual_pearson", "long_edge_mse"}:
+    if primary_metric not in {"objective_loss", "long_residual_pearson", "long_edge_mse", "forecast_nonoverlap_mse"}:
         raise ValueError("Sequence primary_metric must be objective_loss, long_residual_pearson or long_edge_mse")
-    minimize = primary_metric in {"objective_loss", "long_edge_mse"}
+    minimize = primary_metric in {"objective_loss", "long_edge_mse", "forecast_nonoverlap_mse"}
+    forecast_protocol = {}
+    if decoder_type == "fc_history_gru_query_residual":
+        import hashlib
+        forecast_protocol = {key: config["data"][key] for key in
+                             ("warmup_windows", "forecast_windows", "forecast_origins")}
+        initial = hashlib.sha256()
+        for name, parameter in model.named_parameters():
+            if parameter.requires_grad:
+                initial.update(name.encode())
+                initial.update(parameter.detach().cpu().numpy().tobytes())
+        samples = [(subject, run, train_data.forecast_origin) for subject, run in train_data.samples]
+        forecast_protocol.update(
+            initial_parameters_sha256=initial.hexdigest(),
+            trainable_parameters=sum(p.numel() for p in model.parameters() if p.requires_grad),
+            sample_manifest_sha256=hashlib.sha256(json.dumps(samples).encode()).hexdigest(),
+        )
+        (output_dir / "forecast_protocol.json").write_text(json.dumps(forecast_protocol, indent=2), encoding="utf-8")
     if bool(config["training"].get("finetune_fc_decoder", False)):
         raise ValueError(
             "FC decoder fine-tuning is disabled: the pretrained FC encoder and reconstruction decoder "
@@ -763,6 +804,7 @@ def train_sequence_model(
                 "fc_reconstruction_decoder_frozen": True,
             }
             payload.update(checkpoint_metadata or {})
+            payload.update(forecast_protocol)
             torch.save(payload, checkpoint)
         else:
             stale += 1
@@ -789,7 +831,7 @@ def train_sequence_model(
         if stale >= int(config["training"]["patience"]):
             emit("early_stopped", task="sequence", model=decoder_type, epoch=epoch + 1, best_epoch=best_epoch + 1, primary_metric=primary_metric, best_primary_value=best)
             break
-        if int(config.get("experiment", {}).get("level", 0)) >= 2:
+        if int(config.get("experiment", {}).get("level", 0)) >= 2 or forecast_protocol:
             last_payload = {
                 "schema_version": 1, "model": model.state_dict(), "epoch": epoch, "score": score,
                 "primary_metric": primary_metric, "decoder_type": decoder_type,
@@ -804,6 +846,7 @@ def train_sequence_model(
                 "fc_reconstruction_decoder_frozen": True,
             }
             last_payload.update(checkpoint_metadata or {})
+            last_payload.update(forecast_protocol)
             torch.save(last_payload, last_checkpoint)
     (output_dir / "metrics_best.json").write_text(
         json.dumps(selection_record(best_validation_metrics, primary_metric, best_epoch,

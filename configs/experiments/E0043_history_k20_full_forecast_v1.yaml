@@ -1,0 +1,10 @@
+base: E0040_history_k1_full_forecast_v1.yaml
+data:
+  warmup_windows: 20
+experiment:
+  id: E0043
+  name: history_k20_full_forecast_v1
+  research_question: 在相同第20窗截止点与204窗目标下，最近20窗历史是否优于仅最后一窗？
+  hypothesis: 覆盖128秒历史可能提供趋势信息；若长期时间r仍不改善，应进一步检查表示和任务信息。
+  primary_change: 相对E0040只将K从1改为20；输入第1至20窗，所有模型、标签、损失和预算相同。
+  baseline: E0040

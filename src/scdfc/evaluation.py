@@ -638,6 +638,11 @@ def evaluate_checkpoint(
     autoencoder_path: str | Path | None = None,
 ) -> Path:
     """在测试集生成完整报告，并可选导出逐样本 FC 矩阵。"""
+    if config.get("model", {}).get("name") == "fc_history_gru_query_residual":
+        from .history_forecast import evaluate_history_forecast
+        return evaluate_history_forecast(config, window_length, checkpoint, stats_path,
+                                         baseline_checkpoint, save_predictions, device_name,
+                                         split_name, output_dir, autoencoder_path)
     if split_name not in {"train", "val", "test"}:
         raise ValueError("split_name must be train, val, or test")
     seed_everything(int(config["seed"]))
