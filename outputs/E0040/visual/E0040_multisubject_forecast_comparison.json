@@ -1,0 +1,40 @@
+{
+  "run_id": "E0040-s42-20261014T030716Z-214c72a",
+  "checkpoint_sha256": "c32f701f059b7bd72f98a7f5169825a85c6a4dba70ab40547614216820464f55",
+  "split": "val",
+  "source_evaluation": "D:\\Code\\Canlab\\HCP_New\\outputs\\E0040\\runs\\E0040-s42-20261014T030716Z-214c72a\\evaluation_val.json",
+  "reference_selection": "D:\\Code\\Canlab\\HCP_New\\outputs\\E0037\\visual\\E0032_E0036_E0037_multisubject_comparison.json",
+  "subjects": [
+    "120010",
+    "188448",
+    "308331",
+    "559457"
+  ],
+  "edge_indices": [
+    357,
+    1733,
+    1756,
+    2619,
+    3096,
+    3438
+  ],
+  "edge_labels": [
+    "Frontal_Sup_Orb_L ↔ Frontal_Inf_Tri_L",
+    "Frontal_Sup_Medial_L ↔ Insula_R",
+    "Frontal_Sup_Medial_L ↔ Occipital_Inf_L",
+    "Hippocampus_L ↔ Temporal_Pole_Sup_L",
+    "Lingual_L ↔ Temporal_Mid_L",
+    "Fusiform_R ↔ Temporal_Mid_L"
+  ],
+  "forecast_origin": 19,
+  "forecast_windows": 204,
+  "nonoverlap_start": 17,
+  "nonoverlap_minute": 1.02,
+  "colors": {
+    "target": "#1f77b4",
+    "prediction": "#d62728",
+    "group": "#7f7f7f"
+  },
+  "image": "D:\\Code\\Canlab\\HCP_New\\outputs\\E0040\\visual\\E0040_multisubject_forecast_comparison.png",
+  "note": "Four fixed validation subjects; E0040's FC[20:] target and aligned training-only template."
+}

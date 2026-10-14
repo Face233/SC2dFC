@@ -10,6 +10,7 @@ dist/
 outputs/*/visual/**/__pycache__/
 outputs/*/visual/**/*.py[cod]
 cache/
+outputs/shared/
 
 # Local neuroimaging data, caches and participant metadata (never publish)
 data/
