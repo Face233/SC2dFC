@@ -1,0 +1,75 @@
+{
+  "experiments": {
+    "E0040": "E0040-s42-20261014T030716Z-214c72a",
+    "E0041": "E0041-s42-20261014T073910Z-286c11d"
+  },
+  "checkpoint_sha256": {
+    "E0040": "c32f701f059b7bd72f98a7f5169825a85c6a4dba70ab40547614216820464f55",
+    "E0041": "16271be33b04c3ee1e11764c0904f5562f27d0b622a36c1121431f9257836f74"
+  },
+  "split": "val",
+  "subjects": [
+    "120010",
+    "188448",
+    "308331",
+    "559457"
+  ],
+  "edge_indices": [
+    357,
+    1733,
+    1756,
+    2619,
+    3096,
+    3438
+  ],
+  "edge_labels": [
+    "Frontal_Sup_Orb_L ↔ Frontal_Inf_Tri_L",
+    "Frontal_Sup_Medial_L ↔ Insula_R",
+    "Frontal_Sup_Medial_L ↔ Occipital_Inf_L",
+    "Hippocampus_L ↔ Temporal_Pole_Sup_L",
+    "Lingual_L ↔ Temporal_Mid_L",
+    "Fusiform_R ↔ Temporal_Mid_L"
+  ],
+  "reference_selection": "D:\\Code\\Canlab\\HCP_New\\outputs\\E0037\\visual\\E0032_E0036_E0037_multisubject_comparison.json",
+  "forecast_origin": 19,
+  "forecast_windows": 204,
+  "nonoverlap_start": 17,
+  "nonoverlap_minute": 1.02,
+  "colors": {
+    "target": "#1f77b4",
+    "E0040": "#d62728",
+    "E0041": "#2ca02c",
+    "group": "#7f7f7f",
+    "boundary": "#666666"
+  },
+  "paired_nonoverlap_mse": {
+    "mean_difference": -0.0012589551262181115,
+    "ci_low": -0.0034589588626610813,
+    "ci_high": 0.00103083865218216,
+    "passes": false,
+    "passes_simultaneous": false,
+    "simultaneous_98_333_ci": [
+      -0.003935564383418638,
+      0.0015113228806385264
+    ],
+    "n_subjects": 158,
+    "replicates": 10000,
+    "seed": 20261013
+  },
+  "paired_nonoverlap_time_r": {
+    "mean_difference": 0.004582864271229382,
+    "ci_low": 0.001027966976978145,
+    "ci_high": 0.008509904045827577,
+    "passes": true,
+    "passes_simultaneous": true,
+    "simultaneous_98_333_ci": [
+      0.0003285020280430157,
+      0.009612010706032518
+    ],
+    "n_subjects": 158,
+    "replicates": 10000,
+    "seed": 20261013
+  },
+  "image": "D:\\Code\\Canlab\\HCP_New\\outputs\\E0041\\visual\\E0040_E0041_multisubject_comparison.png",
+  "note": "Both runs predict identical FC[20:] targets at a common cutoff; only K differs."
+}

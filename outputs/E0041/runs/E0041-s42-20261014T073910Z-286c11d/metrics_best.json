@@ -1,0 +1,27 @@
+{
+  "schema_version": 2,
+  "kind": "selection",
+  "split": "val",
+  "primary_metric": "forecast_nonoverlap_mse",
+  "metrics": {
+    "objective_loss": 0.2423532833404179,
+    "long_residual_pearson": 0.16691610722837946,
+    "long_edge_mse": 0.25296112857287445,
+    "validation_edge_loss": 0.2423532833404179,
+    "forecast_mse": 0.2423532877730418,
+    "forecast_nonoverlap_mse": 0.2529611265923403
+  },
+  "best_epoch": 29,
+  "epoch_index_base": 0,
+  "metric_definition": {
+    "implementation": "history_forecast_nonoverlap_mse/v1",
+    "split": "val",
+    "nonoverlap_start": 17,
+    "forecast_origins": [
+      19
+    ],
+    "forecast_windows": 204,
+    "aggregation": "mean per run, then mean per subject, then mean over subjects"
+  },
+  "source": "training_validation"
+}
