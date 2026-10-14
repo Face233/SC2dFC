@@ -1,0 +1,221 @@
+{
+  "experiments": {
+    "E0040": "E0040-s42-20261014T030716Z-214c72a",
+    "E0041": "E0041-s42-20261014T073910Z-286c11d",
+    "E0042": "E0042-s42-20261014T080138Z-64d8770",
+    "E0043": "E0043-s42-20261014T082555Z-32b1b87"
+  },
+  "checkpoint_sha256": {
+    "E0040": "c32f701f059b7bd72f98a7f5169825a85c6a4dba70ab40547614216820464f55",
+    "E0041": "16271be33b04c3ee1e11764c0904f5562f27d0b622a36c1121431f9257836f74",
+    "E0042": "c158bf8fa90fe74013484cc6683a6fc6e731bbf56da7917a9c2bb275059abbac",
+    "E0043": "938b109995c13ced44fa3a09b339e28618ba951ff709c7950942df5392514268"
+  },
+  "split": "val",
+  "subjects": [
+    "120010",
+    "188448",
+    "308331",
+    "559457"
+  ],
+  "edge_indices": [
+    357,
+    1733,
+    1756,
+    2619,
+    3096,
+    3438
+  ],
+  "edge_labels": [
+    "Frontal_Sup_Orb_L ↔ Frontal_Inf_Tri_L",
+    "Frontal_Sup_Medial_L ↔ Insula_R",
+    "Frontal_Sup_Medial_L ↔ Occipital_Inf_L",
+    "Hippocampus_L ↔ Temporal_Pole_Sup_L",
+    "Lingual_L ↔ Temporal_Mid_L",
+    "Fusiform_R ↔ Temporal_Mid_L"
+  ],
+  "reference_selection": "D:\\Code\\Canlab\\HCP_New\\outputs\\E0037\\visual\\E0032_E0036_E0037_multisubject_comparison.json",
+  "forecast_origin": 19,
+  "forecast_windows": 204,
+  "nonoverlap_start": 17,
+  "nonoverlap_minute": 1.02,
+  "colors": {
+    "target": "#1f77b4",
+    "E0040": "#d62728",
+    "E0041": "#2ca02c",
+    "E0042": "#9467bd",
+    "E0043": "#ff7f0e",
+    "group": "#7f7f7f",
+    "boundary": "#666666"
+  },
+  "aggregate": {
+    "E0040": {
+      "forecast_nonoverlap_mse": 0.25422007349470704,
+      "forecast_nonoverlap_time_r": 0.05167282248469383,
+      "forecast_nonoverlap_adjusted_time_r": 0.031185892387646495,
+      "forecast_nonoverlap_space_r": 0.4249548096529121,
+      "forecast_nonoverlap_std_ratio": 0.10694650225290206,
+      "forecast_nonoverlap_difference_time_r": 0.000502866396597866
+    },
+    "E0041": {
+      "forecast_nonoverlap_mse": 0.252961118368489,
+      "forecast_nonoverlap_time_r": 0.05625568675592321,
+      "forecast_nonoverlap_adjusted_time_r": 0.03673643541679053,
+      "forecast_nonoverlap_space_r": 0.42679546449980293,
+      "forecast_nonoverlap_std_ratio": 0.09241355711519915,
+      "forecast_nonoverlap_difference_time_r": -0.00013892442840219597
+    },
+    "E0042": {
+      "forecast_nonoverlap_mse": 0.25311936931738155,
+      "forecast_nonoverlap_time_r": 0.055558131623235,
+      "forecast_nonoverlap_adjusted_time_r": 0.035217393846888705,
+      "forecast_nonoverlap_space_r": 0.4256100556879502,
+      "forecast_nonoverlap_std_ratio": 0.09023142385365016,
+      "forecast_nonoverlap_difference_time_r": -0.00040793326880869007
+    },
+    "E0043": {
+      "forecast_nonoverlap_mse": 0.2534173976860628,
+      "forecast_nonoverlap_time_r": 0.05765107012768215,
+      "forecast_nonoverlap_adjusted_time_r": 0.03459877917667974,
+      "forecast_nonoverlap_space_r": 0.42833103400923406,
+      "forecast_nonoverlap_std_ratio": 0.09301327832212285,
+      "forecast_nonoverlap_difference_time_r": 0.00016500286407625554
+    }
+  },
+  "paired_e0043_minus_baseline": {
+    "E0040": {
+      "forecast_nonoverlap_mse": {
+        "mean_difference": -0.0008026758086442518,
+        "ci_low": -0.0033498325917134266,
+        "ci_high": 0.001777184786135458,
+        "passes": false,
+        "passes_simultaneous": false,
+        "simultaneous_98_333_ci": [
+          -0.003936966840535005,
+          0.0023854993054801613
+        ],
+        "n_subjects": 158,
+        "replicates": 10000,
+        "seed": 20261013
+      },
+      "forecast_nonoverlap_time_r": {
+        "mean_difference": 0.005978247642988324,
+        "ci_low": 0.0013470990899624945,
+        "ci_high": 0.011041897031070379,
+        "passes": true,
+        "passes_simultaneous": true,
+        "simultaneous_98_333_ci": [
+          0.0003739623190652668,
+          0.012228428047735006
+        ],
+        "n_subjects": 158,
+        "replicates": 10000,
+        "seed": 20261013
+      },
+      "forecast_nonoverlap_adjusted_time_r": {
+        "mean_difference": 0.0034128867890332506,
+        "ci_low": -0.003886506969155894,
+        "ci_high": 0.010719029129976547,
+        "passes": false,
+        "passes_simultaneous": false,
+        "simultaneous_98_333_ci": [
+          -0.005784498371651397,
+          0.01221323271281187
+        ],
+        "n_subjects": 158,
+        "replicates": 10000,
+        "seed": 20261013
+      }
+    },
+    "E0041": {
+      "forecast_nonoverlap_mse": {
+        "mean_difference": 0.00045627931757385965,
+        "ci_low": -0.0015351273845893812,
+        "ci_high": 0.002475769732429594,
+        "passes": false,
+        "passes_simultaneous": false,
+        "simultaneous_98_333_ci": [
+          -0.0019463857312058002,
+          0.0029669851166091335
+        ],
+        "n_subjects": 158,
+        "replicates": 10000,
+        "seed": 20261013
+      },
+      "forecast_nonoverlap_time_r": {
+        "mean_difference": 0.001395383371758943,
+        "ci_low": -0.0024331678418237027,
+        "ci_high": 0.005016139030971283,
+        "passes": false,
+        "passes_simultaneous": false,
+        "simultaneous_98_333_ci": [
+          -0.003286548262973015,
+          0.005817951936198095
+        ],
+        "n_subjects": 158,
+        "replicates": 10000,
+        "seed": 20261013
+      },
+      "forecast_nonoverlap_adjusted_time_r": {
+        "mean_difference": -0.002137656240110785,
+        "ci_low": -0.009191634358171538,
+        "ci_high": 0.004209995154190718,
+        "passes": false,
+        "passes_simultaneous": false,
+        "simultaneous_98_333_ci": [
+          -0.010655799373763524,
+          0.005413967874652089
+        ],
+        "n_subjects": 158,
+        "replicates": 10000,
+        "seed": 20261013
+      }
+    },
+    "E0042": {
+      "forecast_nonoverlap_mse": {
+        "mean_difference": 0.0002980283686812862,
+        "ci_low": -0.0017024611552844259,
+        "ci_high": 0.002355757509717809,
+        "passes": false,
+        "passes_simultaneous": false,
+        "simultaneous_98_333_ci": [
+          -0.002159549004221807,
+          0.002822490162465956
+        ],
+        "n_subjects": 158,
+        "replicates": 10000,
+        "seed": 20261013
+      },
+      "forecast_nonoverlap_time_r": {
+        "mean_difference": 0.0020929385044471554,
+        "ci_low": -0.00133416805864028,
+        "ci_high": 0.005364961951730456,
+        "passes": false,
+        "passes_simultaneous": false,
+        "simultaneous_98_333_ci": [
+          -0.002140985024119111,
+          0.006077636780628514
+        ],
+        "n_subjects": 158,
+        "replicates": 10000,
+        "seed": 20261013
+      },
+      "forecast_nonoverlap_adjusted_time_r": {
+        "mean_difference": -0.0006186146702089628,
+        "ci_low": -0.006012360842505491,
+        "ci_high": 0.00455542608773949,
+        "passes": false,
+        "passes_simultaneous": false,
+        "simultaneous_98_333_ci": [
+          -0.007211510486006537,
+          0.005696089240613879
+        ],
+        "n_subjects": 158,
+        "replicates": 10000,
+        "seed": 20261013
+      }
+    }
+  },
+  "image": "D:\\Code\\Canlab\\HCP_New\\outputs\\E0043\\visual\\E0040_E0041_E0042_E0043_multisubject_comparison.png",
+  "note": "All four runs predict identical FC[20:] targets at a common cutoff; only K differs."
+}
