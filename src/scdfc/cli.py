@@ -23,6 +23,8 @@ from .managed_cli import (
     command_freeze_data,
     command_history_ridge,
     command_history_summary,
+    command_fit_history_persistence,
+    command_bind_history_persistence,
     command_run,
     command_summarize,
 )
@@ -196,6 +198,16 @@ def build_parser() -> argparse.ArgumentParser:
     managed_run.add_argument("--seed", required=True, type=int)
     managed_run.add_argument("--device")
     managed_run.set_defaults(function=command_run)
+
+    persistence = subparsers.add_parser("fit-history-persistence", help="Prepare training-only persistence templates and alpha; no neural training")
+    persistence.add_argument("--experiment", required=True)
+    persistence.add_argument("--output", help="New NPZ file; defaults to the config artifact path")
+    persistence.set_defaults(function=command_fit_history_persistence)
+
+    binding = subparsers.add_parser("bind-history-persistence", help="Bind a prepared artifact to unrun PLANNED history experiments")
+    binding.add_argument("--artifact", required=True)
+    binding.add_argument("--experiments", nargs="+", required=True)
+    binding.set_defaults(function=command_bind_history_persistence)
 
     evaluate_run = subparsers.add_parser("evaluate-run")
     evaluate_run.add_argument("--run-id", required=True)

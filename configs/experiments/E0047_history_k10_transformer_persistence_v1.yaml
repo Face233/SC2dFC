@@ -1,0 +1,10 @@
+base: E0045_history_k1_transformer_persistence_v1.yaml
+data:
+  warmup_windows: 10
+experiment:
+  id: E0047
+  name: history_k10_transformer_persistence_v1
+  research_question: 相同第10窗截止点、持续性工件与未来Transformer下，最近10窗历史是否优于最后一窗与5窗？
+  hypothesis: 更长历史可能提供额外趋势信息；需要时间相关、差分相关及误差共同支持，而非仅输出更多波动。
+  primary_change: 相对E0045只将K从1改为10，输入第1至10窗，所有基线、模型、目标与训练预算相同。
+  baseline: E0045

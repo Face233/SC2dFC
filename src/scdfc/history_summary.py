@@ -9,6 +9,7 @@ import numpy as np
 
 from .config import load_config
 from .management import config_sha256, file_sha256, find_run
+from .history_persistence import HISTORY_MODELS, MODEL_NAME as HISTORY_TRANSFORMER
 
 
 METRICS = (
@@ -16,6 +17,9 @@ METRICS = (
     "forecast_nonoverlap_mse", "forecast_nonoverlap_space_r", "forecast_nonoverlap_time_r",
     "forecast_nonoverlap_adjusted_time_r", "forecast_nonoverlap_std_ratio",
     "forecast_nonoverlap_time_valid_fraction",
+    "forecast_adjusted_time_r", "forecast_difference_time_r", "forecast_std_ratio",
+    "forecast_persistence_residual_mse", "forecast_persistence_residual_time_r",
+    "forecast_persistence_residual_std_ratio", "forecast_persistence_residual_difference_time_r",
 )
 
 
@@ -27,12 +31,14 @@ def summarize_history_runs(root, run_ids, output_dir=None):
         metadata = json.loads((run / "metadata.json").read_text(encoding="utf-8"))
         config = load_config(run / "config_resolved.yaml")
         if (config_sha256(config) != metadata["config_sha256"] or metadata.get("status") != "COMPLETED"
-                or config["model"]["name"] != "fc_history_gru_query_residual"):
+                or config["model"]["name"] not in HISTORY_MODELS):
             raise ValueError("History summary requires intact completed history runs")
         report_path = run / "evaluation_val.json"
         report = json.loads(report_path.read_text(encoding="utf-8"))
         if report["split"] != "val" or report["checkpoint_sha256"] != file_sha256(run / "checkpoints/best.pt"):
             raise ValueError("History summary requires a current validation evaluation")
+        if config["model"]["name"] == HISTORY_TRANSFORMER and report.get("persistence_sha256") != config["artifacts"]["history_persistence"]["sha256"]:
+            raise ValueError("History summary persistence artifact differs from evaluation")
         current = {"data": {k: v for k, v in config["data"].items() if k != "warmup_windows"},
                    **{key: config[key] for key in ("model", "training", "artifacts", "evaluation", "baselines")}}
         if protocol is not None and (current != protocol or samples != report["sample_manifest_sha256"]):
@@ -54,14 +60,15 @@ def summarize_history_runs(root, run_ids, output_dir=None):
                "seeds": ";".join(str(item[0]["seed"]) for item in entries), "completed_runs": len(entries)}
         for metric in METRICS:
             values = [float(item[2]["aggregate"][metric]) for item in entries
-                      if item[2]["aggregate"][metric] is not None]
+                      if item[2]["aggregate"].get(metric) is not None]
             row[f"{metric}_mean"] = float(np.mean(values)) if values else None
             row[f"{metric}_std"] = float(np.std(values, ddof=1)) if len(values) > 1 else None
         rows.append(row)
     if not rows:
         raise ValueError("No history runs to summarize")
     rows.sort(key=lambda row: row["K"])
-    destination = Path(output_dir) if output_dir is not None else Path(root) / "reports/history_full_forecast"
+    folder = "history_transformer_persistence" if protocol["model"]["name"] == HISTORY_TRANSFORMER else "history_full_forecast"
+    destination = Path(output_dir) if output_dir is not None else Path(root) / "reports" / folder
     destination.mkdir(parents=True, exist_ok=True)
     table = destination / "history_comparison.csv"
     with table.open("w", newline="", encoding="utf-8-sig") as handle:

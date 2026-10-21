@@ -1,0 +1,66 @@
+base: E0004_gcn_gru_full_v1.yaml
+
+data:
+  warmup_windows: 1
+  forecast_origins: [9]
+  forecast_windows: 214
+
+model:
+  name: fc_history_gru_transformer_decay_residual
+  sc_encoder: none
+  output_head: direct_edge_linear
+  output_decomposition: history_decay_residual
+  warmup_encoder: gru
+  warmup_gru_layers: 1
+  hidden_dim: 256
+  fc_latent_dim: 256
+  transformer_layers: 4
+  transformer_heads: 8
+  transformer_ffn_dim: 1024
+  dropout: 0.1
+
+artifacts:
+  history_persistence:
+    id: history-persistence-origin9-v1
+    path: outputs/shared/dataset_lr_v1/window_83/history_persistence_origin9_v1.npz
+    # Preparation required: fit on training LR only, then bind all three configs.
+    # A null hash is deliberately not runnable; do not replace it with a fake hash.
+    sha256: null
+
+training:
+  seeds: [42, 43, 44]
+  batch_size: 4
+  epochs: 150
+  patience: 151
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  gradient_clip: 1.0
+  learning_rate_schedule:
+    name: warmup_cosine
+    warmup_epochs: 5
+    eta_min: 0.0
+  loss_type: mse
+  loss_weights:
+    edge: 1.0
+    difference: 0.0
+
+evaluation:
+  primary_metric: forecast_mse
+  nonoverlap_start: 17
+  bootstrap_replicates: 10000
+  bootstrap_seed: 20261021
+  simultaneous_comparisons: 2
+
+baselines: {}
+
+experiment:
+  id: E0045
+  name: history_k1_transformer_persistence_v1
+  research_question: 在共同第10窗截止点，带冻结持续性基线的未来Transformer能否从最后一窗预测余下214窗？
+  hypothesis: K1建立同参数参照；只有相对解析持续性基线的真实验证增益才支持神经残差有效。
+  primary_change: 冻结AE加历史GRU摘要，4层未来Transformer直接预测FC10持续性基线之外的残差；不输入SC。
+  baseline: history-persistence-origin9-v1
+  ablation: fc1_only
+
+decision_rule:
+  description: 完整150轮，以完整214窗验证被试平均MSE选模；报告完整及无重叠空间r、时间r、差分相关、标准差比与持续性残差诊断。三组共用训练集第10窗模板和冻结alpha，只改变K；不查看test。先完成三组seed42，复验统一补43和44。

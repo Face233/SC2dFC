@@ -44,6 +44,13 @@ def sequence_objective_definition(config: dict[str, Any], nonoverlap: int) -> di
 
 
 def sequence_selection_definition(config: dict[str, Any], nonoverlap: int) -> dict[str, Any]:
+    if config["evaluation"]["primary_metric"] == "forecast_mse":
+        return {
+            "implementation": "history_forecast_full_mse/v1", "split": "val",
+            "forecast_origins": config["data"]["forecast_origins"],
+            "forecast_windows": config["data"]["forecast_windows"],
+            "aggregation": "mean per run, then mean per subject, then mean over subjects",
+        }
     if config["evaluation"]["primary_metric"] == "forecast_nonoverlap_mse":
         return {
             "implementation": "history_forecast_nonoverlap_mse/v1", "split": "val",

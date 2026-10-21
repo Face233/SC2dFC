@@ -77,7 +77,9 @@ def aggregate_subjects(rows):
     return {key: mean_defined(row[key] for row in per_subject) for key in keys}, per_subject
 
 
-def paired_interval(main, baseline, subjects, minimize=False, replicates=10000, seed=20261013):
+def paired_interval(main, baseline, subjects, minimize=False, replicates=10000, seed=20261013, comparisons=3):
+    if replicates < 1 or comparisons not in {2, 3}:
+        raise ValueError("Bootstrap requires positive replicates and 2 or 3 planned comparisons")
     differences = {}
     for a, b, subject in zip(main, baseline, subjects):
         if a is not None and b is not None and np.isfinite(a) and np.isfinite(b):
@@ -91,19 +93,21 @@ def paired_interval(main, baseline, subjects, minimize=False, replicates=10000, 
     estimates = np.concatenate([rng.choice(values, size=(min(256, replicates-i), len(values))).mean(1)
                                 for i in range(0, replicates, 256)])
     low, high = np.quantile(estimates, [0.025, 0.975])
-    adjusted = np.quantile(estimates, [0.05/6, 1-0.05/6])
+    adjusted = np.quantile(estimates, [0.05/(2*comparisons), 1-0.05/(2*comparisons)])
+    simultaneous_key = "simultaneous_97_5_ci" if comparisons == 2 else "simultaneous_98_333_ci"
     return {"mean_difference": float(values.mean()), "ci_low": float(low), "ci_high": float(high),
             "passes": bool(high < 0 if minimize else low > 0),
             "passes_simultaneous": bool(adjusted[1] < 0 if minimize else adjusted[0] > 0),
-            "simultaneous_98_333_ci": adjusted.tolist(), "n_subjects": len(values),
+            simultaneous_key: adjusted.tolist(), "n_subjects": len(values),
             "replicates": replicates, "seed": seed}
 
 
-def compare_forecasts(predictions, baseline, targets, template, subjects, nonoverlap, replicates=10000):
+def compare_forecasts(predictions, baseline, targets, template, subjects, nonoverlap, replicates=10000,
+                      seed=20261013, comparisons=3):
     main_rows = [forecast_metrics(p, t, template, nonoverlap) for p, t in zip(predictions, targets)]
     base_rows = [forecast_metrics(p, t, template, nonoverlap) for p, t in zip(baseline, targets)]
     result = {key: paired_interval([r[key] for r in main_rows], [r[key] for r in base_rows],
-                                  subjects, key.endswith("mse"), replicates)
+                                  subjects, key.endswith("mse"), replicates, seed, comparisons)
               for key in ("forecast_mse", "forecast_space_r", "forecast_time_r",
                           "forecast_nonoverlap_mse", "forecast_nonoverlap_space_r",
                           "forecast_nonoverlap_time_r", "forecast_nonoverlap_adjusted_time_r")}
@@ -119,7 +123,7 @@ def compare_forecasts(predictions, baseline, targets, template, subjects, nonove
                 main.append(mean_defined(a[common]))
                 other.append(mean_defined(c[common]))
             key = f"{prefix}_{'adjusted_' if adjusted else ''}time_r_common_edges"
-            result[key] = paired_interval(main, other, subjects, replicates=replicates)
+            result[key] = paired_interval(main, other, subjects, replicates=replicates, seed=seed, comparisons=comparisons)
     return result
 
 
@@ -174,9 +178,24 @@ def evaluate_history_forecast(config, window_length, checkpoint, stats_path,
     predictions, targets, subjects, runs = collect_predictions(model, loader, device)
     template = model.group_template.cpu().numpy()
     start = int(config["evaluation"]["nonoverlap_start"])
+    persistence_model = getattr(model, "output_decomposition", "") == "history_decay_residual"
+    comparison_options = {"replicates": int(config["evaluation"].get("bootstrap_replicates", 10000)),
+                          "seed": int(config["evaluation"].get("bootstrap_seed", 20261013)),
+                          "comparisons": int(config["evaluation"].get("simultaneous_comparisons", 3))}
     rows = [{"subject_id": subject, "run": run, "forecast_origin": dataset.forecast_origin,
              **forecast_metrics(p, t, template, start)}
             for p, t, subject, run in zip(predictions, targets, subjects, runs)]
+    def persistence_baseline(index):
+        last = dataset[index]["last_fc"].numpy()
+        return template + model.decay_alpha.cpu().numpy()[:, None]*(last-model.context_template.cpu().numpy())
+    if persistence_model:
+        for index, (p, t, row) in enumerate(zip(predictions, targets, rows)):
+            baseline = persistence_baseline(index)
+            for offset, prefix in ((0, "forecast"), (start, "forecast_nonoverlap")):
+                residual = interval_metrics(p[offset:]-baseline[offset:], t[offset:]-baseline[offset:],
+                                            np.zeros_like(template[offset:]))
+                for key in ("mse", "time_r", "std_ratio", "difference_time_r", "time_valid_fraction"):
+                    row[f"{prefix}_persistence_residual_{key}"] = residual[key]
     aggregate, per_subject = aggregate_subjects(rows)
     destination = Path(output_dir) if output_dir is not None else Path(checkpoint).parent.parent
     destination.mkdir(parents=True, exist_ok=True)
@@ -194,6 +213,16 @@ def evaluate_history_forecast(config, window_length, checkpoint, stats_path,
         "aggregate": aggregate, "per_sample": rows, "per_subject": per_subject,
         "retrieval": retrieval_summary(predictions, targets, template, start, subjects),
     }
+    if persistence_model:
+        report["persistence_sha256"] = config["artifacts"]["history_persistence"]["sha256"]
+        confidence = {
+            key: paired_interval([row[key] for row in rows], [0.0]*len(rows), subjects,
+                                 seed=comparison_options["seed"], replicates=comparison_options["replicates"])
+            for key in ("forecast_mse", "forecast_space_r", "forecast_time_r",
+                        "forecast_difference_time_r", "forecast_std_ratio")}
+        report["aggregate_confidence_intervals"] = {
+            key: {name: value.get(name) for name in ("ci_low", "ci_high", "n_subjects", "seed", "replicates")}
+            for key, value in confidence.items()}
     projection_rows = [projection_report(p, int(config["data"]["n_nodes"]),
                                         float(config["evaluation"].get("projection_epsilon", 1e-6)))[1] for p in predictions]
     report["matrix_quality"] = {key: mean_defined(row[key] for row in projection_rows) for key in projection_rows[0]}
@@ -204,8 +233,14 @@ def evaluate_history_forecast(config, window_length, checkpoint, stats_path,
                                  for p, t in zip(predictions, targets)) for h in range(len(template))],
     }
     report["segments"] = {}
-    for name, first, stop in (("near", 0, start), ("short", 0, 40), ("early", start, 68),
-                              ("middle", 68, 136), ("late", 136, 204)):
+    segments = (("near", 0, start), ("short", 0, 40), ("early", start, 68),
+                ("middle", 68, 136), ("late", 136, 204))
+    if persistence_model:
+        first_cut = start+(len(template)-start)//3
+        second_cut = start+2*(len(template)-start)//3
+        segments = (("near", 0, start), ("short", 0, 40), ("early", start, first_cut),
+                    ("middle", first_cut, second_cut), ("late", second_cut, len(template)))
+    for name, first, stop in segments:
         stop = min(stop, len(template))
         if stop-first < 2:
             continue
@@ -213,9 +248,9 @@ def evaluate_history_forecast(config, window_length, checkpoint, stats_path,
                    for p, t, s, r in zip(predictions, targets, subjects, runs)]
         report["segments"][name] = {"start": first, "stop": stop, "aggregate": aggregate_subjects(segment)[0]}
     report["analytic_baselines"] = {}
-    for name in ("last_fc", "history_mean", "group_mean"):
+    for name in ("last_fc", "history_mean", "group_mean") + (("persistence",) if persistence_model else ()):
         baseline = np.stack([np.broadcast_to(
-            template if name == "group_mean" else
+            persistence_baseline(i) if name == "persistence" else template if name == "group_mean" else
             dataset[i]["fc_warmup"].numpy().mean(0) if name == "history_mean" else dataset[i]["last_fc"].numpy(),
             targets[i].shape) for i in range(len(dataset))])
         baseline_rows = [{"subject_id": s, "run": r, **forecast_metrics(p, t, template, start)}
@@ -223,7 +258,7 @@ def evaluate_history_forecast(config, window_length, checkpoint, stats_path,
         report["analytic_baselines"][name] = {
             "aggregate": aggregate_subjects(baseline_rows)[0],
             "paired_comparison": compare_forecasts(predictions, baseline, targets, template, subjects, start,
-                                                   int(config["evaluation"].get("bootstrap_replicates", 10000))),
+                                                   **comparison_options),
         }
     if baseline_checkpoint is not None:
         if baseline_config is None:
@@ -235,7 +270,10 @@ def evaluate_history_forecast(config, window_length, checkpoint, stats_path,
         if subjects != other_subjects or runs != other_runs or not np.array_equal(targets, other_targets):
             raise ValueError("Paired history models must predict identical subject/run targets")
         report["paired_model_comparison"] = compare_forecasts(predictions, other_pred, targets, template,
-                                                            subjects, start, int(config["evaluation"].get("bootstrap_replicates", 10000)))
+                                                            subjects, start, **comparison_options)
+    if persistence_model:
+        plot_persistence_examples(destination / f"examples_{split_name}", predictions, targets, subjects, runs,
+                                  persistence_baseline, comparison_options["seed"])
     if save_predictions:
         np.savez_compressed(destination / f"predictions_{split_name}.npz", prediction=predictions, target=targets,
                             subject_id=subjects, run=runs, forecast_origin=dataset.forecast_origin)
@@ -252,3 +290,34 @@ def evaluate_history_forecast(config, window_length, checkpoint, stats_path,
     path = destination / f"evaluation_{split_name}.json"
     path.write_text(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
     return path
+
+
+def plot_persistence_examples(destination, predictions, targets, subjects, runs, baseline_for, seed):
+    """Choose examples without inspecting prediction quality; preserve selection."""
+    import matplotlib.pyplot as plt
+    destination = Path(destination)
+    destination.mkdir(parents=True, exist_ok=True)
+    rng = np.random.default_rng(seed)
+    identities = sorted(set(subjects))
+    chosen = sorted(rng.choice(len(identities), min(4, len(identities)), replace=False).tolist())
+    samples = [subjects.index(identities[i]) for i in chosen]
+    edges = sorted(rng.choice(predictions.shape[-1], min(3, predictions.shape[-1]), replace=False).tolist())
+    figure, axes = plt.subplots(len(samples), len(edges), squeeze=False,
+                                figsize=(5*len(edges), 2.5*len(samples)), constrained_layout=True)
+    for row, index in enumerate(samples):
+        baseline = baseline_for(index)
+        for column, edge in enumerate(edges):
+            axis = axes[row, column]
+            axis.plot(targets[index, :, edge], label="True", linewidth=1)
+            axis.plot(baseline[:, edge], label="Persistence", linewidth=1)
+            axis.plot(predictions[index, :, edge], label="Predicted", linewidth=1)
+            axis.set(title=f"{subjects[index]} / {runs[index]} / edge {edge}",
+                     xlabel="Future window (zero-based)", ylabel="Fisher-z FC")
+            if row == 0 and column == 0:
+                axis.legend(fontsize=8)
+    figure.savefig(destination / "forecast_examples.png", dpi=160)
+    plt.close(figure)
+    (destination / "selection.json").write_text(json.dumps({
+        "seed": seed, "method": "uniform random sorted subjects and edges, independent of outcomes",
+        "samples": [[subjects[i], runs[i]] for i in samples], "edges_zero_based": edges,
+    }, indent=2), encoding="utf-8")

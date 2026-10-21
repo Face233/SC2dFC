@@ -110,14 +110,14 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
     allowed_models = {
         "analytic": {"group_mean", "fc1_persistence", "fc1_decay_template"},
         "autoencoder": {"fc_autoencoder"},
-        "sequence": {"pca_ridge", "mlp", "lstm", "direct_mlp", "gcn_gru", "gru", "tcn", "transformer", "fc_history_gru_query_residual"},
+        "sequence": {"pca_ridge", "mlp", "lstm", "direct_mlp", "gcn_gru", "gru", "tcn", "transformer", "fc_history_gru_query_residual", "fc_history_gru_transformer_decay_residual"},
         "residual_ridge": {"encoded_stable_residual_ridge"},
         "residual_dynamic_ridge": {"encoded_dynamic_residual_ridge"},
     }
     if model_name not in allowed_models[task]:
         raise ValueError(f"model.name {model_name!r} is not valid for task {task!r}")
     primary_metric = str(config["evaluation"]["primary_metric"])
-    if task == "sequence" and primary_metric not in {"objective_loss", "long_residual_pearson", "long_edge_mse", "forecast_nonoverlap_mse"}:
+    if task == "sequence" and primary_metric not in {"objective_loss", "long_residual_pearson", "long_edge_mse", "forecast_nonoverlap_mse", "forecast_mse"}:
         raise ValueError("Sequence primary_metric must be objective_loss, long_residual_pearson or long_edge_mse")
     if task == "autoencoder" and primary_metric != "validation_loss":
         raise ValueError("Autoencoder experiments must use validation_loss as the primary metric")
@@ -157,7 +157,8 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Managed configs require decision_rule.description")
     if task == "sequence":
         model = config.get("model", {})
-        history_model = model_name == "fc_history_gru_query_residual"
+        persistence_model = model_name == "fc_history_gru_transformer_decay_residual"
+        history_model = model_name == "fc_history_gru_query_residual" or persistence_model
         if history_model:
             from .connectivity import nonoverlap_horizon
             origins = data.get("forecast_origins")
@@ -170,13 +171,29 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
             nonoverlap = nonoverlap_horizon(int(data["window_length"]), int(data["stride"]))
             if steps != windows - origins[0] - 1 or steps <= nonoverlap + 1:
                 raise ValueError("H must cover all remaining windows and include a nonoverlap interval")
-            if (primary_metric != "forecast_nonoverlap_mse"
-                    or model.get("output_decomposition") != "last_observed_fc_residual"
+            expected_metric = "forecast_mse" if persistence_model else "forecast_nonoverlap_mse"
+            expected_decomposition = "history_decay_residual" if persistence_model else "last_observed_fc_residual"
+            if (primary_metric != expected_metric
+                    or model.get("output_decomposition") != expected_decomposition
                     or experiment.get("ablation") != "fc1_only"
                     or model.get("warmup_encoder") != "gru"
                     or int(model.get("warmup_gru_layers", 1)) != 1
                     or int(model["hidden_dim"]) != int(model["fc_latent_dim"])):
                 raise ValueError("History model requires FC-only single-layer GRU, matching dimensions and forecast MSE selection")
+            if persistence_model:
+                reference = config.get("artifacts", {}).get("history_persistence", {})
+                digest = reference.get("sha256")
+                if (not reference.get("id") or not reference.get("path")
+                        or (digest is not None and (len(str(digest)) != 64 or any(c not in "0123456789abcdef" for c in str(digest))))):
+                    raise ValueError("History persistence needs id, path and a null (pending) or SHA256 hash")
+                if (set(config["paths"]["timeseries"]) != {"LR"}
+                        or model.get("sc_encoder") != "none"
+                        or model.get("output_head") != "direct_edge_linear"
+                        or int(model.get("transformer_layers", 0)) < 1
+                        or int(model.get("transformer_heads", 0)) < 1
+                        or int(model["hidden_dim"]) % int(model["transformer_heads"])
+                        or int(model.get("transformer_ffn_dim", 0)) < 1):
+                    raise ValueError("History persistence requires LR-only FC, no SC, direct head and valid Transformer dimensions")
             weights = {key: float(value) for key, value in config["training"]["loss_weights"].items() if float(value)}
             if config["training"].get("loss_type") != "mse" or weights != {"edge": 1.0}:
                 raise ValueError("History length experiments require pure edge MSE")
@@ -184,7 +201,7 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
                 raise ValueError("History forecast nonoverlap_start must use the project's conservative interval")
             if int(config["training"]["batch_size"]) < 1 or int(config["training"]["epochs"]) < 1:
                 raise ValueError("History batch size and epochs must be positive")
-        elif data.get("forecast_origins") is not None or primary_metric == "forecast_nonoverlap_mse":
+        elif data.get("forecast_origins") is not None or primary_metric in {"forecast_nonoverlap_mse", "forecast_mse"}:
             raise ValueError("Common forecast origins and forecast MSE require the history model")
         if model.get("output_decomposition") == "e0032_decay_residual":
             if model_name != "transformer" or model.get("output_head") != "direct_edge_linear" or model.get("sc_encoder") != "hcp_gcn" or model.get("fusion_type") != "concat_projection":

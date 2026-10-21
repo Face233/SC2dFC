@@ -426,6 +426,36 @@ def build_sequence_model(
     if decoder_type in {"gru", "tcn", "transformer"} and output_head not in {"e0003_reconstruction_decoder", "direct_edge_linear"}:
         raise ValueError(f"Unsupported conditional output head: {output_head}")
     warmup_windows = int((checkpoint_payload or {}).get("warmup_windows", config.get("data", {}).get("warmup_windows", 1)))
+    if decoder_type == "fc_history_gru_transformer_decay_residual":
+        from .history_persistence import load_persistence_artifact
+        from .models.history_transformer import FCHistoryPersistenceTransformer
+        data = config["data"]
+        reference = config["artifacts"]["history_persistence"]
+        for key in ("warmup_windows", "forecast_windows", "forecast_origins"):
+            if checkpoint_payload is not None and checkpoint_payload.get(key) != data[key]:
+                raise ValueError(f"Checkpoint forecast protocol differs: {key}")
+        if checkpoint_payload is not None and checkpoint_payload.get("persistence_sha256") != reference["sha256"]:
+            raise ValueError("Checkpoint persistence artifact checksum differs from config")
+        artifact = load_persistence_artifact(config)
+        if checkpoint_payload is not None:
+            expected_buffers = {
+                "group_template": group_template_for_forecast(artifact, data),
+                "context_template": artifact["context_template"], "decay_alpha": artifact["alpha"],
+            }
+            for key, expected in expected_buffers.items():
+                stored = checkpoint_payload["model"].get(key)
+                if stored is None or not torch.equal(stored.cpu(), torch.from_numpy(expected).float()):
+                    raise ValueError(f"Checkpoint frozen persistence buffer differs from artifact: {key}")
+        return FCHistoryPersistenceTransformer(
+            autoencoder, torch.from_numpy(group_template_for_forecast(artifact, data)),
+            torch.from_numpy(artifact["context_template"]), torch.from_numpy(artifact["alpha"]),
+            n_nodes=int(data["n_nodes"]), hidden_dim=int(model_cfg["hidden_dim"]),
+            dropout=float(model_cfg["dropout"]), warmup_windows=warmup_windows,
+            forecast_origin=int(data["forecast_origins"][0]),
+            transformer_layers=int(model_cfg["transformer_layers"]),
+            transformer_heads=int(model_cfg["transformer_heads"]),
+            transformer_ffn_dim=int(model_cfg["transformer_ffn_dim"]),
+        ).to(device)
     if decoder_type == "fc_history_gru_query_residual":
         from .models.history import FCHistoryGRU
         data = config["data"]
@@ -611,7 +641,7 @@ def validate_sequence(
         count += batch_size
         residual_scores.extend(_long_residual_score(output.fc_z_edges, target, model.group_template, nonoverlap).cpu().tolist())
         long_squared_error += float((output.fc_z_edges[:, nonoverlap:] - target[:, nonoverlap:]).square().mean(dim=(1, 2)).sum())
-        if getattr(model, "output_decomposition", "") == "last_observed_fc_residual":
+        if getattr(model, "output_decomposition", "") in {"last_observed_fc_residual", "history_decay_residual"}:
             full = (output.fc_z_edges - target).square().mean(dim=(1, 2)).cpu().tolist()
             long = (output.fc_z_edges[:, nonoverlap:] - target[:, nonoverlap:]).square().mean(dim=(1, 2)).cpu().tolist()
             for subject, f, l in zip(batch["subject_id"], full, long):
@@ -653,7 +683,7 @@ def train_sequence_model(
         )
     train_data = DFCSequenceDataset(config, window_length, "train", stats_path, ablation)
     val_data = DFCSequenceDataset(config, window_length, "val", stats_path, ablation)
-    if decoder_type == "fc_history_gru_query_residual" and (not len(train_data) or not len(val_data)):
+    if decoder_type in {"fc_history_gru_query_residual", "fc_history_gru_transformer_decay_residual"} and (not len(train_data) or not len(val_data)):
         raise ValueError("History forecasts require nonempty train and validation subjects")
     num_workers = int(config["training"]["num_workers"])
     train_loader = DataLoader(
@@ -712,11 +742,11 @@ def train_sequence_model(
     last_checkpoint = checkpoint_dir / "last.pt"
     log_path = output_dir / "train.log"
     primary_metric = str(config.get("evaluation", {}).get("primary_metric", "long_residual_pearson"))
-    if primary_metric not in {"objective_loss", "long_residual_pearson", "long_edge_mse", "forecast_nonoverlap_mse"}:
+    if primary_metric not in {"objective_loss", "long_residual_pearson", "long_edge_mse", "forecast_nonoverlap_mse", "forecast_mse"}:
         raise ValueError("Sequence primary_metric must be objective_loss, long_residual_pearson or long_edge_mse")
-    minimize = primary_metric in {"objective_loss", "long_edge_mse", "forecast_nonoverlap_mse"}
+    minimize = primary_metric in {"objective_loss", "long_edge_mse", "forecast_nonoverlap_mse", "forecast_mse"}
     forecast_protocol = {}
-    if decoder_type == "fc_history_gru_query_residual":
+    if decoder_type in {"fc_history_gru_query_residual", "fc_history_gru_transformer_decay_residual"}:
         import hashlib
         forecast_protocol = {key: config["data"][key] for key in
                              ("warmup_windows", "forecast_windows", "forecast_origins")}
@@ -731,6 +761,12 @@ def train_sequence_model(
             trainable_parameters=sum(p.numel() for p in model.parameters() if p.requires_grad),
             sample_manifest_sha256=hashlib.sha256(json.dumps(samples).encode()).hexdigest(),
         )
+        if decoder_type == "fc_history_gru_transformer_decay_residual":
+            from .history_persistence import load_persistence_artifact
+            artifact = load_persistence_artifact(config)
+            if forecast_protocol["sample_manifest_sha256"] != str(artifact["training_sample_sha256"]):
+                raise ValueError("Training subjects/runs differ from persistence fitting manifest")
+            forecast_protocol["persistence_sha256"] = config["artifacts"]["history_persistence"]["sha256"]
         (output_dir / "forecast_protocol.json").write_text(json.dumps(forecast_protocol, indent=2), encoding="utf-8")
     if bool(config["training"].get("finetune_fc_decoder", False)):
         raise ValueError(

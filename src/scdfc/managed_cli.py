@@ -34,6 +34,7 @@ from .metric_records import selection_record
 from .progress import emit
 from .residual_ridge import evaluate_residual_ridge, run_residual_ridge
 from .residual_dynamic_ridge import evaluate_residual_dynamic_ridge, run_residual_dynamic_ridge
+from .history_persistence import HISTORY_MODELS, MODEL_NAME as HISTORY_TRANSFORMER
 
 
 def _root() -> Path:
@@ -41,12 +42,19 @@ def _root() -> Path:
 
 
 def _stats_path(config: dict, window: int) -> Path:
+    if config.get("model", {}).get("name") == HISTORY_TRANSFORMER:
+        from .history_persistence import persistence_path
+        return persistence_path(config)
     filename = ("history_training_stats.npz" if config.get("model", {}).get("name") == "fc_history_gru_query_residual"
                 else "training_stats.npz")
     return resolve_path(config, "output_dir") / "shared" / config["data"]["dataset_version"] / f"window_{window}" / filename
 
 
 def _ensure_stats(config: dict, window: int) -> Path:
+    if config.get("model", {}).get("name") == HISTORY_TRANSFORMER:
+        from .history_persistence import load_persistence_artifact
+        load_persistence_artifact(config)
+        return _stats_path(config, window)
     path = _stats_path(config, window)
     needs_refresh = not path.exists()
     if path.exists():
@@ -66,6 +74,21 @@ def command_freeze_data(args) -> None:
     config = load_config(args.config)
     result = freeze_dataset(config, args.dataset_version, args.preprocessing_version, args.split_version, args.sample_limit)
     print(json.dumps(result, indent=2, ensure_ascii=False))
+
+
+def command_fit_history_persistence(args) -> None:
+    from .history_persistence import fit_history_persistence
+    config = validate_experiment_config(load_config(args.experiment))
+    verify_data_bindings(config)
+    output = Path(args.output) if args.output else Path(config["artifacts"]["history_persistence"]["path"])
+    if not output.is_absolute():
+        output = Path(config["paths"]["root"]) / output
+    print(json.dumps(fit_history_persistence(config, output), indent=2, ensure_ascii=False))
+
+
+def command_bind_history_persistence(args) -> None:
+    from .history_persistence import bind_history_persistence
+    print(json.dumps(bind_history_persistence(args.artifact, args.experiments), indent=2, ensure_ascii=False))
 
 
 def _artifact_reference(root: Path, artifact_manifest: str | None) -> dict | None:
@@ -173,6 +196,9 @@ def _write_artifact_manifest(config: dict, context, checkpoint: Path) -> Path:
 
 def command_run(args) -> None:
     config = validate_experiment_config(load_config(args.experiment))
+    if config["model"]["name"] == HISTORY_TRANSFORMER:
+        from .history_persistence import load_persistence_artifact
+        load_persistence_artifact(config)
     data_manifest = verify_data_bindings(config)
     artifact_path = verify_artifact(config)
     decay_path = verify_decay_artifact(config) if config["experiment"].get("task") in {"residual_ridge", "residual_dynamic_ridge"} or config.get("model", {}).get("output_decomposition") == "e0032_decay_residual" else None
@@ -231,7 +257,7 @@ def command_evaluate_run(args) -> None:
     config = load_config(run_dir / "config_resolved.yaml")
     if config_sha256(config) != metadata["config_sha256"]:
         raise RuntimeError("Resolved config no longer matches the run metadata")
-    if config.get("model", {}).get("name") == "fc_history_gru_query_residual":
+    if config.get("model", {}).get("name") in HISTORY_MODELS:
         config["paths"]["root"] = str(root)
     level = int(metadata["level"])
     split = permitted_evaluation_split(level, args.split, args.final_test)
@@ -248,7 +274,7 @@ def command_evaluate_run(args) -> None:
     task = config["experiment"].get("task")
     if task == "autoencoder":
         raise ValueError("Autoencoder runs are evaluated during training; use summarize directly")
-    if config.get("model", {}).get("name") == "fc_history_gru_query_residual":
+    if config.get("model", {}).get("name") in HISTORY_MODELS:
         from .history_forecast import evaluate_history_forecast
         checkpoint = run_dir / "checkpoints" / "best.pt"
         checkpoint_payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
