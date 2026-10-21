@@ -1,0 +1,127 @@
+seed: 42
+paths:
+  root: D:\Code\Canlab\HCP_New
+  atlas_labels: data/raw/atlas/ROI_MNI_V4.txt
+  sc_dir: data/raw/sc/HCP_Structure/AAL90
+  timeseries:
+    LR: data/raw/timeseries_lr
+  split_csv: data/manifests/split_lr_v1.csv
+  cache_dir: data/cache/dfc
+  output_dir: outputs
+data:
+  n_nodes: 90
+  n_timepoints: 1200
+  tr_seconds: 0.72
+  window_length: 83
+  stride: 5
+  warmup_windows: 1
+  sensitivity_windows:
+  - 42
+  - 125
+  fisher_clip: 0.999999
+  cache_dtype: float32
+  dataset_version: dataset_lr_v1
+  preprocessing_version: preprocess_lr_v1
+  manifest_path: data/manifests/dataset_lr_v1.json
+  manifest_sha256: 6ebb22662b4deb3fc7e38d45f2b76fc303d5c3ec973d36e6d7d0e2d3ffc29ac3
+  split_version: split_lr_v1
+  split_sha256: e08cd05e20ed048ba976dcf6487ecab8f6ba4671ea90ed778cbe21176b599862
+  forecast_origins:
+  - 9
+  forecast_windows: 214
+split:
+  train: 0.7
+  val: 0.15
+  test: 0.15
+model:
+  sc_encoder: none
+  fc_latent_dim: 256
+  hidden_dim: 256
+  sc_graph_layers: 3
+  sc_graph_heads: 4
+  hcp_gcn_hidden_dim: 128
+  hcp_gcn_output_dim: 64
+  tcn_dilations:
+  - 1
+  - 2
+  - 4
+  - 8
+  - 16
+  - 32
+  transformer_layers: 4
+  transformer_heads: 8
+  transformer_ffn_dim: 1024
+  dropout: 0.1
+  baseline_hidden_dim: 256
+  ridge_pca_components: 128
+  ridge_alpha: 1.0
+  warmup_encoder: gru
+  warmup_gru_layers: 1
+  name: fc_history_gru_transformer_decay_residual
+  output_head: direct_edge_linear
+  gru_layers: 2
+  output_decomposition: history_decay_residual
+training:
+  batch_size: 4
+  autoencoder_batch_size: 256
+  epochs: 150
+  autoencoder_epochs: 100
+  decoder_frozen_epochs: 20
+  learning_rate: 0.0003
+  decoder_learning_rate_scale: 0.1
+  learning_rate_schedule:
+    name: warmup_cosine
+    warmup_epochs: 5
+    eta_min: 0.0
+  weight_decay: 0.0001
+  gradient_clip: 1.0
+  patience: 151
+  num_workers: 0
+  seeds:
+  - 42
+  - 43
+  - 44
+  autoencoder_loss_weights:
+    edge: 1.0
+  loss_weights:
+    edge: 1.0
+    difference: 0.0
+  huber_beta: 1.0
+  finetune_fc_decoder: false
+  loss_type: mse
+evaluation:
+  primary_metric: forecast_mse
+  bootstrap_replicates: 10000
+  state_clusters: 5
+  projection_epsilon: 1.0e-06
+  nonoverlap_start: 17
+  bootstrap_seed: 20261021
+  simultaneous_comparisons: 2
+experiment:
+  id: E0045
+  name: history_k1_transformer_persistence_v1
+  level: 1
+  task: sequence
+  research_question: 在共同第10窗截止点，带冻结持续性基线的未来Transformer能否从最后一窗预测余下214窗？
+  hypothesis: K1建立同参数参照；只有相对解析持续性基线的真实验证增益才支持神经残差有效。
+  primary_change: 冻结AE加历史GRU摘要，4层未来Transformer直接预测FC10持续性基线之外的残差；不输入SC。
+  baseline: history-persistence-origin9-v1
+  owner: Face88
+  status: planned
+  ablation: fc1_only
+decision_rule:
+  description: 完整150轮，以完整214窗验证被试平均MSE选模；报告完整及无重叠空间r、时间r、差分相关、标准差比与持续性残差诊断。三组共用训练集第10窗模板和冻结alpha，只改变K；不查看test。先完成三组seed42，复验统一补43和44。
+artifacts:
+  fc_autoencoder:
+    id: A0003
+    path: outputs/E0003/runs/E0003-s42-20260810T064954Z-4d4337d/checkpoints/best.pt
+    sha256: 2228c6d742c1eb3225eb550ae3839b7be55cbaac8a9bfafa018780a0d961ec97
+  history_persistence:
+    id: history-persistence-origin9-v1
+    path: outputs/shared/dataset_lr_v1/window_83/history_persistence_origin9_v1.npz
+    sha256: 55f22b1fa63fffe0b5fe17a558f7966f9b3094cac390e498f90ff16644ff5641
+baselines: {}
+_config_source: D:\Code\Canlab\HCP_New\configs\experiments\E0045_history_k1_transformer_persistence_v1.yaml
+runtime:
+  run_id: E0045-s42-20261021T033047Z-19f52fe
+  config_sha256: 54de7a8e512edfaa2fbb4adfb4fee4882897b54dca23a564897ff1ad38da3a0b

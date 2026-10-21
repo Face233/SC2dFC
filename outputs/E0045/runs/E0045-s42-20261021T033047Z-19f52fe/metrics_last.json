@@ -1,0 +1,25 @@
+{
+  "schema_version": 2,
+  "kind": "last_validation",
+  "split": "val",
+  "metrics": {
+    "objective_loss": 0.22776825311063212,
+    "long_residual_pearson": 0.11486206410594191,
+    "long_edge_mse": 0.23770991344995138,
+    "validation_edge_loss": 0.22776825311063212,
+    "forecast_mse": 0.22776825235614293,
+    "forecast_nonoverlap_mse": 0.23770991543048545
+  },
+  "primary_metric": "forecast_mse",
+  "last_epoch": 149,
+  "epoch_index_base": 0,
+  "metric_definition": {
+    "implementation": "history_forecast_full_mse/v1",
+    "split": "val",
+    "forecast_origins": [
+      9
+    ],
+    "forecast_windows": 214,
+    "aggregation": "mean per run, then mean per subject, then mean over subjects"
+  }
+}
