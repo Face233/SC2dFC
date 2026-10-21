@@ -234,6 +234,14 @@ def build_parser() -> argparse.ArgumentParser:
     dynamic_audit.add_argument("--device")
     dynamic_audit.set_defaults(function=command_dynamic_audit)
 
+    from .ae_diagnostic import command_ae_diagnostic
+    diagnostic = subparsers.add_parser("ae-diagnostic", help="Frozen AE reconstruction diagnostic; train/val only, no forecasting")
+    diagnostic.add_argument("--experiment", default="configs/experiments/E0044_ae_reconstruction_diagnostic_v1.yaml")
+    diagnostic.add_argument("--device", default="cpu")
+    diagnostic.add_argument("--diagnostic-id", help="Unique local output ID; existing directories are never overwritten")
+    diagnostic.add_argument("--check-only", action="store_true", help="Verify bindings, cache metadata and model loading without evaluating or fitting PCA")
+    diagnostic.set_defaults(function=command_ae_diagnostic)
+
     summarize = subparsers.add_parser("summarize")
     summarize.add_argument("--experiment", required=True)
     summarize.set_defaults(function=command_summarize)

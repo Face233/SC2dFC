@@ -196,6 +196,8 @@ def _write_artifact_manifest(config: dict, context, checkpoint: Path) -> Path:
 
 def command_run(args) -> None:
     config = validate_experiment_config(load_config(args.experiment))
+    if config["experiment"].get("task") == "ae_diagnostic":
+        raise ValueError("Use scdfc ae-diagnostic --experiment for reconstruction diagnostics; no training run is created")
     if config["model"]["name"] == HISTORY_TRANSFORMER:
         from .history_persistence import load_persistence_artifact
         load_persistence_artifact(config)

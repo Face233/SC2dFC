@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "experiment_id": "E0044",
+  "diagnostic_id": "E0044-20261020T070318Z-b83fc41d",
+  "task": "contemporaneous_ae_reconstruction",
+  "status": "COMPLETED",
+  "started_at": "2026-10-20T07:03:18Z",
+  "config_sha256": "b83fc41d29a096d5bce73058a69936ffbe42e10d371d05cb37822e154e590167",
+  "device": "cuda",
+  "training_run_created": false,
+  "git": {
+    "commit": "d7a7edc8322fece38b307dea3dc9939cb8566e3b",
+    "branch": "main",
+    "remote": "https://github.com/Face233/SC2dFC.git",
+    "dirty": true,
+    "status": [
+      "M .gitignore",
+      " M docs/E0044_ae_reconstruction_diagnostic_design.md",
+      " M reports/experiment_registry.csv",
+      " M src/scdfc/cli.py",
+      " M src/scdfc/managed_cli.py",
+      " M src/scdfc/management.py",
+      "?? configs/experiments/E0044_ae_reconstruction_diagnostic_v1.yaml",
+      "?? outputs/E0044/",
+      "?? src/scdfc/ae_diagnostic.py",
+      "?? src/scdfc/ae_diagnostic_visual.py",
+      "?? tests/test_ae_diagnostic.py"
+    ]
+  },
+  "ended_at": "2026-10-20T07:22:10Z",
+  "images": [
+    "D:\\Code\\Canlab\\HCP_New\\outputs\\E0044\\visual\\E0044-20261020T070318Z-b83fc41d_overview.png",
+    "D:\\Code\\Canlab\\HCP_New\\outputs\\E0044\\visual\\E0044-20261020T070318Z-b83fc41d_shape_amplitude.png",
+    "D:\\Code\\Canlab\\HCP_New\\outputs\\E0044\\visual\\E0044-20261020T070318Z-b83fc41d_full_raw_curves.png",
+    "D:\\Code\\Canlab\\HCP_New\\outputs\\E0044\\visual\\E0044-20261020T070318Z-b83fc41d_full_centered_curves.png",
+    "D:\\Code\\Canlab\\HCP_New\\outputs\\E0044\\visual\\E0044-20261020T070318Z-b83fc41d_history20_raw_curves.png",
+    "D:\\Code\\Canlab\\HCP_New\\outputs\\E0044\\visual\\E0044-20261020T070318Z-b83fc41d_history20_centered_curves.png"
+  ],
+  "output_sha256": {
+    "ae_diagnostic.py": "265302aefb8625e0154bfe517745057b8973b937e08aa58f2ac4228b5c6a0e2e",
+    "ae_diagnostic_visual.py": "23ea60080652dcc291ccc50fbf449b02a74878bfdf236e7b11bc2b415dbd2be2",
+    "common_edge_comparisons.csv": "28c666e2611a37ebf1d388802f03581cd8d09094dc962d3b25392773501e064b",
+    "config_resolved.yaml": "649deb881c53beadf6c5c8ae1ba1b2c00535aedacf95e308f4f4ffdcbbeff79f",
+    "data_audit.json": "97b5a0c7d984fc30d1bb1cc2c110e49cb7b40267d49610b8a2a221b9b23d5007",
+    "environment.txt": "2835404a0017bf61837b42e314e1d5128b587d088af481117b79cb01ad5ae221",
+    "pca.npz": "53319615564f4123762664173dd2d2fce51bfd39bf3fe2f035355dbe5e7d4a6e",
+    "per_run_metrics.csv": "e7c687a7dda885ac81a786a396d93feec1c97cd8a20ab6c1e9705c1a74b1f53f",
+    "per_subject_metrics.csv": "f7e1915f115fd9175f34a437ed534eef2c2943628dbafc41196d710157a9d140",
+    "private_examples.npz": "cbd29a4b5ae56c14799051e80cbc826d81832e00bdb49f431ea519d0e8316ee2",
+    "selection.json": "cbc07bde63835df5feeea49d7cabb4cb21d6db65902c728b0ca215bba9c3609d",
+    "summary.json": "7e31f3f2a52ceef741f03a094303a6894ec05fb97c81ca6d3ed93fcdfd32019c",
+    "training_references.npz": "1f1ed17e8ddab7be258eb9f32ef09177886f454ccd6ddcf44ab09fef74532f54"
+  }
+}

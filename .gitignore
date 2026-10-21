@@ -11,6 +11,8 @@ outputs/*/visual/**/__pycache__/
 outputs/*/visual/**/*.py[cod]
 cache/
 outputs/shared/
+# Selected real FC/reconstruction arrays are local diagnostic inputs, not public tables.
+outputs/*/diagnostics/**/private_examples.npz
 
 # Local neuroimaging data, caches and participant metadata (never publish)
 data/

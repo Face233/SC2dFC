@@ -1,0 +1,260 @@
+{
+  "experiment_id": "E0044",
+  "diagnostic_id": "E0044-20261020T070318Z-b83fc41d",
+  "task": "contemporaneous_ae_reconstruction",
+  "status": "COMPLETED",
+  "research_decision": "INCONCLUSIVE",
+  "training_run_created": false,
+  "checkpoint_sha256": "2228c6d742c1eb3225eb550ae3839b7be55cbaac8a9bfafa018780a0d961ec97",
+  "config_sha256": "b83fc41d29a096d5bce73058a69936ffbe42e10d371d05cb37822e154e590167",
+  "splits": {
+    "train": 738,
+    "val": 158
+  },
+  "test_data_read": false,
+  "source": "D:\\Code\\Canlab\\HCP_New\\outputs\\E0044\\diagnostics\\E0044-20261020T070318Z-b83fc41d\\summary.json",
+  "val": {
+    "full": {
+      "ae": {
+        "mse": {
+          "mean": 0.048269399529775554,
+          "ci_low": 0.04731281681640462,
+          "ci_high": 0.049246954310535065,
+          "n_subjects": 158
+        },
+        "space_r": {
+          "mean": 0.8724044853457887,
+          "ci_low": 0.8679087782830056,
+          "ci_high": 0.8767207412242946,
+          "n_subjects": 158
+        },
+        "dynamic_nmse": {
+          "mean": 0.30323671179692707,
+          "ci_low": 0.2936194913393984,
+          "ci_high": 0.3130352023376758,
+          "n_subjects": 158
+        },
+        "time_r": {
+          "mean": 0.8192050289203661,
+          "ci_low": 0.8130393794288447,
+          "ci_high": 0.8251945567908058,
+          "n_subjects": 158
+        },
+        "std_ratio_mean": {
+          "mean": 0.8109433409003367,
+          "ci_low": 0.8064978128463096,
+          "ci_high": 0.8153480983950964,
+          "n_subjects": 158
+        },
+        "difference_time_r": {
+          "mean": 0.7841826870141316,
+          "ci_low": 0.7781922743709003,
+          "ci_high": 0.7900167842335217,
+          "n_subjects": 158
+        }
+      },
+      "pca": {
+        "mse": {
+          "mean": 0.040537924199761675,
+          "ci_low": 0.039590073958690165,
+          "ci_high": 0.04152067563603844,
+          "n_subjects": 158
+        },
+        "space_r": {
+          "mean": 0.8903958291489571,
+          "ci_low": 0.886237846383208,
+          "ci_high": 0.8943929840797071,
+          "n_subjects": 158
+        },
+        "dynamic_nmse": {
+          "mean": 0.2589270740580624,
+          "ci_low": 0.24974497872203777,
+          "ci_high": 0.26832266034690067,
+          "n_subjects": 158
+        },
+        "time_r": {
+          "mean": 0.8460378473998313,
+          "ci_low": 0.8403396627526115,
+          "ci_high": 0.8515262534850481,
+          "n_subjects": 158
+        },
+        "std_ratio_mean": {
+          "mean": 0.859003261884868,
+          "ci_low": 0.8535896416924079,
+          "ci_high": 0.8642126231735708,
+          "n_subjects": 158
+        },
+        "difference_time_r": {
+          "mean": 0.8241751549164682,
+          "ci_low": 0.8187860902462668,
+          "ci_high": 0.8293928098775137,
+          "n_subjects": 158
+        }
+      }
+    },
+    "target": {
+      "ae": {
+        "mse": {
+          "mean": 0.048146389918809436,
+          "ci_low": 0.047161960867210376,
+          "ci_high": 0.04915796357674423,
+          "n_subjects": 158
+        },
+        "space_r": {
+          "mean": 0.8735333195798223,
+          "ci_low": 0.8688636835104194,
+          "ci_high": 0.8780526884871576,
+          "n_subjects": 158
+        },
+        "dynamic_nmse": {
+          "mean": 0.30429818157800526,
+          "ci_low": 0.2945968254211775,
+          "ci_high": 0.3143154348527181,
+          "n_subjects": 158
+        },
+        "time_r": {
+          "mean": 0.8183608936585817,
+          "ci_low": 0.8120257051663299,
+          "ci_high": 0.824516280145209,
+          "n_subjects": 158
+        },
+        "std_ratio_mean": {
+          "mean": 0.8101104886892823,
+          "ci_low": 0.8055735537160101,
+          "ci_high": 0.8146380998923246,
+          "n_subjects": 158
+        },
+        "difference_time_r": {
+          "mean": 0.7853513406589361,
+          "ci_low": 0.7792227765139448,
+          "ci_high": 0.7912786149377515,
+          "n_subjects": 158
+        }
+      },
+      "pca": {
+        "mse": {
+          "mean": 0.04036966021600694,
+          "ci_low": 0.039390585110275475,
+          "ci_high": 0.041383114195367325,
+          "n_subjects": 158
+        },
+        "space_r": {
+          "mean": 0.8914861366378715,
+          "ci_low": 0.8871754742087897,
+          "ci_high": 0.8956457893871452,
+          "n_subjects": 158
+        },
+        "dynamic_nmse": {
+          "mean": 0.259485793250601,
+          "ci_low": 0.25015610179712783,
+          "ci_high": 0.2690828706105202,
+          "n_subjects": 158
+        },
+        "time_r": {
+          "mean": 0.8455258134129529,
+          "ci_low": 0.8397315709237171,
+          "ci_high": 0.8511318196212191,
+          "n_subjects": 158
+        },
+        "std_ratio_mean": {
+          "mean": 0.8594977420234734,
+          "ci_low": 0.8540197569774478,
+          "ci_high": 0.8647641463956355,
+          "n_subjects": 158
+        },
+        "difference_time_r": {
+          "mean": 0.8252694343084443,
+          "ci_low": 0.8197429718330652,
+          "ci_high": 0.830607404734647,
+          "n_subjects": 158
+        }
+      }
+    },
+    "history20": {
+      "ae": {
+        "mse": {
+          "mean": 0.049524097561629815,
+          "ci_low": 0.04819736423395348,
+          "ci_high": 0.05089624389032533,
+          "n_subjects": 158
+        },
+        "space_r": {
+          "mean": 0.8608903761586469,
+          "ci_low": 0.8545485401248067,
+          "ci_high": 0.867044862177308,
+          "n_subjects": 158
+        },
+        "dynamic_nmse": {
+          "mean": 0.372293470159441,
+          "ci_low": 0.3607316805693333,
+          "ci_high": 0.38384643498333065,
+          "n_subjects": 158
+        },
+        "time_r": {
+          "mean": 0.7365876405037866,
+          "ci_low": 0.7285974096939277,
+          "ci_high": 0.7445600722143556,
+          "n_subjects": 158
+        },
+        "std_ratio_mean": {
+          "mean": 0.8724414447414462,
+          "ci_low": 0.8647034022981607,
+          "ci_high": 0.8802209849927932,
+          "n_subjects": 158
+        },
+        "difference_time_r": {
+          "mean": 0.7557989070287778,
+          "ci_low": 0.7485406128903592,
+          "ci_high": 0.7630152965320014,
+          "n_subjects": 158
+        }
+      },
+      "pca": {
+        "mse": {
+          "mean": 0.04225421683405996,
+          "ci_low": 0.04095446202256356,
+          "ci_high": 0.04357419793248178,
+          "n_subjects": 158
+        },
+        "space_r": {
+          "mean": 0.8792746927620295,
+          "ci_low": 0.873382696391046,
+          "ci_high": 0.8849798030705138,
+          "n_subjects": 158
+        },
+        "dynamic_nmse": {
+          "mean": 0.31801973548321916,
+          "ci_low": 0.3072024578397327,
+          "ci_high": 0.3288212622954892,
+          "n_subjects": 158
+        },
+        "time_r": {
+          "mean": 0.7749641536917364,
+          "ci_low": 0.7676861068555425,
+          "ci_high": 0.7823240397526756,
+          "n_subjects": 158
+        },
+        "std_ratio_mean": {
+          "mean": 0.8942859907902189,
+          "ci_low": 0.889093247962974,
+          "ci_high": 0.8994683614729508,
+          "n_subjects": 158
+        },
+        "difference_time_r": {
+          "mean": 0.7992425562610623,
+          "ci_low": 0.7927952750560393,
+          "ci_high": 0.8057195475645688,
+          "n_subjects": 158
+        }
+      }
+    }
+  },
+  "primary_paired_ae_minus_pca": {
+    "mean": 0.04430963773886472,
+    "ci_low": 0.043531468101896405,
+    "ci_high": 0.045105030145453036,
+    "n_subjects": 158
+  },
+  "conclusion": "A0003 preserves substantial contemporaneous FC dynamics with moderate amplitude attenuation; PCA-256 reconstructs better. This does not isolate the encoder as the cause of downstream forecast smoothing.",
+  "next_step": "Probe frozen latents or compare PCA history representations under the same forecasting task; inspect history utilization and the forecast objective."
+}

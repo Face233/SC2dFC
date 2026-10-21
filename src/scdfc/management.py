@@ -104,12 +104,13 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
     if not evaluation.get("primary_metric"):
         raise ValueError("Managed configs require evaluation.primary_metric")
     task = experiment.get("task", "sequence")
-    if task not in {"sequence", "autoencoder", "analytic", "residual_ridge", "residual_dynamic_ridge"}:
+    if task not in {"sequence", "autoencoder", "analytic", "residual_ridge", "residual_dynamic_ridge", "ae_diagnostic"}:
         raise ValueError("Unsupported experiment.task")
     model_name = config.get("model", {}).get("name")
     allowed_models = {
         "analytic": {"group_mean", "fc1_persistence", "fc1_decay_template"},
         "autoencoder": {"fc_autoencoder"},
+        "ae_diagnostic": {"fc_autoencoder"},
         "sequence": {"pca_ridge", "mlp", "lstm", "direct_mlp", "gcn_gru", "gru", "tcn", "transformer", "fc_history_gru_query_residual", "fc_history_gru_transformer_decay_residual"},
         "residual_ridge": {"encoded_stable_residual_ridge"},
         "residual_dynamic_ridge": {"encoded_dynamic_residual_ridge"},
@@ -121,6 +122,11 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Sequence primary_metric must be objective_loss, long_residual_pearson or long_edge_mse")
     if task == "autoencoder" and primary_metric != "validation_loss":
         raise ValueError("Autoencoder experiments must use validation_loss as the primary metric")
+    if task == "ae_diagnostic":
+        if primary_metric != "dynamic_nmse":
+            raise ValueError("AE diagnostics require dynamic_nmse as primary_metric")
+        from .ae_diagnostic import validate_diagnostic_config
+        validate_diagnostic_config(config)
     if task == "residual_ridge":
         if primary_metric != "long_edge_mse":
             raise ValueError("Residual Ridge must select on long_edge_mse")
@@ -349,7 +355,7 @@ def freeze_dataset(
 
 
 def verify_artifact(config: dict[str, Any]) -> Path | None:
-    if config["experiment"].get("task", "sequence") not in {"sequence", "residual_ridge", "residual_dynamic_ridge"}:
+    if config["experiment"].get("task", "sequence") not in {"sequence", "residual_ridge", "residual_dynamic_ridge", "ae_diagnostic"}:
         return None
     reference = config["artifacts"]["fc_autoencoder"]
     path = Path(reference["path"])

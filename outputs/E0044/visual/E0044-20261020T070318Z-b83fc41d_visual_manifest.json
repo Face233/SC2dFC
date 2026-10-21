@@ -1,0 +1,39 @@
+{
+  "experiment_id": "E0044",
+  "diagnostic_id": "E0044-20261020T070318Z-b83fc41d",
+  "split": "val",
+  "source": "D:\\Code\\Canlab\\HCP_New\\outputs\\E0044\\diagnostics\\E0044-20261020T070318Z-b83fc41d",
+  "images": [
+    "E0044-20261020T070318Z-b83fc41d_overview.png",
+    "E0044-20261020T070318Z-b83fc41d_shape_amplitude.png",
+    "E0044-20261020T070318Z-b83fc41d_full_raw_curves.png",
+    "E0044-20261020T070318Z-b83fc41d_full_centered_curves.png",
+    "E0044-20261020T070318Z-b83fc41d_history20_raw_curves.png",
+    "E0044-20261020T070318Z-b83fc41d_history20_centered_curves.png"
+  ],
+  "script": "E0044-20261020T070318Z-b83fc41d_rebuild.py",
+  "selection": {
+    "subjects": [
+      "120010",
+      "188448",
+      "308331",
+      "559457"
+    ],
+    "edge_indices": [
+      1609,
+      2298,
+      870,
+      1941,
+      186,
+      1280
+    ],
+    "edge_rule": "training-only mean within-run temporal variance; stable rank thirds; seed-42 two per third",
+    "display_labels": {
+      "120010": "V01",
+      "188448": "V02",
+      "308331": "V03",
+      "559457": "V04"
+    }
+  },
+  "private_inputs": true
+}

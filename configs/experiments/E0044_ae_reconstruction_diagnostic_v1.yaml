@@ -1,0 +1,53 @@
+base: ../default_v1.yaml
+experiment:
+  id: E0044
+  name: ae_reconstruction_diagnostic_v1
+  level: 1
+  task: ae_diagnostic
+  research_question: 冻结A0003的逐窗编码解码是否保留FC的空间结构及时间动态？
+  hypothesis: 单窗重建误差可能掩盖时间振幅或形状损失，需要动态指标与PCA对照诊断。
+  primary_change: 移除全部预测模块，仅对同期真实FC执行冻结编码解码；不训练或微调A0003。
+  baseline: E0003
+  owner: Face88
+  status: planned
+data:
+  dataset_version: dataset_lr_v1
+  preprocessing_version: preprocess_lr_v1
+  manifest_path: data/manifests/dataset_lr_v1.json
+  manifest_sha256: 6ebb22662b4deb3fc7e38d45f2b76fc303d5c3ec973d36e6d7d0e2d3ffc29ac3
+  split_version: split_lr_v1
+  split_sha256: e08cd05e20ed048ba976dcf6487ecab8f6ba4671ea90ed778cbe21176b599862
+model:
+  name: fc_autoencoder
+  fc_latent_dim: 256
+training:
+  seeds: [42]
+artifacts:
+  fc_autoencoder:
+    id: A0003
+    path: outputs/E0003/runs/E0003-s42-20260810T064954Z-4d4337d/checkpoints/best.pt
+    sha256: 2228c6d742c1eb3225eb550ae3839b7be55cbaac8a9bfafa018780a0d961ec97
+evaluation:
+  primary_metric: dynamic_nmse
+diagnostic:
+  seed: 42
+  bootstrap_seed: 20261020
+  bootstrap_replicates: 10000
+  batch_size: 256
+  constant_std_threshold: 0.000001
+  run: LR
+  expected_subjects: {train: 738, val: 158}
+  pca:
+    components: 256
+    n_oversamples: 20
+    iterated_power: 4
+    power_iteration_normalizer: QR
+  intervals:
+    full: [0, 224]
+    target: [20, 224]
+    history20: [0, 20]
+    history10: [10, 20]
+    history5: [15, 20]
+    history1: [19, 20]
+decision_rule:
+  description: 完整扫描动态NMSE为主指标，报告AE减PCA的被试配对区间；同期重建不能提供未来预测上限，也不能单凭重建差断言编码器已丢失信息。诊断不计入训练completed_runs。

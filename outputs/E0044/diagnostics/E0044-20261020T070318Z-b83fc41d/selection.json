@@ -1,0 +1,23 @@
+{
+  "subjects": [
+    "120010",
+    "188448",
+    "308331",
+    "559457"
+  ],
+  "edge_indices": [
+    1609,
+    2298,
+    870,
+    1941,
+    186,
+    1280
+  ],
+  "edge_rule": "training-only mean within-run temporal variance; stable rank thirds; seed-42 two per third",
+  "display_labels": {
+    "120010": "V01",
+    "188448": "V02",
+    "308331": "V03",
+    "559457": "V04"
+  }
+}
