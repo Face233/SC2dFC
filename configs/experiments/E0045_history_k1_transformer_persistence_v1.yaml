@@ -23,9 +23,8 @@ artifacts:
   history_persistence:
     id: history-persistence-origin9-v1
     path: outputs/shared/dataset_lr_v1/window_83/history_persistence_origin9_v1.npz
-    # Preparation required: fit on training LR only, then bind all three configs.
-    # A null hash is deliberately not runnable; do not replace it with a fake hash.
-    sha256: null
+    # Fitted once from training LR caches and bound to the local artifact.
+    sha256: 55f22b1fa63fffe0b5fe17a558f7966f9b3094cac390e498f90ff16644ff5641
 
 training:
   seeds: [42, 43, 44]
