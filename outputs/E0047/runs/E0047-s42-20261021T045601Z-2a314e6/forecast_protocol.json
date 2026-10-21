@@ -1,0 +1,11 @@
+{
+  "warmup_windows": 10,
+  "forecast_windows": 214,
+  "forecast_origins": [
+    9
+  ],
+  "initial_parameters_sha256": "9d8df24c3ee92a46a639265e2a0136ca7382c0a740d45521d7f56c00c7b6b9ca",
+  "trainable_parameters": 4638885,
+  "sample_manifest_sha256": "0182d003f420ed06d86e8c3c5fc3cba3d212da10752512e36a5818ca7e51de53",
+  "persistence_sha256": "55f22b1fa63fffe0b5fe17a558f7966f9b3094cac390e498f90ff16644ff5641"
+}

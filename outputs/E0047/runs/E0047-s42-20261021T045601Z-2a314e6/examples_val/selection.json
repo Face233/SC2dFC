@@ -1,0 +1,27 @@
+{
+  "seed": 20261021,
+  "method": "uniform random sorted subjects and edges, independent of outcomes",
+  "samples": [
+    [
+      "106521",
+      "LR"
+    ],
+    [
+      "146129",
+      "LR"
+    ],
+    [
+      "531940",
+      "LR"
+    ],
+    [
+      "561949",
+      "LR"
+    ]
+  ],
+  "edges_zero_based": [
+    208,
+    515,
+    2629
+  ]
+}
