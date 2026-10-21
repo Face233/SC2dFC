@@ -1,0 +1,60 @@
+{
+  "experiments": {
+    "E0045": "E0045-s42-20261021T033047Z-19f52fe",
+    "E0046": "E0046-s42-20261021T043331Z-e26fccd",
+    "E0047": "E0047-s42-20261021T045601Z-2a314e6"
+  },
+  "checkpoint_sha256": {
+    "E0045": "66c0ad4056db6f01c15d767e9fa8b77780ee6ad1e0adbc37e7fd668a84a88d71",
+    "E0046": "e550453d694c7bdec5f2df9b23c8993f473901a03bdf07e31b6817e2a48c2a77",
+    "E0047": "616c8a52fa9b732ed83d08f0a56bb546023c0e2b8b51086c85f9b1860f315b5f"
+  },
+  "split": "val",
+  "seed": 42,
+  "subjects": [
+    "120010",
+    "188448",
+    "308331",
+    "559457"
+  ],
+  "edge_indices": [
+    357,
+    1733,
+    1756,
+    2619,
+    3096,
+    3438
+  ],
+  "edge_labels": [
+    "Frontal_Sup_Orb_L ↔ Frontal_Inf_Tri_L",
+    "Frontal_Sup_Medial_L ↔ Insula_R",
+    "Frontal_Sup_Medial_L ↔ Occipital_Inf_L",
+    "Hippocampus_L ↔ Temporal_Pole_Sup_L",
+    "Lingual_L ↔ Temporal_Mid_L",
+    "Fusiform_R ↔ Temporal_Mid_L"
+  ],
+  "reference_selection": "D:\\Code\\Canlab\\HCP_New\\outputs\\E0037\\visual\\E0032_E0036_E0037_multisubject_comparison.json",
+  "common_target": "FC[10:]",
+  "common_forecast_origin_zero_based": 9,
+  "common_forecast_windows": 214,
+  "colors": {
+    "target": "#1f77b4",
+    "E0045": "#9467bd",
+    "E0046": "#2ca02c",
+    "E0047": "#d62728",
+    "group": "#7f7f7f"
+  },
+  "linestyles": {
+    "E0045": "-",
+    "E0046": "-",
+    "E0047": "-"
+  },
+  "layout": {
+    "rows": "six fixed edges with shared per-edge y ranges",
+    "columns": "four fixed validation subjects plus training-set group mean",
+    "style_reference": "E0037"
+  },
+  "metric_scope": "Curves show four fixed validation subjects and six selected edges; no test data are used.",
+  "image": "D:\\Code\\Canlab\\HCP_New\\outputs\\E0047\\visual\\E0045_E0046_E0047_multisubject_comparison.png",
+  "note": "E0045, E0046, and E0047 all use zero-based forecast origin 9 and predict the same FC[10:] target. Their warmup lengths differ (K=1, K=5, and K=10), as configured by each experiment."
+}
