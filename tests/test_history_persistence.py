@@ -60,7 +60,8 @@ def test_real_configs_and_pending_run_fail_before_creating_outputs(tmp_path):
         assert c["data"]["forecast_origins"] == [9] and c["data"]["forecast_windows"] == 214
         assert c["model"] == configs[0]["model"] and c["training"] == configs[0]["training"]
         assert c["artifacts"] == configs[0]["artifacts"]
-        assert c["artifacts"]["history_persistence"]["sha256"] is None
+        artifact_hash = c["artifacts"]["history_persistence"]["sha256"]
+        assert artifact_hash is None or (len(artifact_hash) == 64 and all(x in "0123456789abcdef" for x in artifact_hash))
         assert c["evaluation"]["primary_metric"] == "forecast_mse"
     for changes in ({"data": {"warmup_windows": 11}}, {"data": {"forecast_windows": 204}},
                     {"model": {"sc_encoder": "hcp_gcn"}},
@@ -70,8 +71,12 @@ def test_real_configs_and_pending_run_fail_before_creating_outputs(tmp_path):
             bad[section].update(values)
         with pytest.raises(ValueError):
             validate_experiment_config(bad)
+    draft = deepcopy(configs[0])
+    draft["artifacts"]["history_persistence"]["sha256"] = None
+    draft_path = tmp_path / "unbound.yaml"
+    draft_path.write_text(yaml.safe_dump(draft, sort_keys=False), encoding="utf-8")
     with pytest.raises(ValueError, match="not bound"):
-        command_run(SimpleNamespace(experiment=str(ROOT / "configs/experiments/E0045_history_k1_transformer_persistence_v1.yaml"), seed=42, device="cpu"))
+        command_run(SimpleNamespace(experiment=str(draft_path), seed=42, device="cpu"))
 
 
 def test_fit_train_only_lr_alignment_shared_alpha_and_no_sc(persistence_config, tmp_path, monkeypatch):

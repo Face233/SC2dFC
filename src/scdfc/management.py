@@ -122,6 +122,28 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Sequence primary_metric must be objective_loss, long_residual_pearson or long_edge_mse")
     if task == "autoencoder" and primary_metric != "validation_loss":
         raise ValueError("Autoencoder experiments must use validation_loss as the primary metric")
+    if task == "autoencoder" and config["training"].get("autoencoder_data_mode") is not None:
+        training = config["training"]
+        if (training["autoencoder_data_mode"] != "all_lr_windows"
+                or training.get("autoencoder_train_sampling") not in {"all", "fixed32"}
+                or training.get("autoencoder_loss_type") != "mse"
+                or set(config["paths"]["timeseries"]) != {"LR"}
+                or int(training.get("autoencoder_epochs", 0)) < 1
+                or int(training.get("autoencoder_batch_size", 0)) < 1):
+            raise ValueError("Matched AE experiments require LR-only full-source data, fixed32/all sampling and MSE")
+        expected = training.get("autoencoder_expected_subjects", {})
+        if set(expected) != {"train", "val"} or any(type(v) is not int or v < 1 for v in expected.values()):
+            raise ValueError("Declare expected training/validation subject counts")
+        for name in ("pca_reference", "pca_data_audit"):
+            ref = config.get("artifacts", {}).get(name, {})
+            if not ref.get("path") or not ref.get("sha256"):
+                raise ValueError(f"Matched AE requires artifacts.{name} path and sha256")
+        steps = training.get("autoencoder_step_checkpoints", [])
+        if not isinstance(steps, list) or any(type(s) is not int or s < 1 for s in steps):
+            raise ValueError("AE step checkpoints must be positive integers")
+        weights = {k: float(v) for k, v in training["autoencoder_loss_weights"].items() if float(v)}
+        if weights != {"edge": 1.0}:
+            raise ValueError("Matched AE comparisons require pure edge MSE with weight 1")
     if task == "ae_diagnostic":
         if primary_metric != "dynamic_nmse":
             raise ValueError("AE diagnostics require dynamic_nmse as primary_metric")

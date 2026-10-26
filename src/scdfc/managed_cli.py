@@ -210,8 +210,9 @@ def command_run(args) -> None:
         write_run_provenance(config, context, data_manifest)
         config["seed"] = args.seed
         window = int(config["data"]["window_length"])
-        stats = _ensure_stats(config, window)
         task = config["experiment"].get("task", "sequence")
+        stats = (None if task == "autoencoder" and config["training"].get("autoencoder_data_mode") == "all_lr_windows"
+                 else _ensure_stats(config, window))
         metadata = _checkpoint_metadata(config, context, artifact_path)
         if task == "autoencoder":
             checkpoint = train_autoencoder(config, window, stats, args.device, context.run_dir, metadata)

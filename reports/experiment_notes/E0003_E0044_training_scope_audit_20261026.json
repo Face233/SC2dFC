@@ -1,0 +1,79 @@
+{
+  "audit_date": "2026-10-26",
+  "status": "ARCHIVED_EVIDENCE_VERIFIED",
+  "scope": "historical source + archived manifests/digests; no live private data",
+  "historical_commit": "4d4337d982b85c3f75852ca79e203b4fbf0c8dcf",
+  "old_config_hash_matches": true,
+  "manifest_hash_matches": true,
+  "reconstructed_split_hash_matches": true,
+  "split_counts": {
+    "train": 738,
+    "test": 159,
+    "val": 158
+  },
+  "diagnostic_samples": {
+    "train": {
+      "count": 738,
+      "exact_split_membership": true,
+      "one_lr_run_per_subject": true
+    },
+    "val": {
+      "count": 158,
+      "exact_split_membership": true,
+      "one_lr_run_per_subject": true
+    }
+  },
+  "train_val_subject_intersection": 0,
+  "cross_split_identical_raw_lr_file_hash_groups": 0,
+  "train_val_identical_whole_fc_run_hashes": 0,
+  "archived_output_hash_checks": {
+    "data_audit.json": true,
+    "ae_diagnostic.py": true,
+    "pca.npz": true,
+    "summary.json": true
+  },
+  "source_checks": {
+    "train_subject_filter": true,
+    "separate_train_val_datasets": true,
+    "validation_no_grad": true,
+    "train_sampling_32": true,
+    "val_sampling_8": true,
+    "fixed_index_seed_no_epoch": true,
+    "edge_loss_was_smooth_l1": true,
+    "pca_fit_receives_train_samples": true,
+    "pca_all_windows": true
+  },
+  "sampling_lr_only_reconstruction": {
+    "qualification": "Conditional on original AE cache having exactly these sorted LR runs; old run did not save its actual cache sample manifest",
+    "train_slots_per_epoch": 23616,
+    "unique_windows": 22012,
+    "unique_windows_per_subject_range": [
+      25,
+      32
+    ],
+    "unique_windows_fixed_across_epochs": true,
+    "full_pca_train_windows": 165312,
+    "recorded_epochs": 100,
+    "old_steps_per_epoch_if_lr_only": 93,
+    "old_total_steps_if_lr_only": 9300,
+    "new_full_steps_per_epoch": 646
+  },
+  "loss_audit": {
+    "historical_A0003": "Smooth L1 beta=1, edge weight=1",
+    "current_default": "MSE",
+    "warning": "Old A0003 versus new full-data MSE alone confounds data and loss; use a newly trained sampled-window MSE control"
+  },
+  "conclusions": {
+    "weight_updates": "Historical code uses train-subject FC only; validation is eval/no_grad for checkpoint selection; no validation/test gradient path found",
+    "pca": "Archived PCA path fits all 738 train LR runs only; validation is transform/inverse_transform only",
+    "strict_runtime_certification": false
+  },
+  "limitations": [
+    "Original private split file, raw files, live FC cache, and A0003 weights are absent locally; archived hashes cannot substitute for re-reading those files",
+    "Old iter_cached_samples enumerated every cached run without LR whitelist; original AE run did not archive run/window membership, so old LR-only coverage cannot be strictly certified",
+    "Whole-run/raw-file exact hash nonduplication does not rule out partial or approximate duplicates",
+    "No family identifiers are available; subject-disjoint splitting does not establish family-disjoint splitting",
+    "Upstream BOLD processing and historical exploratory test access are outside this audit; do not claim untouched-test or online-causal validation",
+    "E0044 ran with a dirty worktree, but relevant computation source and outputs were archived and their declared hashes are checked"
+  ]
+}

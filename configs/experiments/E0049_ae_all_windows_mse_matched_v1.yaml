@@ -1,0 +1,13 @@
+base: E0048_ae_fixed32_mse_matched_v1.yaml
+
+experiment:
+  id: E0049
+  name: ae_all_windows_mse_matched_v1
+  research_question: 相同MSE架构与验证规则下，让AE访问与PCA完全一致的738名LR全部224窗，能否缩小重建差距？
+  hypothesis: 若数据覆盖是差距来源，全量AE相对固定32窗MSE对照应改善独立验证重建；等步数结果用于区分覆盖与额外优化。
+  primary_change: 相对E0048只将训练窗口采样从固定32槽位改为全部224窗逐一枚举，其余模型、损失、验证、初始化及每轮预算定义相同。
+  baseline: E0048
+  artifact_id: A0049
+
+training:
+  autoencoder_train_sampling: all

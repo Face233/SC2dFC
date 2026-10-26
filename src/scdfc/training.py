@@ -286,11 +286,24 @@ def train_autoencoder(
     checkpoint_metadata: dict[str, Any] | None = None,
 ) -> Path:
     """先训练 FC 自编码器，并按验证重建损失保存最佳检查点。"""
+    if config["training"].get("autoencoder_data_mode") == "all_lr_windows":
+        from .ae_full_data import full_ae_datasets
+        with full_ae_datasets(config, window_length) as (dataset, val_dataset, audit):
+            return _train_autoencoder_datasets(config, window_length, dataset, val_dataset,
+                                               device_name, output_dir, checkpoint_metadata, audit)
+    sequence = DFCSequenceDataset(config, window_length, "train", stats_path)
+    dataset = FCWindowDataset(sequence, windows_per_run=32, seed=int(config["seed"]))
+    val_sequence = DFCSequenceDataset(config, window_length, "val", stats_path)
+    val_dataset = FCWindowDataset(val_sequence, windows_per_run=8, seed=int(config["seed"]))
+    return _train_autoencoder_datasets(config, window_length, dataset, val_dataset,
+                                       device_name, output_dir, checkpoint_metadata)
+
+
+def _train_autoencoder_datasets(config, window_length, dataset, val_dataset, device_name,
+                                output_dir, checkpoint_metadata, data_audit=None):
     seed = int(config["seed"])
     seed_everything(seed)
     device = device_from_arg(device_name)
-    sequence = DFCSequenceDataset(config, window_length, "train", stats_path)
-    dataset = FCWindowDataset(sequence, windows_per_run=32, seed=seed)
     loader = DataLoader(
         dataset,
         batch_size=int(config["training"]["autoencoder_batch_size"]),
@@ -299,8 +312,6 @@ def train_autoencoder(
         generator=_loader_generator(seed),
         worker_init_fn=_seed_worker,
     )
-    val_sequence = DFCSequenceDataset(config, window_length, "val", stats_path)
-    val_dataset = FCWindowDataset(val_sequence, windows_per_run=8, seed=seed)
     val_loader = DataLoader(
         val_dataset,
         batch_size=int(config["training"]["autoencoder_batch_size"]),
@@ -325,6 +336,21 @@ def train_autoencoder(
     stale = 0
     epoch_durations: list[float] = []
     max_epochs = int(config["training"]["autoencoder_epochs"])
+    checkpoint_provenance = dict(checkpoint_metadata or {})
+    if data_audit is not None:
+        import hashlib
+        audit_text = json.dumps(data_audit, indent=2, ensure_ascii=False)
+        (output_dir / "ae_data_audit.json").write_text(audit_text, encoding="utf-8")
+        checkpoint_provenance["ae_data_audit_sha256"] = hashlib.sha256((output_dir / "ae_data_audit.json").read_bytes()).hexdigest()
+        checkpoint_provenance["training_window_manifest_sha256"] = data_audit["training_window_manifest_sha256"]
+        initial = hashlib.sha256()
+        for name, parameter in model.named_parameters():
+            initial.update(name.encode())
+            initial.update(parameter.detach().cpu().numpy().tobytes())
+        checkpoint_provenance["initial_parameters_sha256"] = initial.hexdigest()
+    checkpoint_provenance["autoencoder_loss_type"] = "mse"
+    steps = 0
+    requested_steps = set(config["training"].get("autoencoder_step_checkpoints", []))
     emit(
         "train_started", task="autoencoder", device=str(device), window_length=window_length,
         train_samples=len(dataset), validation_samples=len(val_dataset), output_dir=str(output_dir),
@@ -344,6 +370,22 @@ def train_autoencoder(
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), float(config["training"]["gradient_clip"]))
             optimizer.step()
+            steps += 1
+            if steps in requested_steps:
+                model.eval()
+                step_loss = 0.0
+                with torch.no_grad():
+                    for validation_edges in val_loader:
+                        validation_edges = validation_edges.to(device)
+                        reconstructed, _ = model(validation_edges)
+                        value, _ = criterion(reconstructed, validation_edges)
+                        step_loss += float(value)*len(validation_edges)
+                step_loss /= len(val_dataset)
+                torch.save({"schema_version": 1, "model": model.state_dict(), "epoch": epoch,
+                            "step": steps, "loss": step_loss, "window_length": window_length,
+                            "kind": "predeclared_step_checkpoint", **checkpoint_provenance},
+                           checkpoint_dir / f"step_{steps}.pt")
+                model.train()
             total += float(loss) * len(edges)
         _synchronize(device)
         train_seconds = time.perf_counter() - epoch_started
@@ -363,7 +405,8 @@ def train_autoencoder(
         if epoch_loss < best:
             best, stale, best_epoch = epoch_loss, 0, epoch
             payload = {"schema_version": 1, "model": model.state_dict(), "epoch": epoch, "loss": best, "window_length": window_length}
-            payload.update(checkpoint_metadata or {})
+            payload.update(checkpoint_provenance)
+            payload["step"] = steps
             torch.save(payload, checkpoint)
         else:
             stale += 1
@@ -386,9 +429,23 @@ def train_autoencoder(
         if stale >= int(config["training"]["patience"]):
             emit("early_stopped", task="autoencoder", epoch=epoch + 1, best_epoch=best_epoch + 1, best_validation_loss=best)
             break
+    if data_audit is not None:
+        torch.save({"schema_version": 1, "model": model.state_dict(), "epoch": epoch,
+                    "step": steps, "loss": epoch_loss, "window_length": window_length,
+                    "kind": "last", **checkpoint_provenance}, checkpoint_dir / "last.pt")
+        (output_dir / "ae_training_protocol.json").write_text(json.dumps({
+            "completed_epochs": epoch+1, "optimizer_steps": steps,
+            "requested_step_checkpoints": sorted(requested_steps),
+            "saved_step_checkpoints": sorted(step for step in requested_steps if step <= steps),
+            "train_windows": len(dataset), "validation_windows": len(val_dataset),
+            "loss_type": "mse",
+            "test_fc_read": False,
+            "initial_parameters_sha256": checkpoint_provenance["initial_parameters_sha256"],
+        }, indent=2), encoding="utf-8")
     (output_dir / "metrics_best.json").write_text(
         json.dumps(selection_record({"validation_loss": best}, "validation_loss", best_epoch,
-            definition={"implementation": "AutoencoderLoss/v1", "weights": criterion.weights}), indent=2), encoding="utf-8"
+            definition={"implementation": "AutoencoderLoss/v1", "weights": criterion.weights,
+                        "loss_type": "mse"}), indent=2), encoding="utf-8"
     )
     emit("train_finished", task="autoencoder", best_epoch=best_epoch + 1, best_validation_loss=best, checkpoint=str(checkpoint))
     return checkpoint
