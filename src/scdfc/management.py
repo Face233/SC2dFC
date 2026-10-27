@@ -93,6 +93,11 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
     if len(experiment_id) != 5 or not experiment_id.startswith("E") or not experiment_id[1:].isdigit():
         raise ValueError("experiment.id must match E####")
     experiment["level"] = normalize_level(experiment["level"])
+    if "execution_ready" in experiment:
+        if type(experiment["execution_ready"]) is not bool:
+            raise ValueError("experiment.execution_ready must be a boolean")
+        if not experiment["execution_ready"] and not experiment.get("execution_blocker"):
+            raise ValueError("Design-only experiments must declare experiment.execution_blocker")
     seeds = config.get("training", {}).get("seeds")
     if not isinstance(seeds, list) or not seeds or any(not isinstance(seed, int) for seed in seeds):
         raise ValueError("training.seeds must be a non-empty list of integers")
@@ -263,11 +268,42 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("Conditional sequence models require model.sc_encoder to be hybrid or hcp_gcn")
         if model_name in {"gru", "tcn", "transformer"} and config.get("model", {}).get("output_head") not in {"e0003_reconstruction_decoder", "direct_edge_linear"}:
             raise ValueError("Conditional sequence models require model.output_head=e0003_reconstruction_decoder or direct_edge_linear")
-        artifact = config.get("artifacts", {}).get("fc_autoencoder", {})
-        for field in ["id", "path", "sha256"]:
-            if not artifact.get(field):
-                raise ValueError(f"Sequence experiments require artifacts.fc_autoencoder.{field}")
+        representation = model.get("fc_representation", "autoencoder")
+        if representation == "frozen_pca":
+            if (model_name != "transformer" or model.get("output_head") != "direct_edge_linear"
+                    or model.get("output_decomposition") != "e0032_decay_residual"
+                    or model.get("warmup_encoder") != "none" or int(data.get("warmup_windows", 1)) != 1
+                    or int(model["fc_latent_dim"]) != int(model["hidden_dim"])
+                    or set(config["paths"]["timeseries"]) != {"LR"}
+                    or experiment.get("ablation") not in {"fc1_only", "full"}
+                    or config.get("artifacts", {}).get("fc_autoencoder") is not None):
+                raise ValueError("PCA substitution requires the FC1 direct-residual Transformer without an AE artifact")
+            if config.get("comparison_plan", {}).get("initialization_policy") != "match_reference_trainable_initial_state_and_rng":
+                raise ValueError("PCA substitution requires matching AE-reference initialization")
+            plan = config["comparison_plan"]
+            if (type(plan.get("bootstrap_replicates")) is not int or plan["bootstrap_replicates"] < 1
+                    or type(plan.get("bootstrap_seed")) is not int
+                    or plan.get("primary_family_size") != 2
+                    or plan.get("marginal_ci_level") != .95
+                    or plan.get("primary_individual_ci_level") != .975):
+                raise ValueError("PCA comparisons require declared subject bootstrap and two primary 97.5% intervals")
+            artifact = config.get("artifacts", {}).get("fc_pca", {})
+            for field in ("id", "path", "sha256", "manifest_path", "manifest_sha256"):
+                if not artifact.get(field):
+                    raise ValueError(f"PCA plans require artifacts.fc_pca.{field}")
+        elif representation == "autoencoder":
+            artifact = config.get("artifacts", {}).get("fc_autoencoder", {})
+            for field in ["id", "path", "sha256"]:
+                if not artifact.get(field):
+                    raise ValueError(f"Sequence experiments require artifacts.fc_autoencoder.{field}")
+        else:
+            raise ValueError(f"Unknown model.fc_representation: {representation}")
     return config
+
+
+def require_execution_ready(config: dict[str, Any]) -> None:
+    if config["experiment"].get("execution_ready") is False:
+        raise RuntimeError(f"Design-only experiment: {config['experiment']['execution_blocker']}")
 
 
 def _run(command: list[str], cwd: Path, check: bool = True) -> str:
@@ -379,6 +415,11 @@ def freeze_dataset(
 def verify_artifact(config: dict[str, Any]) -> Path | None:
     if config["experiment"].get("task", "sequence") not in {"sequence", "residual_ridge", "residual_dynamic_ridge", "ae_diagnostic"}:
         return None
+    if config.get("model", {}).get("fc_representation") == "frozen_pca":
+        from .fc_pca import load_frozen_fc_pca, verified_pca_paths
+        manifest_path, archive_path = verified_pca_paths(config)
+        load_frozen_fc_pca(manifest_path, config=config)
+        return archive_path
     reference = config["artifacts"]["fc_autoencoder"]
     path = Path(reference["path"])
     if not path.is_absolute():
@@ -447,6 +488,7 @@ class RunContext:
 
 def create_run_context(config: dict[str, Any], seed: int) -> RunContext:
     validate_experiment_config(config)
+    require_execution_ready(config)
     if seed not in config["training"]["seeds"]:
         raise ValueError(f"Seed {seed} is not declared in training.seeds")
     root = Path(config["paths"]["root"])

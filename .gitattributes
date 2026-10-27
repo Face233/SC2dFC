@@ -1,3 +1,5 @@
 outputs/**/checkpoints/*.pt filter=lfs diff=lfs merge=lfs -text
 # Diagnostic metadata hashes the exact archived bytes, including line endings.
 outputs/E0044/diagnostics/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+# PCA plans bind the immutable component manifest by its exact byte hash.
+configs/artifacts/A0044.yaml -text

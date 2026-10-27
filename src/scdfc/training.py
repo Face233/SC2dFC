@@ -474,7 +474,17 @@ def build_sequence_model(
     ablation: str | None = None,
 ):
     """加载共享 FC 解码器，并按名称构建主模型或学习型基线。"""
-    autoencoder = load_autoencoder(config, window_length, device, autoencoder_path)
+    if config.get("model", {}).get("fc_representation") == "frozen_pca":
+        from .pca_sequence import load_sequence_pca
+        autoencoder = load_sequence_pca(config, device, autoencoder_path, checkpoint_payload)
+        # Historical load_autoencoder constructs this architecture before loading
+        # its pretrained state. Consume exactly those CPU RNG draws, so all shared
+        # prediction layers and the subsequent dropout stream match the AE arm.
+        reference_initialization = FCAutoencoder(
+            autoencoder.n_edges, autoencoder.latent_dim, float(config["model"]["dropout"]))
+        del reference_initialization
+    else:
+        autoencoder = load_autoencoder(config, window_length, device, autoencoder_path)
     stats = dict(np.load(stats_path))
     model_cfg = config["model"]
     sc_encoder_type = sc_encoder_type or str(model_cfg.get("sc_encoder", "hybrid"))
@@ -552,7 +562,7 @@ def build_sequence_model(
         return CommonInputMLP(autoencoder, group_template, hidden=int(model_cfg.get("baseline_hidden_dim", 512))).to(device)
     if decoder_type == "lstm":
         return CommonInputLSTM(autoencoder, group_template, hidden=int(model_cfg.get("baseline_hidden_dim", 256))).to(device)
-    return ConditionalSequenceModel(
+    model = ConditionalSequenceModel(
         autoencoder,
         group_template,
         decoder_type=decoder_type,
@@ -583,6 +593,12 @@ def build_sequence_model(
         fusion_type=str((checkpoint_payload or {}).get("fusion_type", model_cfg.get("fusion_type", "gated"))),
         decay_alpha=None if decay_alpha is None else torch.from_numpy(decay_alpha),
     ).to(device)
+    if checkpoint_payload is not None and config.get("model", {}).get("fc_representation") == "frozen_pca":
+        for key in ("group_template", "context_template", "decay_alpha", "sc_mean", "sc_std"):
+            stored = checkpoint_payload["model"].get(key)
+            if stored is None or not torch.equal(stored.cpu(), getattr(model, key).cpu()):
+                raise ValueError(f"Checkpoint frozen prediction buffer differs: {key}")
+    return model
 
 
 def train_pca_ridge_baseline(
@@ -771,10 +787,7 @@ def train_sequence_model(
     model = build_sequence_model(
         config, window_length, decoder_type, stats_path, device, sc_encoder_type, autoencoder_path, ablation=ablation
     )
-    for parameter in model.fc_autoencoder.encoder.parameters():
-        parameter.requires_grad = False
-    for parameter in model.fc_autoencoder.decoder.parameters():
-        parameter.requires_grad = False
+    model.fc_autoencoder.requires_grad_(False)
     main_parameters = [p for name, p in model.named_parameters() if p.requires_grad and not name.startswith("fc_autoencoder.decoder")]
     base_learning_rate = float(config["training"]["learning_rate"])
     optimizer = torch.optim.AdamW(main_parameters, lr=base_learning_rate, weight_decay=float(config["training"]["weight_decay"]))
@@ -798,6 +811,12 @@ def train_sequence_model(
     checkpoint = checkpoint_dir / "best.pt"
     last_checkpoint = checkpoint_dir / "last.pt"
     log_path = output_dir / "train.log"
+    component_protocol = {}
+    if config.get("model", {}).get("fc_representation") == "frozen_pca":
+        from .pca_sequence import component_training_protocol
+        component_protocol = component_training_protocol(config, model, train_data.samples, device)
+        (output_dir / "component_protocol.json").write_text(
+            json.dumps(component_protocol, indent=2), encoding="utf-8")
     primary_metric = str(config.get("evaluation", {}).get("primary_metric", "long_residual_pearson"))
     if primary_metric not in {"objective_loss", "long_residual_pearson", "long_edge_mse", "forecast_nonoverlap_mse", "forecast_mse"}:
         raise ValueError("Sequence primary_metric must be objective_loss, long_residual_pearson or long_edge_mse")
@@ -849,10 +868,8 @@ def train_sequence_model(
         if device.type == "cuda":
             torch.cuda.reset_peak_memory_stats(device)
         model.train()
-        # E0003 encoder/decoder remain frozen for the complete run. Keep both
-        # modules in eval mode as well so their Dropout layers stay disabled.
-        model.fc_autoencoder.encoder.eval()
-        model.fc_autoencoder.decoder.eval()
+        # Freeze the complete input component, including AE dropout when present.
+        model.fc_autoencoder.eval()
         train_total = 0.0
         train_components = {name: 0.0 for name in criterion.weights}
         train_count = 0
@@ -898,6 +915,7 @@ def train_sequence_model(
             }
             payload.update(checkpoint_metadata or {})
             payload.update(forecast_protocol)
+            payload.update(component_protocol)
             torch.save(payload, checkpoint)
         else:
             stale += 1
@@ -924,7 +942,7 @@ def train_sequence_model(
         if stale >= int(config["training"]["patience"]):
             emit("early_stopped", task="sequence", model=decoder_type, epoch=epoch + 1, best_epoch=best_epoch + 1, primary_metric=primary_metric, best_primary_value=best)
             break
-        if int(config.get("experiment", {}).get("level", 0)) >= 2 or forecast_protocol:
+        if int(config.get("experiment", {}).get("level", 0)) >= 2 or forecast_protocol or component_protocol:
             last_payload = {
                 "schema_version": 1, "model": model.state_dict(), "epoch": epoch, "score": score,
                 "primary_metric": primary_metric, "decoder_type": decoder_type,
@@ -940,6 +958,7 @@ def train_sequence_model(
             }
             last_payload.update(checkpoint_metadata or {})
             last_payload.update(forecast_protocol)
+            last_payload.update(component_protocol)
             torch.save(last_payload, last_checkpoint)
     (output_dir / "metrics_best.json").write_text(
         json.dumps(selection_record(best_validation_metrics, primary_metric, best_epoch,

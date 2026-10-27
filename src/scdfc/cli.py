@@ -214,7 +214,7 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate_run.add_argument("--split", choices=["train", "val"], default="val")
     evaluate_run.add_argument("--final-test", action="store_true")
     evaluate_run.add_argument("--device")
-    evaluate_run.add_argument("--baseline-run-id", help="Paired E0036 run for E0037, or same-seed K=1 history run")
+    evaluate_run.add_argument("--baseline-run-id", help="Same-seed predeclared PCA/AE or SC reference, E0036 for E0037, or K=1 history run")
     evaluate_run.add_argument("--save-predictions", action="store_true", help="Save private forecast prediction arrays")
     evaluate_run.set_defaults(function=command_evaluate_run)
 
