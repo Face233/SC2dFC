@@ -1,0 +1,143 @@
+seed: 42
+paths:
+  root: D:\Code\Canlab\_codex_runs\E0050
+  atlas_labels: data/raw/atlas/ROI_MNI_V4.txt
+  sc_dir: data/raw/sc/HCP_Structure/AAL90
+  timeseries:
+    LR: data/raw/timeseries_lr
+  split_csv: data/manifests/split_lr_v1.csv
+  cache_dir: data/cache/dfc
+  output_dir: outputs
+data:
+  n_nodes: 90
+  n_timepoints: 1200
+  tr_seconds: 0.72
+  window_length: 83
+  stride: 5
+  warmup_windows: 1
+  sensitivity_windows:
+  - 42
+  - 125
+  fisher_clip: 0.999999
+  cache_dtype: float32
+  dataset_version: dataset_lr_v1
+  preprocessing_version: preprocess_lr_v1
+  manifest_path: data/manifests/dataset_lr_v1.json
+  manifest_sha256: 6ebb22662b4deb3fc7e38d45f2b76fc303d5c3ec973d36e6d7d0e2d3ffc29ac3
+  split_version: split_lr_v1
+  split_sha256: e08cd05e20ed048ba976dcf6487ecab8f6ba4671ea90ed778cbe21176b599862
+split:
+  train: 0.7
+  val: 0.15
+  test: 0.15
+model:
+  sc_encoder: hcp_gcn
+  fc_latent_dim: 256
+  hidden_dim: 256
+  sc_graph_layers: 3
+  sc_graph_heads: 4
+  hcp_gcn_hidden_dim: 128
+  hcp_gcn_output_dim: 64
+  tcn_dilations:
+  - 1
+  - 2
+  - 4
+  - 8
+  - 16
+  - 32
+  transformer_layers: 4
+  transformer_heads: 8
+  transformer_ffn_dim: 1024
+  dropout: 0.1
+  baseline_hidden_dim: 256
+  ridge_pca_components: 128
+  ridge_alpha: 1.0
+  warmup_encoder: none
+  warmup_gru_layers: 1
+  name: transformer
+  output_head: direct_edge_linear
+  gru_layers: 2
+  output_decomposition: e0032_decay_residual
+  fusion_type: concat_projection
+  fc_representation: frozen_pca
+training:
+  batch_size: 4
+  autoencoder_batch_size: 256
+  epochs: 150
+  autoencoder_epochs: 100
+  decoder_frozen_epochs: 20
+  learning_rate: 0.0003
+  decoder_learning_rate_scale: 0.1
+  learning_rate_schedule:
+    name: warmup_cosine
+    warmup_epochs: 5
+    eta_min: 1.0e-05
+  weight_decay: 0.0001
+  gradient_clip: 1.0
+  patience: 151
+  num_workers: 0
+  seeds:
+  - 42
+  autoencoder_loss_weights:
+    edge: 1.0
+  loss_weights:
+    edge: 1.0
+    difference: 0.0
+    variance: 0.0
+    static: 0.0
+    contrastive: 0.0
+  huber_beta: 1.0
+  finetune_fc_decoder: false
+  loss_type: mse
+evaluation:
+  primary_metric: long_edge_mse
+  bootstrap_replicates: 2000
+  state_clusters: 5
+  projection_epsilon: 1.0e-06
+experiment:
+  id: E0050
+  name: pca_fc1_direct_residual_transformer_mse_v1
+  level: 1
+  task: sequence
+  research_question: 在E0036的FC1-only直接残差Transformer中，仅把冻结A0003编码换为冻结PCA-256，能否改善长期预测误差和真实时间相关？
+  hypothesis: PCA保留同期FC的空间与动态结构更好，但能否形成未来预测增益仍需相同预测协议下的被试配对检验。
+  primary_change: 相对E0036仅将输入FC编码组件换为未白化A0044 PCA-256；保留E0032基线、SC投影后置零、concat融合、Transformer、4005边头、MSE和150轮预算。
+  baseline: E0036
+  owner: Face88
+  status: planned
+  ablation: fc1_only
+  execution_ready: true
+decision_rule:
+  description: seed42探索性配对实验，完整150轮，以原协议长期target[17:223]边MSE选best。主要与同seed E0036比较，另列E0032及E0051。报告长期原始/去训练群体模板时间Pearson、差分相关、标准差比及有效边比例。两项PCA对AE的主要MSE差异同时报告95%边际和97.5%
+    Bonferroni区间；仅降低MSE不能宣称动态时间预测改善。保留旧AE预训练损失/覆盖与PCA不同的归因限制，不查看test。
+artifacts:
+  fc_autoencoder: null
+  alpha_fit:
+    id: E0032-alpha-fit
+    path: outputs/E0032/runs/E0032-s42-20260923T052241Z-8d7ca92/alpha_fit.npz
+    sha256: dcb8a74c2a06d753791a7b2dbe1be582c57c3e6a77e7562a957b575359689efa
+  fc_pca:
+    id: A0044
+    path: outputs/components/A0044/pca.npz
+    sha256: 53319615564f4123762664173dd2d2fce51bfd39bf3fe2f035355dbe5e7d4a6e
+    manifest_path: configs/artifacts/A0044.yaml
+    manifest_sha256: c474d8e274f77042a1ed9b553be2d566ac0e731b4f77494de4dd45f16e000a01
+comparison_plan:
+  ae_reference: E0036
+  seed: 42
+  component_policy: frozen_unwhitened_no_extra_latent_scaling
+  initialization_policy: match_reference_trainable_initial_state_and_rng
+  primary_contrast: E0050_minus_E0036_long_edge_mse
+  secondary_sc_contrast: E0051_minus_E0050
+  bootstrap_unit: subject
+  bootstrap_replicates: 10000
+  bootstrap_seed: 20261026
+  marginal_ci_level: 0.95
+  primary_family_size: 2
+  primary_familywise_ci_level: 0.95
+  primary_individual_ci_level: 0.975
+  test_access: false
+_config_source: D:\Code\Canlab\_codex_runs\E0050\configs\experiments\E0050_pca_fc1_direct_residual_transformer_mse_v1.yaml
+runtime:
+  run_id: E0050-s42-20261027T021543Z-bc0af78
+  config_sha256: c9d07433ae3193730ff55dcb1fcf5e6f48f9a30bb95583347b91a2f767aa0e80

@@ -20,6 +20,7 @@ from .management import (
     finish_run,
     freeze_dataset,
     register_experiment,
+    require_execution_ready,
     permitted_evaluation_split,
     summarize_experiment,
     utc_now,
@@ -164,13 +165,17 @@ def command_experiment_create(args) -> None:
 
 
 def _checkpoint_metadata(config: dict, context, artifact_path: Path | None) -> dict:
-    return {
+    metadata = {
         "experiment_id": context.experiment_id, "run_id": context.run_id,
         "config_sha256": context.config_hash,
         "dataset_version": config["data"]["dataset_version"],
         "split_version": config["data"]["split_version"],
         "artifact_sha256": file_sha256(artifact_path) if artifact_path else None,
     }
+    if config.get("model", {}).get("fc_representation") == "frozen_pca":
+        metadata.update(fc_representation="frozen_pca",
+                        fc_pca_manifest_sha256=config["artifacts"]["fc_pca"]["manifest_sha256"])
+    return metadata
 
 
 def _write_artifact_manifest(config: dict, context, checkpoint: Path) -> Path:
@@ -196,6 +201,7 @@ def _write_artifact_manifest(config: dict, context, checkpoint: Path) -> Path:
 
 def command_run(args) -> None:
     config = validate_experiment_config(load_config(args.experiment))
+    require_execution_ready(config)
     if config["experiment"].get("task") == "ae_diagnostic":
         raise ValueError("Use scdfc ae-diagnostic --experiment for reconstruction diagnostics; no training run is created")
     if config["model"]["name"] == HISTORY_TRANSFORMER:
@@ -260,8 +266,8 @@ def command_evaluate_run(args) -> None:
     config = load_config(run_dir / "config_resolved.yaml")
     if config_sha256(config) != metadata["config_sha256"]:
         raise RuntimeError("Resolved config no longer matches the run metadata")
-    if config.get("model", {}).get("name") in HISTORY_MODELS:
-        config["paths"]["root"] = str(root)
+    # Root is not part of the config hash; resolve moved runs in this checkout.
+    config.setdefault("paths", {})["root"] = str(root)
     level = int(metadata["level"])
     split = permitted_evaluation_split(level, args.split, args.final_test)
     if args.final_test:
@@ -341,23 +347,34 @@ def command_evaluate_run(args) -> None:
         for key, expected in {"experiment_id": metadata["experiment_id"], "run_id": args.run_id, "config_sha256": metadata["config_sha256"]}.items():
             if checkpoint_payload.get(key) != expected:
                 raise RuntimeError(f"Checkpoint {key} does not match run metadata")
-        baseline_checkpoint = None
+        baseline_checkpoint, baseline_config, baseline_artifact = None, None, None
         baseline_run_id = getattr(args, "baseline_run_id", None)
         if baseline_run_id:
-            if config.get("model", {}).get("output_decomposition") != "e0032_decay_residual" or config["experiment"].get("ablation") != "full":
+            pca_comparison = config.get("model", {}).get("fc_representation") == "frozen_pca"
+            if config.get("model", {}).get("output_decomposition") != "e0032_decay_residual" or (not pca_comparison and config["experiment"].get("ablation") != "full"):
                 raise ValueError("--baseline-run-id is available only for the E0037 full SC residual experiment")
             baseline_dir = find_run(root, baseline_run_id)
             baseline_metadata = json.loads((baseline_dir / "metadata.json").read_text(encoding="utf-8"))
             baseline_config = load_config(baseline_dir / "config_resolved.yaml")
-            if baseline_metadata["experiment_id"] != "E0036" or baseline_config["experiment"].get("ablation") != "fc1_only":
-                raise ValueError("Paired baseline must be an E0036 FC1-only run")
-            if baseline_metadata["seed"] != metadata["seed"] or any(
-                baseline_config[section] != config[section] for section in ("data", "model", "artifacts", "training")
-            ):
-                raise ValueError("E0036 paired baseline must match seed, data, model, artifacts and training")
+            if config_sha256(baseline_config) != baseline_metadata["config_sha256"]:
+                raise RuntimeError("Baseline resolved config no longer matches its run")
+            if pca_comparison:
+                from .pca_sequence import validate_pca_pair
+                validate_pca_pair(config, baseline_config, metadata, baseline_metadata)
+            else:
+                if baseline_metadata["experiment_id"] != "E0036" or baseline_config["experiment"].get("ablation") != "fc1_only":
+                    raise ValueError("Paired baseline must be an E0036 FC1-only run")
+                if baseline_metadata["seed"] != metadata["seed"] or any(
+                    baseline_config[section] != config[section] for section in ("data", "model", "artifacts", "training")
+                ):
+                    raise ValueError("E0036 paired baseline must match seed, data, model, artifacts and training")
+            baseline_config["paths"]["root"] = str(root)
+            verify_data_bindings(baseline_config)
+            baseline_artifact = verify_artifact(baseline_config)
+            verify_decay_artifact(baseline_config)
             baseline_checkpoint = baseline_dir / "checkpoints" / "best.pt"
             baseline_payload = torch.load(baseline_checkpoint, map_location="cpu", weights_only=False)
-            for key, expected in {"experiment_id": "E0036", "run_id": baseline_run_id,
+            for key, expected in {"experiment_id": baseline_metadata["experiment_id"], "run_id": baseline_run_id,
                                   "config_sha256": baseline_metadata["config_sha256"]}.items():
                 if baseline_payload.get(key) != expected:
                     raise RuntimeError(f"Baseline checkpoint {key} does not match run metadata")
@@ -366,6 +383,8 @@ def command_evaluate_run(args) -> None:
             baseline_checkpoint=baseline_checkpoint,
             save_predictions=args.final_test, device_name=args.device, split_name=split,
             output_dir=run_dir, autoencoder_path=artifact,
+            baseline_config=baseline_config, baseline_autoencoder_path=baseline_artifact,
+            baseline_stats_path=_stats_path(baseline_config, window) if baseline_config is not None else None,
         )
     if lock is not None:
         lock.write_text(json.dumps({"run_id": args.run_id, "completed_at": utc_now(), "config_sha256": metadata["config_sha256"]}, indent=2), encoding="utf-8")

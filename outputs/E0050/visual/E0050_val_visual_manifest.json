@@ -1,0 +1,26 @@
+{
+  "runs": {
+    "E0036": "E0036-s42-20260929T082122Z-b5b871f",
+    "E0037": "E0037-s42-20260929T084843Z-6c70d8a",
+    "E0050": "E0050-s42-20261027T021543Z-bc0af78",
+    "E0051": "E0051-s42-20261027T025607Z-bc0af78"
+  },
+  "split": "val",
+  "seed": 42,
+  "fixed_edges": [
+    357,
+    1757,
+    2620,
+    3098
+  ],
+  "representative_example": "project-prespecified validation example; identifier withheld",
+  "images": [
+    "E0036_E0050_val_fixed_edges.png",
+    "E0050-s42-20261027T021543Z-bc0af78_val_dynamic_calibration.png",
+    "E0050-s42-20261027T021543Z-bc0af78_val_horizon_audit.png",
+    "E0050-s42-20261027T021543Z-bc0af78_val_overview.png"
+  ],
+  "aggregate_source": "outputs/E0051/visual/E0036_E0037_E0050_E0051_val_aggregate.json",
+  "script": "build_e0050_visuals.py",
+  "test_data_read": false
+}

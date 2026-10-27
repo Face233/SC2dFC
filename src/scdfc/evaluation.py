@@ -155,6 +155,9 @@ def _e0032_sequence_diagnostics(
     diff_corr, diff_valid = _edge_time_pearson(np.diff(pred_dynamic, axis=0), np.diff(true_dynamic, axis=0))
     return {
         "time_pearson": raw_corr, "time_pearson_valid_fraction": raw_valid,
+        "long_spatial_pearson": float(np.mean(_row_correlation(pred, true))),
+        "stable_residual_mse": float(np.mean((pred_residual.mean(0)-true_residual.mean(0))**2)),
+        "centered_dynamic_mse": float(np.mean((pred_dynamic-true_dynamic)**2)),
         "template_adjusted_time_pearson": adjusted_corr, "template_adjusted_valid_fraction": adjusted_valid,
         "dynamic_time_pearson": dynamic_corr, "dynamic_valid_fraction": dynamic_valid,
         "dynamic_difference_time_pearson": diff_corr, "difference_valid_fraction": diff_valid,
@@ -379,6 +382,8 @@ def projection_report(z_edges: np.ndarray, n_nodes: int = 90, epsilon: float = 1
 def _load_model(config, window_length, checkpoint, stats_path, device, autoencoder_path=None):
     """按检查点记录的模型类型恢复模型和参数。"""
     payload = torch.load(checkpoint, map_location=device, weights_only=False)
+    if payload.get("fc_representation", "autoencoder") != config.get("model", {}).get("fc_representation", "autoencoder"):
+        raise ValueError("Checkpoint FC representation differs from evaluation config")
     if payload.get("output_decomposition") == "e0032_decay_residual" and payload.get("alpha_fit_sha256") != config.get("artifacts", {}).get("alpha_fit", {}).get("sha256"):
         raise ValueError("Checkpoint E0032 alpha artifact checksum differs from evaluation config")
     model = build_sequence_model(
@@ -429,17 +434,22 @@ def collect_predictions(model, loader, device):
 
 
 @torch.no_grad()
-def collect_sc_swapped_predictions(model, dataset: DFCSequenceDataset, device: torch.device, batch_size: int) -> np.ndarray:
+def collect_sc_swapped_predictions(model, dataset: DFCSequenceDataset, device: torch.device, batch_size: int, seed=None) -> np.ndarray:
     """Keep each FC1 fixed while replacing SC with another subject's SC."""
     subjects = [subject for subject, _run in dataset.samples]
     if len(set(subjects)) < 2:
         raise ValueError("SC swap requires at least two subjects")
-    replacements = []
-    for index, subject in enumerate(subjects):
-        candidate = (index + max(1, len(subjects) // 2)) % len(subjects)
-        while subjects[candidate] == subject:
-            candidate = (candidate + 1) % len(subjects)
-        replacements.append(candidate)
+    if seed is not None:
+        order = np.random.default_rng(seed).permutation(sorted(set(subjects))).tolist()
+        donor = dict(zip(order, order[1:]+order[:1]))
+        replacements = [subjects.index(donor[s]) for s in subjects]
+    else:
+        replacements = []
+        for index, subject in enumerate(subjects):
+            candidate = (index + max(1, len(subjects) // 2)) % len(subjects)
+            while subjects[candidate] == subject:
+                candidate = (candidate + 1) % len(subjects)
+            replacements.append(candidate)
     outputs = []
     for start in range(0, len(dataset), batch_size):
         indices = range(start, min(start + batch_size, len(dataset)))
@@ -636,6 +646,9 @@ def evaluate_checkpoint(
     split_name: str = "test",
     output_dir: str | Path | None = None,
     autoencoder_path: str | Path | None = None,
+    baseline_config: dict | None = None,
+    baseline_autoencoder_path: str | Path | None = None,
+    baseline_stats_path: str | Path | None = None,
 ) -> Path:
     """在测试集生成完整报告，并可选导出逐样本 FC 矩阵。"""
     if config.get("model", {}).get("name") == "fc_history_gru_query_residual":
@@ -748,7 +761,9 @@ def evaluate_checkpoint(
             for name, values in {"model": predictions, "e0032_zero_residual": residual_baselines}.items()
         }
         if payload.get("ablation") == "full":
-            swapped = collect_sc_swapped_predictions(model, test, device, int(config["training"]["batch_size"]))
+            swap_seed = (int(config["comparison_plan"]["bootstrap_seed"])
+                         if config.get("model", {}).get("fc_representation") == "frozen_pca" else None)
+            swapped = collect_sc_swapped_predictions(model, test, device, int(config["training"]["batch_size"]), seed=swap_seed)
             swapped_long = np.mean((swapped[:, nonoverlap:] - targets[:, nonoverlap:]) ** 2, axis=(1, 2))
             matched_long = np.asarray([row["long_edge_mse"] for row in rows])
             swapped_time = [
@@ -756,20 +771,49 @@ def evaluate_checkpoint(
                 for pred, true in zip(swapped, targets)
             ]
             report["sc_swap_diagnostic"] = {
+                "swap_seed": swap_seed,
+                "swap_rule": "seeded subject derangement" if swap_seed is not None else "historical cyclic offset",
                 "swapped_long_edge_mse": float(np.mean(swapped_long)),
-                "swapped_time_pearson": float(np.mean([value for value in swapped_time if value is not None])),
+                "swapped_time_pearson": (float(np.mean([value for value in swapped_time if value is not None]))
+                                         if any(value is not None for value in swapped_time) else None),
                 "matched_minus_swapped_long_mse": subject_bootstrap_loss_difference(
                     matched_long, swapped_long, subjects,
                     int(config["evaluation"].get("bootstrap_replicates", 2000)), int(config["seed"]),
                 ),
                 "output_change_mse": float(np.mean((predictions - swapped) ** 2)),
             }
+            if swap_seed is not None:
+                from .pca_sequence import paired_metric
+                plan = config["comparison_plan"]
+                swapped_rows = [_e0032_sequence_diagnostics(p, t, b, template, nonoverlap)
+                                for p, t, b in zip(swapped, targets, residual_baselines)]
+                for row, loss in zip(swapped_rows, swapped_long):
+                    row["long_edge_mse"] = float(loss)
+                report["sc_swap_diagnostic"]["paired_matched_minus_swapped"] = {
+                    metric: paired_metric(
+                        [np.nan if r[metric] is None else r[metric] for r in rows],
+                        [np.nan if r[metric] is None else r[metric] for r in swapped_rows], subjects,
+                        replicates=int(plan["bootstrap_replicates"]), seed=swap_seed,
+                        confidence=float(plan["marginal_ci_level"]), minimize=metric == "long_edge_mse")
+                    for metric in ("long_edge_mse", "time_pearson", "template_adjusted_time_pearson",
+                                   "dynamic_difference_time_pearson", "time_pearson_valid_fraction")}
+                report["sc_swap_diagnostic"]["matched_minus_swapped_long_mse"] = (
+                    report["sc_swap_diagnostic"]["paired_matched_minus_swapped"]["long_edge_mse"])
     if baseline_checkpoint:
-        baseline_model, baseline_payload = _load_model(config, window_length, baseline_checkpoint, Path(stats_path), device, autoencoder_path)
-        baseline_test = DFCSequenceDataset(config, window_length, split_name, stats_path, baseline_payload.get("ablation", "fc1_only"))
+        other_config = baseline_config if baseline_config is not None else config
+        other_stats = Path(baseline_stats_path) if baseline_stats_path is not None else Path(stats_path)
+        if baseline_config is not None:
+            from .management import verify_artifact
+            other_artifact = verify_artifact(other_config)
+            if baseline_autoencoder_path is not None and Path(baseline_autoencoder_path).resolve() != other_artifact.resolve():
+                raise ValueError("Baseline component path differs from its own config")
+        else:
+            other_artifact = autoencoder_path
+        baseline_model, baseline_payload = _load_model(other_config, window_length, baseline_checkpoint, other_stats, device, other_artifact)
+        baseline_test = DFCSequenceDataset(other_config, window_length, split_name, other_stats, baseline_payload.get("ablation", "fc1_only"))
         baseline_loader = DataLoader(baseline_test, batch_size=int(config["training"]["batch_size"]), shuffle=False, num_workers=0)
-        baseline_predictions, baseline_targets, baseline_subjects, _ = collect_predictions(baseline_model, baseline_loader, device)
-        if subjects != baseline_subjects:
+        baseline_predictions, baseline_targets, baseline_subjects, baseline_runs = collect_predictions(baseline_model, baseline_loader, device)
+        if subjects != baseline_subjects or runs != baseline_runs or not np.array_equal(targets, baseline_targets):
             raise ValueError("Main and baseline checkpoints do not cover the same ordered samples")
         if decomposition == "e0032_decay_residual":
             main_long = np.asarray([row["long_edge_mse"] for row in rows])
@@ -787,6 +831,26 @@ def evaluate_checkpoint(
                     main_time[valid], baseline_time[valid], np.asarray(subjects)[valid],
                     int(config["evaluation"]["bootstrap_replicates"]), int(config["seed"])) if np.any(valid) else None,
             }
+            if config.get("model", {}).get("fc_representation") == "frozen_pca":
+                from .pca_sequence import paired_pca_report
+                if baseline_config is None:
+                    raise ValueError("PCA comparisons require the baseline's own frozen config")
+                for key in ("group_template", "context_template", "decay_alpha"):
+                    if not torch.equal(getattr(model, key).cpu(), getattr(baseline_model, key).cpu()):
+                        raise ValueError("Paired prediction baselines differ")
+                baseline_rows = [sequence_metrics(p, t, template, nonoverlap, **metric_kwargs)
+                                 for p, t in zip(baseline_predictions, targets)]
+                for row, pred, true, base in zip(baseline_rows, baseline_predictions, targets, residual_baselines):
+                    row.update(_e0032_sequence_diagnostics(pred, true, base, template, nonoverlap))
+                report["paired_model_comparison"].update(paired_pca_report(
+                    config, baseline_config, rows, baseline_rows, subjects))
+                report["paired_model_comparison"].update(
+                    baseline_experiment_id=baseline_config["experiment"]["id"],
+                    baseline_component=baseline_config["model"].get("fc_representation", "autoencoder"),
+                    main_component="frozen_pca")
+                report["paired_model_comparison"]["per_sample"] = [
+                    {"subject_id": s, "run": r, "main": a, "baseline": b}
+                    for s, r, a, b in zip(subjects, runs, rows, baseline_rows)]
         else:
             main_scores = np.asarray([row["long_residual_pearson"] for row in rows])
             baseline_scores = np.asarray([sequence_metrics(p, t, template, nonoverlap, **metric_kwargs)["long_residual_pearson"] for p, t in zip(baseline_predictions, baseline_targets)])
@@ -794,6 +858,19 @@ def evaluate_checkpoint(
     output_dir = Path(output_dir) if output_dir is not None else Path(checkpoint).resolve().parent
     report_path = output_dir / f"evaluation_{split_name}.json"
     report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    if (baseline_checkpoint and baseline_config is not None
+            and config.get("model", {}).get("fc_representation") == "frozen_pca"):
+        # Keep both E0051-vs-E0037 and E0051-vs-E0050 reports when evaluating
+        # multiple declared contrasts for the same best checkpoint.
+        comparison_path = output_dir / f"comparison_{baseline_config['experiment']['id']}_{split_name}.json"
+        comparison = {"main_checkpoint": report["checkpoint"], "split": split_name,
+                      "baseline_run_id": baseline_payload.get("run_id"),
+                      **report["paired_model_comparison"]}
+        if comparison_path.exists():
+            previous = json.loads(comparison_path.read_text(encoding="utf-8"))
+            if previous.get("baseline_run_id") != comparison["baseline_run_id"]:
+                raise ValueError("Existing comparison uses another baseline run; preserve it before re-evaluation")
+        comparison_path.write_text(json.dumps(comparison, indent=2, ensure_ascii=False), encoding="utf-8")
     if save_predictions:
         prediction_dir = output_dir / "predictions" / split_name
         prediction_dir.mkdir(parents=True, exist_ok=True)

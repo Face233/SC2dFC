@@ -1,0 +1,18 @@
+base: E0050_pca_fc1_direct_residual_transformer_mse_v1.yaml
+
+experiment:
+  id: E0051
+  name: pca_fc1_sc_direct_residual_transformer_mse_v1
+  baseline: E0037
+  ablation: full
+  research_question: 在E0037的FC1加匹配SC直接残差Transformer中，仅把冻结AE输入编码换成PCA-256，能否改善长期预测，并保持SC的增量价值？
+  hypothesis: 若PCA输入表征更适合预测，E0051应优于同seed E0037；SC是否提供额外信息还需E0051对E0050及冻结SC交换诊断共同支持。
+  primary_change: 相对E0037仅将FC输入编码换为同一冻结A0044 PCA-256；相对E0050仅启用匹配SC的编码表示，其余预测结构、冻结基线与训练协议相同。
+
+comparison_plan:
+  ae_reference: E0037
+  sc_reference: E0050
+  primary_contrast: E0051_minus_E0037_long_edge_mse
+
+decision_rule:
+  description: 继承E0050的seed42、150轮、长期边MSE选模及不访问test协议。主要配对E0037，次要配对E0050并执行冻结模型SC交换诊断；两项PCA对AE主要MSE比较采用97.5%个别区间控制95%族覆盖，另报95%边际区间。只有原始/去模板时间相关与差分指标支持时才讨论动态预测改善；SC优势须有匹配优于交换的证据。

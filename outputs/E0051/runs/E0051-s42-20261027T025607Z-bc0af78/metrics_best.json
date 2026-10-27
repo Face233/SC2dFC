@@ -1,0 +1,21 @@
+{
+  "schema_version": 2,
+  "kind": "selection",
+  "split": "val",
+  "primary_metric": "long_edge_mse",
+  "metrics": {
+    "objective_loss": 0.17825740915310534,
+    "long_residual_pearson": 0.15673274288684885,
+    "long_edge_mse": 0.18491255180745186,
+    "validation_edge_loss": 0.17825740915310534
+  },
+  "best_epoch": 5,
+  "epoch_index_base": 0,
+  "metric_definition": {
+    "implementation": "sequence_validation_long_edge_mse/v1",
+    "split": "val",
+    "nonoverlap_start": 17,
+    "aggregation": "mean squared Fisher-z edge error per subject/run, then mean over samples"
+  },
+  "source": "training_validation"
+}

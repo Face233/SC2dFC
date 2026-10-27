@@ -217,7 +217,8 @@ def iter_cached_samples(config: dict[str, Any], window_length: int) -> Iterator[
         return
     for subject in sorted(root["subjects"].group_keys()):
         for run in sorted(root[f"subjects/{subject}"].group_keys()):
-            if config.get("data", {}).get("forecast_origins") is not None:
+            if (config.get("data", {}).get("forecast_origins") is not None
+                    or config.get("model", {}).get("fc_representation") == "frozen_pca"):
                 active_runs = config["paths"].get("timeseries", {})
                 if active_runs and run not in active_runs:
                     continue
@@ -324,6 +325,15 @@ class DFCSequenceDataset(Dataset):
         split = load_split(resolve_path(config, "split_csv"))
         allowed = set(split.loc[split.split == split_name, "subject_id"].astype(str))
         self.samples = [(s, r) for s, r in iter_cached_samples(config, window_length) if s in allowed]
+        if config.get("model", {}).get("fc_representation") == "frozen_pca":
+            if self.samples != [(s, "LR") for s in sorted(allowed)]:
+                raise ValueError("PCA sequence data require one complete LR run per declared subject")
+            zarr, _ = _zarr()
+            store = zarr.open_group(str(cache_path(config, window_length)), mode="r")
+            settings = {"window_length": window_length, **{k: config["data"][k] for k in
+                        ("stride", "n_nodes", "fisher_clip")}, "estimator": "rectangular_pearson"}
+            if dict(store.attrs) != {**settings, "config_hash": config_hash(settings)}:
+                raise ValueError("PCA sequence cache preprocessing metadata mismatch")
         self.ablation = ablation
         self.mean_sc = self.stats["sc_mean"]
         self.warmup_windows = int(config.get("data", {}).get("warmup_windows", 1))
@@ -380,6 +390,13 @@ class DFCSequenceDataset(Dataset):
             raw = np.log1p(matrix_to_edges(sc_matrix))
             sc_edges = (raw - self.stats["sc_mean"]) / self.stats["sc_std"]
         fc, starts = read_cached(self.config, self.window_length, subject, run)
+        if self.config.get("model", {}).get("fc_representation") == "frozen_pca":
+            data = self.config["data"]
+            windows = (data["n_timepoints"]-self.window_length)//data["stride"]+1
+            edges = data["n_nodes"]*(data["n_nodes"]-1)//2
+            if (fc.shape != (windows, edges) or not np.isfinite(fc).all()
+                    or not np.array_equal(starts, np.arange(windows)*data["stride"])):
+                raise ValueError("PCA sequence FC values/shape/timeline mismatch")
         if self.warmup_windows >= len(fc):
             raise ValueError(
                 f"warmup_windows={self.warmup_windows} leaves no future target for {subject}/{run} with {len(fc)} FC windows"

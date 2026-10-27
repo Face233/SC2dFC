@@ -29,6 +29,10 @@ class FCAutoencoder(nn.Module):
             nn.Linear(1024, n_edges),
         )
 
+    @property
+    def latent_dim(self) -> int:
+        return self.encoder[-1].normalized_shape[0]
+
     def encode(self, edges: torch.Tensor) -> torch.Tensor:
         return self.encoder(edges)
 

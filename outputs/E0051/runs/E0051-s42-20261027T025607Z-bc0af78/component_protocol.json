@@ -1,0 +1,16 @@
+{
+  "fc_representation": "frozen_pca",
+  "fc_component_id": "A0044",
+  "artifact_sha256": "53319615564f4123762664173dd2d2fce51bfd39bf3fe2f035355dbe5e7d4a6e",
+  "fc_pca_manifest_sha256": "c474d8e274f77042a1ed9b553be2d566ac0e731b4f77494de4dd45f16e000a01",
+  "fc_input_component_frozen": true,
+  "fc_reconstruction_decoder_used": false,
+  "fc_reconstruction_decoder_frozen": null,
+  "initialization_implementation": "historical_ae_constructor_rng/v1",
+  "initial_parameters_sha256": "3e56c17c8b9e494269760a9021cfce9b4faefe27c046dcbd7c4f2f9a337ea6f3",
+  "initial_cpu_rng_sha256": "d2a994020e0513de864b9624d2d1867ce757c6459dbb27e74c4902ff9072984a",
+  "initial_device_rng_sha256": "aefdce03def94ffed42159e55677ec20e91200e1981f25b1f271b6fd99c3c263",
+  "sample_manifest_sha256": "ed5ed699f19aef92f62013a113eb83bac3072642a43b13ebf26f9590e6b4d06e",
+  "loader_seed": 42,
+  "trainable_parameters": 4423077
+}

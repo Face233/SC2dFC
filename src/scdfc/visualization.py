@@ -146,7 +146,8 @@ def _stats_path(root: Path, config: dict[str, Any]) -> Path:
 
 
 def _artifact_path(root: Path, config: dict[str, Any]) -> Path:
-    path = Path(config["artifacts"]["fc_autoencoder"]["path"])
+    key = "fc_pca" if config.get("model", {}).get("fc_representation") == "frozen_pca" else "fc_autoencoder"
+    path = Path(config["artifacts"][key]["path"])
     return path if path.is_absolute() else root / path
 
 
@@ -396,7 +397,7 @@ def plot_run_overview(current: ManagedRun, destination: Path) -> Path:
         ]
         if logged_values:
             # train.log stores one-based epoch numbers; selection records use zero-based epochs.
-            checkpoint_epoch = (min if primary_metric == "objective_loss" else max)(logged_values)[1]
+            checkpoint_epoch = int(best["best_epoch"]) + 1
         else:
             checkpoint_epoch = int(best.get("best_epoch", -1)) + 1
         axes[0].axvline(checkpoint_epoch, color="#444444", linestyle="--", linewidth=1, label="Best checkpoint")

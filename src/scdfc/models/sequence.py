@@ -120,7 +120,7 @@ class ConditionEncoder(nn.Module):
             self.hcp_gcn = HCPGCNEncoder(n_nodes, hcp_gcn_hidden_dim, hcp_gcn_output_dim)
             self.hcp_global_projection = nn.Linear(hcp_gcn_output_dim, 256)
         self.sc_norm = nn.LayerNorm(256)
-        fc_dim = fc_autoencoder.encoder[-1].normalized_shape[0]
+        fc_dim = fc_autoencoder.latent_dim
         self.warmup_encoder = warmup_encoder
         self.warmup_gru = (
             nn.GRU(fc_dim, fc_dim, num_layers=warmup_gru_layers, batch_first=True)
@@ -311,10 +311,10 @@ class ConditionalSequenceModel(nn.Module):
         super().__init__()
         self.n_nodes = n_nodes
         self.n_edges = n_nodes * (n_nodes - 1) // 2
-        fc_latent_dim = int(fc_autoencoder.decoder[0].in_features)
+        fc_latent_dim = int(fc_autoencoder.latent_dim)
         if hidden_dim != fc_latent_dim:
             raise ValueError(
-                "hidden_dim must equal the frozen FC autoencoder latent dimension "
+                "hidden_dim must equal the frozen FC component latent dimension "
                 f"({fc_latent_dim}), got {hidden_dim}"
             )
         self.fc_autoencoder = fc_autoencoder

@@ -1,7 +1,16 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from pathlib import Path
 
 from scdfc.visualization import FIXED_EDGE_COUNT, _overview_architecture_text, _overview_loss_text, fixed_edge_indices
+
+
+def test_visualization_resolves_pca_component_without_autoencoder():
+    from scdfc.visualization import _artifact_path
+    root = Path("workspace")
+    config = {"model": {"fc_representation": "frozen_pca"},
+              "artifacts": {"fc_autoencoder": None, "fc_pca": {"path": "pca.npz"}}}
+    assert _artifact_path(root, config) == root / "pca.npz"
 
 
 def test_fixed_edge_selection_is_stable_and_unique():

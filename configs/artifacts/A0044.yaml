@@ -1,0 +1,47 @@
+schema_version: 1
+id: A0044
+type: fc_pca
+format: e0044_pca_npz/v1
+path: outputs/components/A0044/pca.npz
+sha256: 53319615564f4123762664173dd2d2fce51bfd39bf3fe2f035355dbe5e7d4a6e
+created_at: '2026-10-26T08:16:28Z'
+input_dim: 4005
+latent_dim: 256
+representation: fisher_z_upper_triangle_k1
+whiten: false
+data:
+  dataset_version: dataset_lr_v1
+  preprocessing_version: preprocess_lr_v1
+  manifest_sha256: 6ebb22662b4deb3fc7e38d45f2b76fc303d5c3ec973d36e6d7d0e2d3ffc29ac3
+  split_version: split_lr_v1
+  split_sha256: e08cd05e20ed048ba976dcf6487ecab8f6ba4671ea90ed778cbe21176b599862
+  n_nodes: 90
+  n_timepoints: 1200
+  window_length: 83
+  stride: 5
+  fisher_clip: 0.999999
+training:
+  split: train
+  run: LR
+  subjects: 738
+  windows_per_subject: 224
+  windows: 165312
+  per_edge_standardization: false
+  training_window_manifest_sha256: ebea68dcf059de63a361cad9bd866547111e8ad59d15867fc3448eb21db6ac7d
+fit:
+  seed: 42
+  svd_solver: randomized
+  components: 256
+  n_oversamples: 20
+  iterated_power: 4
+  power_iteration_normalizer: QR
+source:
+  experiment_id: E0044
+  diagnostic_id: E0044-20261020T070318Z-b83fc41d
+  directory: outputs/E0044/diagnostics/E0044-20261020T070318Z-b83fc41d
+  metadata_sha256: 4bb336c9d1f441f6d116e266733e2ef3573a7fd5565bf492dbff81c50591f85a
+  data_audit_sha256: 97b5a0c7d984fc30d1bb1cc2c110e49cb7b40267d49610b8a2a221b9b23d5007
+  config_file_sha256: 649deb881c53beadf6c5c8ae1ba1b2c00535aedacf95e308f4f4ffdcbbeff79f
+  git_commit: d7a7edc8322fece38b307dea3dc9939cb8566e3b
+  git_dirty: true
+  refitted_on_export: false
