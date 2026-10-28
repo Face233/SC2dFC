@@ -1,0 +1,173 @@
+{
+  "run_sources": {
+    "E0061": {
+      "run_id": "E0061-s42-20261028T033946Z-88b6157",
+      "config_sha256": "26039b5355e14bdb5a460dcb9c5c3690867e84af600d7d5b9f3227aa58a32fcb",
+      "checkpoint_sha256": "891be439046683c1aeef28126221d9986b3564f4ac2708f2cd680ea85dd061c6",
+      "evaluation_sha256": "0b6e22b9ae7469c0a4ba20ed4fa257ea947532eef88b48e07692d3bd98be4ed1",
+      "alpha_source": {
+        "experiment_id": "E0054",
+        "run_id": "E0054-s42-20261028T021613Z-0eb37e3",
+        "path": "outputs/E0054/runs/E0054-s42-20261028T021613Z-0eb37e3/checkpoints/best.pt",
+        "sha256": "ff8b721e97887e04b3d9e6d0779492cf931910506bca3c29043fe58e4a512fcb"
+      },
+      "reference": {
+        "experiment_id": "E0036",
+        "run_id": "E0036-s42-20260929T082122Z-b5b871f",
+        "path": "outputs/E0036/runs/E0036-s42-20260929T082122Z-b5b871f/checkpoints/best.pt",
+        "sha256": "d6637afb38c3ae75aa8535b36e15067120b617a68042ed2ceb182b34f11d01d7"
+      },
+      "best_epoch_one_based": 16
+    },
+    "E0062": {
+      "run_id": "E0062-s42-20261028T034508Z-88b6157",
+      "config_sha256": "91ec740241ff50cd3043885149636be017d9e1e00ae6834d7bbf092b40edec95",
+      "checkpoint_sha256": "e00ae20f52588127b34c355786953c5ab1afc017020e69e1d4a762cb5d298244",
+      "evaluation_sha256": "69dbd3be39b722e9dc989c067fc326e15def767b000108ba9fee232eedec67e8",
+      "alpha_source": {
+        "experiment_id": "E0057",
+        "run_id": "E0057-s42-20261028T023448Z-0eb37e3",
+        "path": "outputs/E0057/runs/E0057-s42-20261028T023448Z-0eb37e3/checkpoints/best.pt",
+        "sha256": "5310ddf8ba6b38e2d7df90e13c8a6424a023a86ccdcb3021c09e3cc8b5023c57"
+      },
+      "reference": {
+        "experiment_id": "E0036",
+        "run_id": "E0036-s42-20260929T082122Z-b5b871f",
+        "path": "outputs/E0036/runs/E0036-s42-20260929T082122Z-b5b871f/checkpoints/best.pt",
+        "sha256": "d6637afb38c3ae75aa8535b36e15067120b617a68042ed2ceb182b34f11d01d7"
+      },
+      "best_epoch_one_based": 6
+    },
+    "E0063": {
+      "run_id": "E0063-s42-20261028T034901Z-88b6157",
+      "config_sha256": "ca5d02295e83b8c6a1036cea7e459ff79332b532e2a60aee8b05535398af6366",
+      "checkpoint_sha256": "9c591f6e3ae0e0ef3c58f443fab1d1a7639633e73a48a9906e314ebf527dd570",
+      "evaluation_sha256": "7a6694adc9d4bd0a3d53f6734382512a5670123295133bd8e5a63630df4b5e4a",
+      "alpha_source": {
+        "experiment_id": "E0060",
+        "run_id": "E0060-s42-20261028T024149Z-0eb37e3",
+        "path": "outputs/E0060/runs/E0060-s42-20261028T024149Z-0eb37e3/checkpoints/best.pt",
+        "sha256": "cdc6ab1f36064ab15a1debb9807ce0806dc8357ac2efb0f1054f34f30a467fca"
+      },
+      "reference": {
+        "experiment_id": "E0036",
+        "run_id": "E0036-s42-20260929T082122Z-b5b871f",
+        "path": "outputs/E0036/runs/E0036-s42-20260929T082122Z-b5b871f/checkpoints/best.pt",
+        "sha256": "d6637afb38c3ae75aa8535b36e15067120b617a68042ed2ceb182b34f11d01d7"
+      },
+      "best_epoch_one_based": 6
+    },
+    "E0064": {
+      "run_id": "E0064-s42-20261028T042222Z-1b6e0b2",
+      "config_sha256": "65714c1cc51efd204578ea0d27ca421671f994e89c4eab065614cc1d426040c3",
+      "checkpoint_sha256": "83b1145408dfeb06333a710c8e4495db9f72e80170f41990c774424761b78316",
+      "evaluation_sha256": "846eb63953e00de4b89b3c0a34b8606921ebc3f4851dd435e550e4ffb6a8bcce",
+      "alpha_source": {
+        "experiment_id": "E0054",
+        "run_id": "E0054-s42-20261028T021613Z-0eb37e3",
+        "path": "outputs/E0054/runs/E0054-s42-20261028T021613Z-0eb37e3/checkpoints/best.pt",
+        "sha256": "ff8b721e97887e04b3d9e6d0779492cf931910506bca3c29043fe58e4a512fcb"
+      },
+      "reference": {
+        "experiment_id": "E0037",
+        "run_id": "E0037-s42-20260929T084843Z-6c70d8a",
+        "path": "outputs/E0037/runs/E0037-s42-20260929T084843Z-6c70d8a/checkpoints/best.pt",
+        "sha256": "e502c73e6ec9dc7f8282719c6dfedfd4780fbdd6607322b3f369e67cb52bd8bc"
+      },
+      "best_epoch_one_based": 15
+    },
+    "E0065": {
+      "run_id": "E0065-s42-20261028T042759Z-1b6e0b2",
+      "config_sha256": "92debb23dff3f9871034704371bea4d74bfb5729853644cd017ec12fb73e903b",
+      "checkpoint_sha256": "f04d46da3262ed8288983dcba303c2b1f1a6cc292765253b2b6be9d85ebf262c",
+      "evaluation_sha256": "9f2eba9ac126187f48659f201b93df980c844f1940ccff003e72b7074b3e872d",
+      "alpha_source": {
+        "experiment_id": "E0057",
+        "run_id": "E0057-s42-20261028T023448Z-0eb37e3",
+        "path": "outputs/E0057/runs/E0057-s42-20261028T023448Z-0eb37e3/checkpoints/best.pt",
+        "sha256": "5310ddf8ba6b38e2d7df90e13c8a6424a023a86ccdcb3021c09e3cc8b5023c57"
+      },
+      "reference": {
+        "experiment_id": "E0037",
+        "run_id": "E0037-s42-20260929T084843Z-6c70d8a",
+        "path": "outputs/E0037/runs/E0037-s42-20260929T084843Z-6c70d8a/checkpoints/best.pt",
+        "sha256": "e502c73e6ec9dc7f8282719c6dfedfd4780fbdd6607322b3f369e67cb52bd8bc"
+      },
+      "best_epoch_one_based": 15
+    },
+    "E0066": {
+      "run_id": "E0066-s42-20261028T043331Z-1b6e0b2",
+      "config_sha256": "6862f4e5db9f78abf5bd5df12bd8b80ed26f4a17604e857b6b2c014a9373bea7",
+      "checkpoint_sha256": "86a4d1718bf1b5b1ac26dd3ed3303f16d16896da5d0dda2c7776f01636589137",
+      "evaluation_sha256": "7421d8612fc308a1c8442cfb8f9e2537781547d58f2b62786f4a3fd2d6c9d327",
+      "alpha_source": {
+        "experiment_id": "E0060",
+        "run_id": "E0060-s42-20261028T024149Z-0eb37e3",
+        "path": "outputs/E0060/runs/E0060-s42-20261028T024149Z-0eb37e3/checkpoints/best.pt",
+        "sha256": "cdc6ab1f36064ab15a1debb9807ce0806dc8357ac2efb0f1054f34f30a467fca"
+      },
+      "reference": {
+        "experiment_id": "E0037",
+        "run_id": "E0037-s42-20260929T084843Z-6c70d8a",
+        "path": "outputs/E0037/runs/E0037-s42-20260929T084843Z-6c70d8a/checkpoints/best.pt",
+        "sha256": "e502c73e6ec9dc7f8282719c6dfedfd4780fbdd6607322b3f369e67cb52bd8bc"
+      },
+      "best_epoch_one_based": 15
+    }
+  },
+  "reference_sha256": "6da61585cf5d8714a4ad106aa383bbca49f3d28a05df726931d39dd4ea5e1eb0",
+  "reference_edges": [
+    357,
+    1733,
+    1756,
+    2619,
+    3096,
+    3438
+  ],
+  "selection_sha256": "bf25a1ea711186d0de5cf376af23dd74c146bd24aaf847c1a4157a62e1c8bb71",
+  "script_sha256": "0296cab304a61df65a0cbc076ef3786300afba4ef09cdbf7524a11cd646fc93c",
+  "source_modules": {
+    "alpha_transfer.py": "a82fb4cc128b3e439bb2b6499920c23a10056c2577935d749a3ceb5d6c91c84b",
+    "sc_alpha.py": "ab7fe377358a7b08fb006b92899f7654911a88052090c161e35262f03ed02bcd",
+    "evaluation.py": "46dc172679da378af265aec06393e9d9d61139e511835d8b9031219271c379d7",
+    "training.py": "662d85ee89bba469f06b350f7bb5b16e667eb9c4c4dd1d2281860d3a83a40fb3",
+    "data.py": "c2ea83e60c15f0a91fd1fb88346799c0590edbdd83f9600e4b97a76e54eda179",
+    "models/sequence.py": "336431ff23fcfccf03e2352bff99041eba5a2ed22d46ee41e92055631ae2cb19"
+  },
+  "split": "val",
+  "subjects": [
+    "S1",
+    "S2",
+    "S3",
+    "S4"
+  ],
+  "reference_selection": "outputs/E0037/visual/E0032_E0036_E0037_multisubject_comparison.json",
+  "edge_indices": [
+    357,
+    1733,
+    1756,
+    2619,
+    3096,
+    3438
+  ],
+  "edge_labels": [
+    "Frontal_Sup_Orb_L ↔ Frontal_Inf_Tri_L",
+    "Frontal_Sup_Medial_L ↔ Insula_R",
+    "Frontal_Sup_Medial_L ↔ Occipital_Inf_L",
+    "Hippocampus_L ↔ Temporal_Pole_Sup_L",
+    "Lingual_L ↔ Temporal_Mid_L",
+    "Fusiform_R ↔ Temporal_Mid_L"
+  ],
+  "raw_identifiers": "local private subject_mapping.json only",
+  "alpha_frozen": true,
+  "smoothing": false,
+  "test_data_read": false,
+  "plotted_experiments": [
+    "E0032",
+    "E0037",
+    "E0065"
+  ],
+  "image": "outputs/E0065/visual/E0065_val_multisubject_comparison.png",
+  "layout": "six reference edges x four fixed val subjects + training mean",
+  "shared_y_limits": true
+}

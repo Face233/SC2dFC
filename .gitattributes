@@ -13,3 +13,6 @@ outputs/E006[0-6]/runs/** -text whitespace=blank-at-eol,blank-at-eof,space-befor
 reports/sc_conditioned_alpha/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 # Matplotlib emits intentional trailing spaces in generated SVG path commands.
 reports/**/*.svg -whitespace
+# Figure manifests bind these newly generated plot scripts and metadata by byte hash.
+outputs/E006[1-6]/visual/*multisubject* -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+outputs/E0066/visual/E0061_E0066_val_selected_subjects_alpha.csv -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
