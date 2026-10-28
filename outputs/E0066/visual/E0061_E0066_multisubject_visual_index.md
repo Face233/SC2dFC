@@ -17,3 +17,4 @@ FC图同一条边跨所有实验共用y轴范围。α曲线不平滑、不截断
 - [E0061_E0066_val_multisubject_alpha_full](E0061_E0066_val_multisubject_alpha_full.png)
 - [E0061_E0066_val_multisubject_alpha_delta](E0061_E0066_val_multisubject_alpha_delta.png)
 - [E0061_E0066_val_multisubject_alpha_window18_60](E0061_E0066_val_multisubject_alpha_window18_60.png)
+- [修正量与真实信号：五行对比图](E0061_E0066_val_multisubject_correction_signal_5rows.png)（真实FC、实际修正幅度、Linear/MLP/GCN分别标准化形状；固定边357，验证被试S1–S4）

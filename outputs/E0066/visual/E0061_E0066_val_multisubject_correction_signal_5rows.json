@@ -1,0 +1,192 @@
+{
+  "experiments": [
+    "E0061",
+    "E0062",
+    "E0063",
+    "E0064",
+    "E0065",
+    "E0066"
+  ],
+  "run_sources": {
+    "E0061": {
+      "run_id": "E0061-s42-20261028T033946Z-88b6157",
+      "config_sha256": "26039b5355e14bdb5a460dcb9c5c3690867e84af600d7d5b9f3227aa58a32fcb",
+      "checkpoint_sha256": "891be439046683c1aeef28126221d9986b3564f4ac2708f2cd680ea85dd061c6",
+      "evaluation_sha256": "0b6e22b9ae7469c0a4ba20ed4fa257ea947532eef88b48e07692d3bd98be4ed1",
+      "alpha_source": {
+        "experiment_id": "E0054",
+        "run_id": "E0054-s42-20261028T021613Z-0eb37e3",
+        "path": "outputs/E0054/runs/E0054-s42-20261028T021613Z-0eb37e3/checkpoints/best.pt",
+        "sha256": "ff8b721e97887e04b3d9e6d0779492cf931910506bca3c29043fe58e4a512fcb"
+      },
+      "reference": {
+        "experiment_id": "E0036",
+        "run_id": "E0036-s42-20260929T082122Z-b5b871f",
+        "path": "outputs/E0036/runs/E0036-s42-20260929T082122Z-b5b871f/checkpoints/best.pt",
+        "sha256": "d6637afb38c3ae75aa8535b36e15067120b617a68042ed2ceb182b34f11d01d7"
+      },
+      "best_epoch_one_based": 16
+    },
+    "E0062": {
+      "run_id": "E0062-s42-20261028T034508Z-88b6157",
+      "config_sha256": "91ec740241ff50cd3043885149636be017d9e1e00ae6834d7bbf092b40edec95",
+      "checkpoint_sha256": "e00ae20f52588127b34c355786953c5ab1afc017020e69e1d4a762cb5d298244",
+      "evaluation_sha256": "69dbd3be39b722e9dc989c067fc326e15def767b000108ba9fee232eedec67e8",
+      "alpha_source": {
+        "experiment_id": "E0057",
+        "run_id": "E0057-s42-20261028T023448Z-0eb37e3",
+        "path": "outputs/E0057/runs/E0057-s42-20261028T023448Z-0eb37e3/checkpoints/best.pt",
+        "sha256": "5310ddf8ba6b38e2d7df90e13c8a6424a023a86ccdcb3021c09e3cc8b5023c57"
+      },
+      "reference": {
+        "experiment_id": "E0036",
+        "run_id": "E0036-s42-20260929T082122Z-b5b871f",
+        "path": "outputs/E0036/runs/E0036-s42-20260929T082122Z-b5b871f/checkpoints/best.pt",
+        "sha256": "d6637afb38c3ae75aa8535b36e15067120b617a68042ed2ceb182b34f11d01d7"
+      },
+      "best_epoch_one_based": 6
+    },
+    "E0063": {
+      "run_id": "E0063-s42-20261028T034901Z-88b6157",
+      "config_sha256": "ca5d02295e83b8c6a1036cea7e459ff79332b532e2a60aee8b05535398af6366",
+      "checkpoint_sha256": "9c591f6e3ae0e0ef3c58f443fab1d1a7639633e73a48a9906e314ebf527dd570",
+      "evaluation_sha256": "7a6694adc9d4bd0a3d53f6734382512a5670123295133bd8e5a63630df4b5e4a",
+      "alpha_source": {
+        "experiment_id": "E0060",
+        "run_id": "E0060-s42-20261028T024149Z-0eb37e3",
+        "path": "outputs/E0060/runs/E0060-s42-20261028T024149Z-0eb37e3/checkpoints/best.pt",
+        "sha256": "cdc6ab1f36064ab15a1debb9807ce0806dc8357ac2efb0f1054f34f30a467fca"
+      },
+      "reference": {
+        "experiment_id": "E0036",
+        "run_id": "E0036-s42-20260929T082122Z-b5b871f",
+        "path": "outputs/E0036/runs/E0036-s42-20260929T082122Z-b5b871f/checkpoints/best.pt",
+        "sha256": "d6637afb38c3ae75aa8535b36e15067120b617a68042ed2ceb182b34f11d01d7"
+      },
+      "best_epoch_one_based": 6
+    },
+    "E0064": {
+      "run_id": "E0064-s42-20261028T042222Z-1b6e0b2",
+      "config_sha256": "65714c1cc51efd204578ea0d27ca421671f994e89c4eab065614cc1d426040c3",
+      "checkpoint_sha256": "83b1145408dfeb06333a710c8e4495db9f72e80170f41990c774424761b78316",
+      "evaluation_sha256": "846eb63953e00de4b89b3c0a34b8606921ebc3f4851dd435e550e4ffb6a8bcce",
+      "alpha_source": {
+        "experiment_id": "E0054",
+        "run_id": "E0054-s42-20261028T021613Z-0eb37e3",
+        "path": "outputs/E0054/runs/E0054-s42-20261028T021613Z-0eb37e3/checkpoints/best.pt",
+        "sha256": "ff8b721e97887e04b3d9e6d0779492cf931910506bca3c29043fe58e4a512fcb"
+      },
+      "reference": {
+        "experiment_id": "E0037",
+        "run_id": "E0037-s42-20260929T084843Z-6c70d8a",
+        "path": "outputs/E0037/runs/E0037-s42-20260929T084843Z-6c70d8a/checkpoints/best.pt",
+        "sha256": "e502c73e6ec9dc7f8282719c6dfedfd4780fbdd6607322b3f369e67cb52bd8bc"
+      },
+      "best_epoch_one_based": 15
+    },
+    "E0065": {
+      "run_id": "E0065-s42-20261028T042759Z-1b6e0b2",
+      "config_sha256": "92debb23dff3f9871034704371bea4d74bfb5729853644cd017ec12fb73e903b",
+      "checkpoint_sha256": "f04d46da3262ed8288983dcba303c2b1f1a6cc292765253b2b6be9d85ebf262c",
+      "evaluation_sha256": "9f2eba9ac126187f48659f201b93df980c844f1940ccff003e72b7074b3e872d",
+      "alpha_source": {
+        "experiment_id": "E0057",
+        "run_id": "E0057-s42-20261028T023448Z-0eb37e3",
+        "path": "outputs/E0057/runs/E0057-s42-20261028T023448Z-0eb37e3/checkpoints/best.pt",
+        "sha256": "5310ddf8ba6b38e2d7df90e13c8a6424a023a86ccdcb3021c09e3cc8b5023c57"
+      },
+      "reference": {
+        "experiment_id": "E0037",
+        "run_id": "E0037-s42-20260929T084843Z-6c70d8a",
+        "path": "outputs/E0037/runs/E0037-s42-20260929T084843Z-6c70d8a/checkpoints/best.pt",
+        "sha256": "e502c73e6ec9dc7f8282719c6dfedfd4780fbdd6607322b3f369e67cb52bd8bc"
+      },
+      "best_epoch_one_based": 15
+    },
+    "E0066": {
+      "run_id": "E0066-s42-20261028T043331Z-1b6e0b2",
+      "config_sha256": "6862f4e5db9f78abf5bd5df12bd8b80ed26f4a17604e857b6b2c014a9373bea7",
+      "checkpoint_sha256": "86a4d1718bf1b5b1ac26dd3ed3303f16d16896da5d0dda2c7776f01636589137",
+      "evaluation_sha256": "7421d8612fc308a1c8442cfb8f9e2537781547d58f2b62786f4a3fd2d6c9d327",
+      "alpha_source": {
+        "experiment_id": "E0060",
+        "run_id": "E0060-s42-20261028T024149Z-0eb37e3",
+        "path": "outputs/E0060/runs/E0060-s42-20261028T024149Z-0eb37e3/checkpoints/best.pt",
+        "sha256": "cdc6ab1f36064ab15a1debb9807ce0806dc8357ac2efb0f1054f34f30a467fca"
+      },
+      "reference": {
+        "experiment_id": "E0037",
+        "run_id": "E0037-s42-20260929T084843Z-6c70d8a",
+        "path": "outputs/E0037/runs/E0037-s42-20260929T084843Z-6c70d8a/checkpoints/best.pt",
+        "sha256": "e502c73e6ec9dc7f8282719c6dfedfd4780fbdd6607322b3f369e67cb52bd8bc"
+      },
+      "best_epoch_one_based": 15
+    }
+  },
+  "split": "val",
+  "subjects": [
+    "S1",
+    "S2",
+    "S3",
+    "S4"
+  ],
+  "selection": "First of six previously fixed reference edges; same four validation participants; no new output-based selection",
+  "edge_index": 357,
+  "edge_label": "Frontal_Sup_Orb_L <-> Frontal_Inf_Tri_L",
+  "window_range_inclusive": [
+    18,
+    223
+  ],
+  "rows": [
+    "raw true FC and E0032",
+    "actual alpha FC correction and true residual in Fisher-z",
+    "standardized Linear correction and true residual",
+    "standardized MLP correction and true residual",
+    "standardized GCN correction and true residual"
+  ],
+  "correction_definition": "delta_alpha_s(t) * [FC_s(0)-mu_0]",
+  "true_residual_definition": "true_FC_s(t)-E0032_baseline_s(t)",
+  "shape_normalization": "Separately subtract temporal mean and divide by population temporal standard deviation on windows 18-223",
+  "pearson_with_true_residual": {
+    "Linear-223": {
+      "S1": -0.1581312330925756,
+      "S2": 0.21743350908209647,
+      "S3": -0.12507622854054667,
+      "S4": 0.020608693746676128
+    },
+    "MLP-223": {
+      "S1": -0.24653201650913192,
+      "S2": 0.028785827188204553,
+      "S3": -0.281644572460465,
+      "S4": -0.23744573239691577
+    },
+    "GCN-223": {
+      "S1": 0.3081934598358487,
+      "S2": -0.05325574030732735,
+      "S3": -0.26024805218775127,
+      "S4": -0.23479985088206576
+    }
+  },
+  "alpha_frozen_pairs": [
+    [
+      "E0061",
+      "E0064"
+    ],
+    [
+      "E0062",
+      "E0065"
+    ],
+    [
+      "E0063",
+      "E0066"
+    ]
+  ],
+  "cache_sha256": "a3a3feb64254a20789a5a8a761c0fb1be3de7c6ee91e59dea40956d12cf84b1f",
+  "reference_sha256": "6da61585cf5d8714a4ad106aa383bbca49f3d28a05df726931d39dd4ea5e1eb0",
+  "script": "build_e0061_e0066_multisubject_correction_signal_5rows.py",
+  "script_sha256": "89457fda67cad6f322a47be5385205f006ac2222b7613783941949912b66e64c",
+  "image": "E0061_E0066_val_multisubject_correction_signal_5rows.png",
+  "image_sha256": "499d86cb972746fd358af79927daaef07311fe84b59152d130db0533ea0c4abd",
+  "test_data_read": false,
+  "raw_subject_identifiers_published": false
+}
