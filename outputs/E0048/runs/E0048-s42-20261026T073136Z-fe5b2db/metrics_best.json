@@ -1,0 +1,19 @@
+{
+  "schema_version": 2,
+  "kind": "selection",
+  "split": "val",
+  "primary_metric": "validation_loss",
+  "metrics": {
+    "validation_loss": 0.048537991253851116
+  },
+  "best_epoch": 97,
+  "epoch_index_base": 0,
+  "metric_definition": {
+    "implementation": "AutoencoderLoss/v1",
+    "weights": {
+      "edge": 1.0
+    },
+    "loss_type": "mse"
+  },
+  "source": "training_validation"
+}

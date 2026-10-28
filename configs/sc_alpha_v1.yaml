@@ -1,0 +1,69 @@
+base: experiments/E0032_fc1_decay_template_v1.yaml
+
+experiment:
+  task: sc_alpha
+  level: 1
+  baseline: E0032
+  ablation: full
+  execution_ready: true
+  status: planned
+  owner: Face88
+
+data:
+  warmup_windows: 1
+
+model:
+  name: sc_conditioned_alpha
+  alpha_clip: false
+  pca_components: 64
+  mlp_hidden: 32
+  dropout: 0.1
+  gcn_hidden: 128
+  gcn_output: 64
+
+artifacts:
+  alpha_fit:
+    id: E0032-alpha-fit
+    path: outputs/E0032/runs/E0032-s42-20260923T052241Z-8d7ca92/alpha_fit.npz
+    sha256: dcb8a74c2a06d753791a7b2dbe1be582c57c3e6a77e7562a957b575359689efa
+  training_stats:
+    path: outputs/shared/dataset_lr_v1/window_83/training_stats.npz
+    sha256: f0a8e244060cc3ee822c2bd63613c67d5847329a818e446bfe8d47beb20cd226
+
+training:
+  seeds: [42]
+  epochs: 300
+  batch_size: 64
+  patience: 30
+  learning_rate: 0.001
+  learning_rate_schedule:
+    name: constant
+  weight_decay: 0.0001
+  gradient_clip: 1.0
+  loss_type: mse
+  loss_weights:
+    edge: 1.0
+    difference: 0.0
+  cv_folds: 5
+  alpha_lambda_grid: [0.0, 0.01, 0.1, 1.0]
+  alpha_training_scope: all_future
+  alpha_expected_subjects:
+    train: 738
+    val: 158
+
+evaluation:
+  primary_metric: long_edge_mse
+  nonoverlap_start: 17
+
+comparison_plan:
+  suite_experiments: [E0052, E0053, E0054, E0055, E0056, E0057, E0058, E0059, E0060]
+  require_suite_ready: true
+  primary_family_size: 9
+  bootstrap_replicates: 100000
+  secondary_bootstrap_replicates: 10000
+  bootstrap_seed: 20261026
+  swap_seeds: [20261026, 20261027, 20261028, 20261029, 20261030, 20261031, 20261032, 20261033, 20261034, 20261035]
+  test_access: false
+
+decision_rule:
+  description: 全部九组先完成训练内五折选参及固定轮数全训练拟合，再统一评价158人验证集。各组对同次重放B0的长期MSE报告95%及99.4444%被试配对bootstrap区间；SC交换和模型间对照为探索诊断。单seed不声称稳定性，仅降低MSE不宣称时间动态改善。训练和选参不读验证FC，不访问test。

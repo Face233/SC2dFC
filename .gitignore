@@ -5,12 +5,22 @@ __pycache__/
 *.egg-info/
 build/
 dist/
-# Track managed experiment outputs, including checkpoints, metrics, audits,
-# and reproducible visual reports. Generated Python bytecode remains local.
+# Track managed experiment records and reproducible visual reports.
+# Existing tracked checkpoint pointers remain; new weights use checkpoint-archive.
 outputs/*/visual/**/__pycache__/
 outputs/*/visual/**/*.py[cod]
 cache/
 outputs/shared/
+# Local subject-level SC-alpha folds, metrics and example arrays.
+outputs/**/private/
+# Publish aggregate experiment records; participant manifests and audit rows stay local.
+outputs/**/data_manifest.json
+outputs/**/ae_data_audit.json
+outputs/**/dynamic_audit_*/*per_sample.csv
+outputs/E005[01]/runs/*/evaluation_val.json
+outputs/E005[01]/runs/*/comparison_*_val.json
+# New model weights are published separately on checkpoint-archive via Git LFS.
+outputs/**/checkpoints/
 # Selected real FC/reconstruction arrays are local diagnostic inputs, not public tables.
 outputs/*/diagnostics/**/private_examples.npz
 

@@ -27,6 +27,8 @@ from .managed_cli import (
     command_bind_history_persistence,
     command_run,
     command_summarize,
+    command_alpha_summary,
+    command_alpha_visual,
 )
 from .training import autoencoder_checkpoint_path, train_autoencoder, train_sequence_model
 from .progress import emit
@@ -233,6 +235,14 @@ def build_parser() -> argparse.ArgumentParser:
     dynamic_audit.add_argument("--split", choices=["train", "val"], default="val")
     dynamic_audit.add_argument("--device")
     dynamic_audit.set_defaults(function=command_dynamic_audit)
+
+    alpha_summary = subparsers.add_parser("alpha-summary", help="Compare all nine evaluated SC alpha runs and draw aggregate figures")
+    alpha_summary.add_argument("--run-ids", nargs="+", required=True)
+    alpha_summary.add_argument("--output-dir")
+    alpha_summary.set_defaults(function=command_alpha_summary)
+    alpha_visual = subparsers.add_parser("alpha-visual", help="Redraw validation-only SC alpha run figures from saved local artifacts")
+    alpha_visual.add_argument("--run-id", required=True)
+    alpha_visual.set_defaults(function=command_alpha_visual)
 
     from .ae_diagnostic import command_ae_diagnostic
     diagnostic = subparsers.add_parser("ae-diagnostic", help="Frozen AE reconstruction diagnostic; train/val only, no forecasting")

@@ -1,0 +1,9 @@
+{
+  "schema": "sc_conditioned_alpha/v1",
+  "checkpoint": "checkpoints/best.pt",
+  "sha256": "f21b5db75784bd6f87664d68df2b9bab2993b9b1233d25f90d74206b77864182",
+  "config_sha256": "3f04e4de75c3f86eb8deb295349a4ace5b7ca447a17a3028df63de4d51ae6c55",
+  "alpha_clip": false,
+  "sc_only_generator": true,
+  "validation_data_read": false
+}

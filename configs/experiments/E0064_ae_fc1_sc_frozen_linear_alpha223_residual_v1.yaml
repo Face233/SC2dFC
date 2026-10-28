@@ -1,0 +1,56 @@
+base: E0037_fc1_sc_direct_residual_transformer_mse_v1.yaml
+model:
+  fc_representation: autoencoder
+  sc_alpha_frozen: true
+  alpha_parameters: 223
+  alpha_clip: false
+artifacts:
+  sc_alpha:
+    experiment_id: E0054
+    run_id: E0054-s42-20261028T021613Z-0eb37e3
+    path: outputs/E0054/runs/E0054-s42-20261028T021613Z-0eb37e3/checkpoints/best.pt
+    sha256: ff8b721e97887e04b3d9e6d0779492cf931910506bca3c29043fe58e4a512fcb
+  residual_reference:
+    experiment_id: E0037
+    run_id: E0037-s42-20260929T084843Z-6c70d8a
+    path: outputs/E0037/runs/E0037-s42-20260929T084843Z-6c70d8a/checkpoints/best.pt
+    sha256: e502c73e6ec9dc7f8282719c6dfedfd4780fbdd6607322b3f369e67cb52bd8bc
+  training_stats:
+    path: outputs/shared/dataset_lr_v1/window_83/training_stats.npz
+    sha256: f0a8e244060cc3ee822c2bd63613c67d5847329a818e446bfe8d47beb20cd226
+evaluation:
+  nonoverlap_start: 17
+comparison_plan:
+  primary_family_size: 6
+  bootstrap_replicates: 100000
+  bootstrap_seed: 20261028
+  swap_seeds:
+  - 20261028
+  - 20261029
+  - 20261030
+  - 20261031
+  - 20261032
+  - 20261033
+  - 20261034
+  - 20261035
+  - 20261036
+  - 20261037
+  test_access: false
+  expected_train_subjects: 738
+  expected_val_subjects: 158
+  initialization_policy: same_residual_initial_state_and_rng
+experiment:
+  id: E0064
+  name: ae_fc1_sc_frozen_linear_alpha223_residual_v1
+  execution_ready: true
+  baseline: E0037
+  research_question: 冻结E0054的223参数个体alpha后，E0037的AE残差Transformer能否改善长期误差及真实个体动态？
+  hypothesis: 个体首窗持续性与完整残差预测可能互补；需长期配对误差、真实时间相关及分路径SC交换共同验证。
+  primary_change: 沿用E0037的E0003冻结AE、相同残差初始化与150轮纯MSE预算，解析基线换为冻结E0054个体alpha；残差分支从头训练。
+    early stopping patience=20;
+decision_rule:
+  description: 验证长期target[17:223]选模；六项对各自原骨干的主MSE比较报告被试配对95%及99.1667%区间；报告时间相关、动态幅度、分段误差、分支抵消及十次分路径SC交换。使用已有探索性验证集，不访问test。
+    Early stopping patience is 20 consecutive non-improving validation epochs; maximum
+    remains 150.
+training:
+  patience: 20

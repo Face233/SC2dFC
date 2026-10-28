@@ -1,0 +1,155 @@
+seed: 42
+paths:
+  root: D:\Code\Canlab\_codex_runs\E0059
+  atlas_labels: data/raw/atlas/ROI_MNI_V4.txt
+  sc_dir: data/raw/sc/HCP_Structure/AAL90
+  timeseries:
+    LR: data/raw/timeseries_lr
+  split_csv: data/manifests/split_lr_v1.csv
+  cache_dir: data/cache/dfc
+  output_dir: outputs
+data:
+  n_nodes: 90
+  n_timepoints: 1200
+  tr_seconds: 0.72
+  window_length: 83
+  stride: 5
+  warmup_windows: 1
+  sensitivity_windows:
+  - 42
+  - 125
+  fisher_clip: 0.999999
+  cache_dtype: float32
+  dataset_version: dataset_lr_v1
+  preprocessing_version: preprocess_lr_v1
+  manifest_path: data/manifests/dataset_lr_v1.json
+  manifest_sha256: 6ebb22662b4deb3fc7e38d45f2b76fc303d5c3ec973d36e6d7d0e2d3ffc29ac3
+  split_version: split_lr_v1
+  split_sha256: e08cd05e20ed048ba976dcf6487ecab8f6ba4671ea90ed778cbe21176b599862
+split:
+  train: 0.7
+  val: 0.15
+  test: 0.15
+model:
+  sc_encoder: gcn
+  fc_latent_dim: 256
+  hidden_dim: 256
+  sc_graph_layers: 3
+  sc_graph_heads: 4
+  hcp_gcn_hidden_dim: 128
+  hcp_gcn_output_dim: 64
+  tcn_dilations:
+  - 1
+  - 2
+  - 4
+  - 8
+  - 16
+  - 32
+  transformer_layers: 4
+  transformer_heads: 8
+  transformer_ffn_dim: 1024
+  dropout: 0.1
+  baseline_hidden_dim: 256
+  ridge_pca_components: 128
+  ridge_alpha: 1.0
+  warmup_encoder: none
+  warmup_gru_layers: 1
+  name: sc_conditioned_alpha
+  alpha_clip: false
+  pca_components: 64
+  mlp_hidden: 32
+  gcn_hidden: 128
+  gcn_output: 64
+  alpha_parameters: 6
+training:
+  batch_size: 64
+  autoencoder_batch_size: 256
+  epochs: 300
+  autoencoder_epochs: 100
+  learning_rate: 0.001
+  learning_rate_schedule:
+    name: constant
+  weight_decay: 0.0001
+  gradient_clip: 1.0
+  patience: 30
+  num_workers: 0
+  seeds:
+  - 42
+  autoencoder_loss_weights:
+    edge: 1.0
+  loss_weights:
+    edge: 1.0
+    difference: 0.0
+    variance: 0.0
+  loss_type: mse
+  cv_folds: 5
+  alpha_lambda_grid:
+  - 0.0
+  - 0.01
+  - 0.1
+  - 1.0
+  alpha_training_scope: all_future
+  alpha_expected_subjects:
+    train: 738
+    val: 158
+evaluation:
+  primary_metric: long_edge_mse
+  bootstrap_replicates: 2000
+  state_clusters: 5
+  projection_epsilon: 1.0e-06
+  nonoverlap_start: 17
+experiment:
+  id: E0059
+  name: sc_alpha_gcn_k6_unbounded_v1
+  level: 1
+  task: sc_alpha
+  research_question: gcn从SC预测6参数无截断alpha修正，能否优于共享E0032长期预测基线？
+  hypothesis: 被试匹配的结构信息可能校准首窗偏移持续性；需长期MSE配对区间和冻结SC交换共同支持。
+  primary_change: 固定训练群体模板和E0032 alpha_raw，只训练gcn SC映射及6参数修正；全部223窗MSE，训练内五折选参，seed42。
+  baseline: E0032
+  owner: Face88
+  status: planned
+  ablation: full
+  execution_ready: true
+decision_rule:
+  description: 全部九组先完成训练内五折选参及固定轮数全训练拟合，再统一评价158人验证集。各组对同次重放B0的长期MSE报告95%及99.4444%被试配对bootstrap区间；SC交换和模型间对照为探索诊断。单seed不声称稳定性，仅降低MSE不宣称时间动态改善。训练和选参不读验证FC，不访问test。
+artifacts:
+  alpha_fit:
+    id: E0032-alpha-fit
+    path: outputs/E0032/runs/E0032-s42-20260923T052241Z-8d7ca92/alpha_fit.npz
+    sha256: dcb8a74c2a06d753791a7b2dbe1be582c57c3e6a77e7562a957b575359689efa
+  training_stats:
+    path: outputs/shared/dataset_lr_v1/window_83/training_stats.npz
+    sha256: f0a8e244060cc3ee822c2bd63613c67d5847329a818e446bfe8d47beb20cd226
+comparison_plan:
+  suite_experiments:
+  - E0052
+  - E0053
+  - E0054
+  - E0055
+  - E0056
+  - E0057
+  - E0058
+  - E0059
+  - E0060
+  require_suite_ready: true
+  primary_family_size: 9
+  bootstrap_replicates: 100000
+  secondary_bootstrap_replicates: 10000
+  bootstrap_seed: 20261026
+  swap_seeds:
+  - 20261026
+  - 20261027
+  - 20261028
+  - 20261029
+  - 20261030
+  - 20261031
+  - 20261032
+  - 20261033
+  - 20261034
+  - 20261035
+  test_access: false
+_config_source: D:\Code\Canlab\_codex_runs\E0059\configs\experiments\E0059_sc_alpha_gcn_k6_unbounded_v1.yaml
+runtime:
+  run_id: E0059-s42-20261028T024001Z-0eb37e3
+  config_sha256: aa68767b797b284eb2c319b3d701f86cbe8ad48f60df75411b6bba9a058ee943

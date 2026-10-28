@@ -109,7 +109,7 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
     if not evaluation.get("primary_metric"):
         raise ValueError("Managed configs require evaluation.primary_metric")
     task = experiment.get("task", "sequence")
-    if task not in {"sequence", "autoencoder", "analytic", "residual_ridge", "residual_dynamic_ridge", "ae_diagnostic"}:
+    if task not in {"sequence", "autoencoder", "analytic", "residual_ridge", "residual_dynamic_ridge", "ae_diagnostic", "sc_alpha"}:
         raise ValueError("Unsupported experiment.task")
     model_name = config.get("model", {}).get("name")
     allowed_models = {
@@ -119,9 +119,13 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
         "sequence": {"pca_ridge", "mlp", "lstm", "direct_mlp", "gcn_gru", "gru", "tcn", "transformer", "fc_history_gru_query_residual", "fc_history_gru_transformer_decay_residual"},
         "residual_ridge": {"encoded_stable_residual_ridge"},
         "residual_dynamic_ridge": {"encoded_dynamic_residual_ridge"},
+        "sc_alpha": {"sc_conditioned_alpha"},
     }
     if model_name not in allowed_models[task]:
         raise ValueError(f"model.name {model_name!r} is not valid for task {task!r}")
+    if task == "sc_alpha":
+        from .sc_alpha import validate_sc_alpha_config
+        validate_sc_alpha_config(config)
     primary_metric = str(config["evaluation"]["primary_metric"])
     if task == "sequence" and primary_metric not in {"objective_loss", "long_residual_pearson", "long_edge_mse", "forecast_nonoverlap_mse", "forecast_mse"}:
         raise ValueError("Sequence primary_metric must be objective_loss, long_residual_pearson or long_edge_mse")
@@ -269,6 +273,9 @@ def validate_experiment_config(config: dict[str, Any]) -> dict[str, Any]:
         if model_name in {"gru", "tcn", "transformer"} and config.get("model", {}).get("output_head") not in {"e0003_reconstruction_decoder", "direct_edge_linear"}:
             raise ValueError("Conditional sequence models require model.output_head=e0003_reconstruction_decoder or direct_edge_linear")
         representation = model.get("fc_representation", "autoencoder")
+        if config.get("artifacts", {}).get("sc_alpha"):
+            from .alpha_transfer import validate_transfer_config
+            validate_transfer_config(config)
         if representation == "frozen_pca":
             if (model_name != "transformer" or model.get("output_head") != "direct_edge_linear"
                     or model.get("output_decomposition") != "e0032_decay_residual"
@@ -501,7 +508,7 @@ def create_run_context(config: dict[str, Any], seed: int) -> RunContext:
     experiment_dir = resolve_path(config, "output_dir") / experiment_id
     for metadata_path in experiment_dir.glob("runs/*/metadata.json"):
         previous = json.loads(metadata_path.read_text(encoding="utf-8"))
-        if previous.get("config_sha256") != digest:
+        if previous.get("config_sha256") != digest and previous.get("status") not in {"FAILED", "ARCHIVED"}:
             raise RuntimeError(f"{experiment_id} already has runs with another config hash; allocate a new experiment ID")
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_id = f"{experiment_id}-s{seed}-{stamp}-{git['commit'][:7]}"
@@ -659,6 +666,9 @@ def summarize_experiment(root: str | Path, experiment_id: str) -> dict[str, Any]
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         local_run_ids.add(metadata["run_id"])
         if metadata.get("config_sha256") != registry_row.get("config_sha256"):
+            if metadata.get("status") in {"FAILED", "ARCHIVED"}:
+                run_records.append({**metadata, "selection_exclusion": "superseded unsuccessful protocol"})
+                continue
             raise RuntimeError(
                 f"{metadata['run_id']} config_sha256 does not match registered {experiment_id}; "
                 "register it as a distinct experiment instead of aggregating it here"
@@ -701,7 +711,9 @@ def summarize_experiment(root: str | Path, experiment_id: str) -> dict[str, Any]
     import numpy as np
     summary = {
         "experiment_id": experiment_id, "primary_metric": metric, "completed_runs": len(values),
-        "split": "val", "metric_source": "selection", "metric_definition": metric_definition,
+        "split": (metric_definition or {}).get("split", "val"),
+        "metric_source": "training_cv_selection" if (metric_definition or {}).get("split") == "train_cv" else "selection",
+        "metric_definition": metric_definition,
         "failed_runs": failed, "mean": float(np.mean(values)) if values else None,
         "std": float(np.std(values, ddof=1)) if len(values) > 1 else (0.0 if values else None),
         "preprocessing": preprocessing, "runs": run_records, "generated_at": utc_now(),

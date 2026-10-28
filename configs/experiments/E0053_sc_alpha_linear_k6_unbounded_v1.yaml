@@ -1,0 +1,10 @@
+base: ../sc_alpha_v1.yaml
+experiment:
+  id: E0053
+  name: sc_alpha_linear_k6_unbounded_v1
+  research_question: linear从SC预测6参数无截断alpha修正，能否优于共享E0032长期预测基线？
+  hypothesis: 被试匹配的结构信息可能校准首窗偏移持续性；需长期MSE配对区间和冻结SC交换共同支持。
+  primary_change: 固定训练群体模板和E0032 alpha_raw，只训练linear SC映射及6参数修正；全部223窗MSE，训练内五折选参，seed42。
+model:
+  sc_encoder: linear
+  alpha_parameters: 6

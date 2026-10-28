@@ -3,7 +3,7 @@
   "purpose": "Index of optional full checkpoints. These files are intentionally absent from main and live on the checkpoint-archive Git LFS branch.",
   "archive_remote": "origin",
   "archive_branch": "checkpoint-archive",
-  "archive_commit": "609e07f4d4eea2bb922f986b908e7f0ec870e77d",
+  "archive_commit": "d3cd96591309ffcc8b9cea381e414717a1afb64b",
   "checkpoints": [
     {
       "experiment_id": "E0003",
@@ -60,6 +60,125 @@
       "archive_path": "outputs/E0011/runs/E0011-s42-20260818T083706Z-febe983/checkpoints/best.pt",
       "lfs_oid": "sha256:334652b4c177193d70119ab88cc2d5af12414c90d978c136a7a42e35be1bb2cc",
       "size_bytes": 46880463
+    },
+    {
+      "experiment_id": "E0048",
+      "run_id": "E0048-s42-20261026T073136Z-fe5b2db",
+      "archive_path": "outputs/E0048/runs/E0048-s42-20261026T073136Z-fe5b2db/checkpoints/best.pt",
+      "lfs_oid": "sha256:c8ab19af7b7fea1a0fa1627af46364280c92a8b0b63f68d6b154bd6335a342bd",
+      "size_bytes": 38115021
+    },
+    {
+      "experiment_id": "E0049",
+      "run_id": "E0049-s42-20261026T073302Z-fe5b2db",
+      "archive_path": "outputs/E0049/runs/E0049-s42-20261026T073302Z-fe5b2db/checkpoints/best.pt",
+      "lfs_oid": "sha256:15724f6c0b5154dba356e33c44cad90bbaf390a9562d67418195dbedaf96592e",
+      "size_bytes": 38115021
+    },
+    {
+      "experiment_id": "E0052",
+      "run_id": "E0052-s42-20261028T020855Z-0eb37e3",
+      "archive_path": "outputs/E0052/runs/E0052-s42-20261028T020855Z-0eb37e3/checkpoints/best.pt",
+      "lfs_oid": "sha256:956b14661ada0e5451ee364086f21c55bfd319a4026e2844e60c62306da06328",
+      "size_bytes": 8211462
+    },
+    {
+      "experiment_id": "E0053",
+      "run_id": "E0053-s42-20261028T021445Z-0eb37e3",
+      "archive_path": "outputs/E0053/runs/E0053-s42-20261028T021445Z-0eb37e3/checkpoints/best.pt",
+      "lfs_oid": "sha256:f21b5db75784bd6f87664d68df2b9bab2993b9b1233d25f90d74206b77864182",
+      "size_bytes": 8217222
+    },
+    {
+      "experiment_id": "E0054",
+      "run_id": "E0054-s42-20261028T021613Z-0eb37e3",
+      "archive_path": "outputs/E0054/runs/E0054-s42-20261028T021613Z-0eb37e3/checkpoints/best.pt",
+      "lfs_oid": "sha256:ff8b721e97887e04b3d9e6d0779492cf931910506bca3c29043fe58e4a512fcb",
+      "size_bytes": 8467270
+    },
+    {
+      "experiment_id": "E0055",
+      "run_id": "E0055-s42-20261028T023111Z-0eb37e3",
+      "archive_path": "outputs/E0055/runs/E0055-s42-20261028T023111Z-0eb37e3/checkpoints/best.pt",
+      "lfs_oid": "sha256:58ae860ccfaee986d61df9966bfc506063a60e540c37be73f9e1c5c5f5d68b23",
+      "size_bytes": 8220280
+    },
+    {
+      "experiment_id": "E0056",
+      "run_id": "E0056-s42-20261028T023304Z-0eb37e3",
+      "archive_path": "outputs/E0056/runs/E0056-s42-20261028T023304Z-0eb37e3/checkpoints/best.pt",
+      "lfs_oid": "sha256:1534494d550ab2f8ddcef298db787140d4896c924d79860a76a04519f6801e1f",
+      "size_bytes": 8225400
+    },
+    {
+      "experiment_id": "E0057",
+      "run_id": "E0057-s42-20261028T023448Z-0eb37e3",
+      "archive_path": "outputs/E0057/runs/E0057-s42-20261028T023448Z-0eb37e3/checkpoints/best.pt",
+      "lfs_oid": "sha256:5310ddf8ba6b38e2d7df90e13c8a6424a023a86ccdcb3021c09e3cc8b5023c57",
+      "size_bytes": 8447608
+    },
+    {
+      "experiment_id": "E0058",
+      "run_id": "E0058-s42-20261028T023813Z-0eb37e3",
+      "archive_path": "outputs/E0058/runs/E0058-s42-20261028T023813Z-0eb37e3/checkpoints/best.pt",
+      "lfs_oid": "sha256:530eeb8f37db8a9f6a300fe950074ceeaddec1d9414157db3c03a251b1be1b40",
+      "size_bytes": 5047160
+    },
+    {
+      "experiment_id": "E0059",
+      "run_id": "E0059-s42-20261028T024001Z-0eb37e3",
+      "archive_path": "outputs/E0059/runs/E0059-s42-20261028T024001Z-0eb37e3/checkpoints/best.pt",
+      "lfs_oid": "sha256:3d31e827ab481bfcf23895ace7341728c374d433484c423429a7f0fce0b3ff8d",
+      "size_bytes": 5052920
+    },
+    {
+      "experiment_id": "E0060",
+      "run_id": "E0060-s42-20261028T024149Z-0eb37e3",
+      "archive_path": "outputs/E0060/runs/E0060-s42-20261028T024149Z-0eb37e3/checkpoints/best.pt",
+      "lfs_oid": "sha256:cdc6ab1f36064ab15a1debb9807ce0806dc8357ac2efb0f1054f34f30a467fca",
+      "size_bytes": 5302904
+    },
+    {
+      "experiment_id": "E0061",
+      "run_id": "E0061-s42-20261028T033946Z-88b6157",
+      "archive_path": "outputs/E0061/runs/E0061-s42-20261028T033946Z-88b6157/checkpoints/best.pt",
+      "lfs_oid": "sha256:891be439046683c1aeef28126221d9986b3564f4ac2708f2cd680ea85dd061c6",
+      "size_bytes": 59715485
+    },
+    {
+      "experiment_id": "E0062",
+      "run_id": "E0062-s42-20261028T034508Z-88b6157",
+      "archive_path": "outputs/E0062/runs/E0062-s42-20261028T034508Z-88b6157/checkpoints/best.pt",
+      "lfs_oid": "sha256:e00ae20f52588127b34c355786953c5ab1afc017020e69e1d4a762cb5d298244",
+      "size_bytes": 59695953
+    },
+    {
+      "experiment_id": "E0063",
+      "run_id": "E0063-s42-20261028T034901Z-88b6157",
+      "archive_path": "outputs/E0063/runs/E0063-s42-20261028T034901Z-88b6157/checkpoints/best.pt",
+      "lfs_oid": "sha256:9c591f6e3ae0e0ef3c58f443fab1d1a7639633e73a48a9906e314ebf527dd570",
+      "size_bytes": 59795153
+    },
+    {
+      "experiment_id": "E0064",
+      "run_id": "E0064-s42-20261028T042222Z-1b6e0b2",
+      "archive_path": "outputs/E0064/runs/E0064-s42-20261028T042222Z-1b6e0b2/checkpoints/best.pt",
+      "lfs_oid": "sha256:83b1145408dfeb06333a710c8e4495db9f72e80170f41990c774424761b78316",
+      "size_bytes": 59715421
+    },
+    {
+      "experiment_id": "E0065",
+      "run_id": "E0065-s42-20261028T042759Z-1b6e0b2",
+      "archive_path": "outputs/E0065/runs/E0065-s42-20261028T042759Z-1b6e0b2/checkpoints/best.pt",
+      "lfs_oid": "sha256:f04d46da3262ed8288983dcba303c2b1f1a6cc292765253b2b6be9d85ebf262c",
+      "size_bytes": 59695953
+    },
+    {
+      "experiment_id": "E0066",
+      "run_id": "E0066-s42-20261028T043331Z-1b6e0b2",
+      "archive_path": "outputs/E0066/runs/E0066-s42-20261028T043331Z-1b6e0b2/checkpoints/best.pt",
+      "lfs_oid": "sha256:86a4d1718bf1b5b1ac26dd3ed3303f16d16896da5d0dda2c7776f01636589137",
+      "size_bytes": 59795153
     }
   ]
 }

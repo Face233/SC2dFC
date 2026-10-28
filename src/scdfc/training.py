@@ -593,6 +593,9 @@ def build_sequence_model(
         fusion_type=str((checkpoint_payload or {}).get("fusion_type", model_cfg.get("fusion_type", "gated"))),
         decay_alpha=None if decay_alpha is None else torch.from_numpy(decay_alpha),
     ).to(device)
+    if config.get("artifacts", {}).get("sc_alpha"):
+        from .alpha_transfer import attach_frozen_alpha
+        attach_frozen_alpha(model, config, device, checkpoint_payload)
     if checkpoint_payload is not None and config.get("model", {}).get("fc_representation") == "frozen_pca":
         for key in ("group_template", "context_template", "decay_alpha", "sc_mean", "sc_std"):
             stored = checkpoint_payload["model"].get(key)
@@ -812,6 +815,11 @@ def train_sequence_model(
     last_checkpoint = checkpoint_dir / "last.pt"
     log_path = output_dir / "train.log"
     component_protocol = {}
+    if config.get("artifacts", {}).get("sc_alpha"):
+        from .alpha_transfer import training_protocol
+        component_protocol = training_protocol(config, model, train_data.samples)
+        (output_dir / "component_protocol.json").write_text(
+            json.dumps(component_protocol, indent=2), encoding="utf-8")
     if config.get("model", {}).get("fc_representation") == "frozen_pca":
         from .pca_sequence import component_training_protocol
         component_protocol = component_training_protocol(config, model, train_data.samples, device)

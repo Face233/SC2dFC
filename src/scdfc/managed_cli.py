@@ -209,7 +209,10 @@ def command_run(args) -> None:
         load_persistence_artifact(config)
     data_manifest = verify_data_bindings(config)
     artifact_path = verify_artifact(config)
-    decay_path = verify_decay_artifact(config) if config["experiment"].get("task") in {"residual_ridge", "residual_dynamic_ridge"} or config.get("model", {}).get("output_decomposition") == "e0032_decay_residual" else None
+    if config.get("artifacts", {}).get("sc_alpha"):
+        from .alpha_transfer import verify_transfer_bindings
+        verify_transfer_bindings(config)
+    decay_path = verify_decay_artifact(config) if config["experiment"].get("task") in {"residual_ridge", "residual_dynamic_ridge", "sc_alpha"} or config.get("model", {}).get("output_decomposition") == "e0032_decay_residual" else None
     context = create_run_context(config, args.seed)
     try:
         emit("run_started", experiment_id=context.experiment_id, run_id=context.run_id, seed=args.seed, run_dir=str(context.run_dir))
@@ -217,10 +220,14 @@ def command_run(args) -> None:
         config["seed"] = args.seed
         window = int(config["data"]["window_length"])
         task = config["experiment"].get("task", "sequence")
-        stats = (None if task == "autoencoder" and config["training"].get("autoencoder_data_mode") == "all_lr_windows"
+        stats = (None if task == "sc_alpha" or (task == "autoencoder" and config["training"].get("autoencoder_data_mode") == "all_lr_windows")
                  else _ensure_stats(config, window))
         metadata = _checkpoint_metadata(config, context, artifact_path)
-        if task == "autoencoder":
+        if task == "sc_alpha":
+            from .sc_alpha import run_sc_alpha
+            checkpoint = run_sc_alpha(config, context.run_dir, metadata, args.device)
+            finish_run(context, "COMPLETED", checkpoint=str(checkpoint), selection_split="train_cv")
+        elif task == "autoencoder":
             checkpoint = train_autoencoder(config, window, stats, args.device, context.run_dir, metadata)
             artifact_manifest = _write_artifact_manifest(config, context, checkpoint)
             finish_run(context, "COMPLETED", checkpoint=str(checkpoint), artifact_manifest=str(artifact_manifest))
@@ -270,6 +277,18 @@ def command_evaluate_run(args) -> None:
     config.setdefault("paths", {})["root"] = str(root)
     level = int(metadata["level"])
     split = permitted_evaluation_split(level, args.split, args.final_test)
+    if config["experiment"].get("task") == "sc_alpha":
+        if split != "val" or args.final_test or getattr(args, "baseline_run_id", None) or getattr(args, "save_predictions", False):
+            raise ValueError("SC alpha uses validation-only automatic B0/SC-swap comparisons; private predictions are not exported")
+        from .sc_alpha_evaluation import evaluate_sc_alpha_run
+        print(evaluate_sc_alpha_run(config, run_dir, args.device or "cpu"))
+        return
+    if config.get("artifacts", {}).get("sc_alpha"):
+        if split != "val" or args.final_test or getattr(args, "baseline_run_id", None) or getattr(args, "save_predictions", False):
+            raise ValueError("Alpha transfer is validation-only with its pinned residual reference; predictions remain private")
+        from .alpha_transfer_evaluation import evaluate_transfer
+        print(evaluate_transfer(config, run_dir, args.device or "cpu"))
+        return
     if args.final_test:
         lock = run_dir.parent.parent / "final_test.lock"
         if lock.exists():
@@ -420,6 +439,16 @@ def command_dynamic_audit(args) -> None:
 
 def command_summarize(args) -> None:
     print(json.dumps(summarize_experiment(_root(), args.experiment), indent=2, ensure_ascii=False))
+
+
+def command_alpha_summary(args) -> None:
+    from .sc_alpha_evaluation import summarize_sc_alpha_runs
+    print(summarize_sc_alpha_runs(_root(), args.run_ids, args.output_dir))
+
+
+def command_alpha_visual(args) -> None:
+    from .sc_alpha_evaluation import plot_sc_alpha_run
+    print(plot_sc_alpha_run(find_run(_root(), args.run_id)))
 
 
 def command_history_ridge(args) -> None:

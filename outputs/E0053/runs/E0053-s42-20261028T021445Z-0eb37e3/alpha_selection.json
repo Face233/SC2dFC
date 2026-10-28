@@ -1,0 +1,22 @@
+{
+  "selected_lambda": 1.0,
+  "final_epochs": 26,
+  "cv_long_edge_mse": 0.18957969362577448,
+  "training_cohort_sha256": "90be864b667f0738005817d3ce141b5a046e045922f6d67f3e0d8b1e87411886",
+  "cv_folds_sha256": "cee6f427faa4fdce483d526c35ae3af255cb7494882674a97a74e6ea6471a8fa",
+  "n_subjects": 738,
+  "validation_data_read": false,
+  "initialization": {
+    "encoder_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "model_sha256": "d074c8d7d4b9e96418ea288b3d322ea8189b5fc42e5923bc246ab3a3d4f33029",
+    "parameters": 390,
+    "cpu_rng_sha256": "5feb54a46230d321d888e9b43cf5a57492665f199e4377408d79ee460e36679c",
+    "device_rng_sha256": "aefdce03def94ffed42159e55677ec20e91200e1981f25b1f271b6fd99c3c263"
+  },
+  "all_candidate_scores": {
+    "0.0": 0.18998544538004936,
+    "0.01": 0.18994626077775387,
+    "0.1": 0.18975441545490326,
+    "1.0": 0.18957969362577448
+  }
+}

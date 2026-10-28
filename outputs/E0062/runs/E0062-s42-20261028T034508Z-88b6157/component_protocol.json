@@ -1,0 +1,11 @@
+{
+  "fc_representation": "autoencoder",
+  "sc_alpha_frozen": true,
+  "sc_alpha_sha256": "5310ddf8ba6b38e2d7df90e13c8a6424a023a86ccdcb3021c09e3cc8b5023c57",
+  "sc_alpha_state_sha256": "529a82cac5ad0fd4f9abb50d5fa8fcab10945c8d841f7f4d35473dbfc7cbb9de",
+  "initial_parameters_sha256": "3e56c17c8b9e494269760a9021cfce9b4faefe27c046dcbd7c4f2f9a337ea6f3",
+  "initial_cpu_rng_sha256": "d2a994020e0513de864b9624d2d1867ce757c6459dbb27e74c4902ff9072984a",
+  "initial_cuda_rng_sha256": "aefdce03def94ffed42159e55677ec20e91200e1981f25b1f271b6fd99c3c263",
+  "trainable_parameters": 4423077,
+  "sample_manifest_sha256": "ed5ed699f19aef92f62013a113eb83bac3072642a43b13ebf26f9590e6b4d06e"
+}

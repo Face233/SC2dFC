@@ -367,6 +367,7 @@ class ConditionalSequenceModel(nn.Module):
         self.register_buffer("sc_mean", torch.zeros(self.n_edges) if sc_mean is None else sc_mean.float())
         self.register_buffer("sc_std", torch.ones(self.n_edges) if sc_std is None else sc_std.float())
         self.register_buffer("decay_alpha", torch.empty(0) if decay_alpha is None else decay_alpha.float())
+        self.sc_alpha_component = None
 
     def forward(
         self,
@@ -374,6 +375,7 @@ class ConditionalSequenceModel(nn.Module):
         sc_edges: torch.Tensor,
         fc_warmup: torch.Tensor,
         steps: int | None = None,
+        sc_alpha_matrix: torch.Tensor | None = None,
     ) -> Prediction:
         steps = steps or self.group_template.shape[0]
         condition = self.condition_encoder(sc_matrix, sc_edges, fc_warmup)
@@ -390,7 +392,10 @@ class ConditionalSequenceModel(nn.Module):
             context = fc_warmup[:, -1] if fc_warmup.ndim == 3 else fc_warmup
             subject_offset = context - self.context_template[None]
             if self.output_decomposition == "e0032_decay_residual":
-                residual_baseline = self.group_template[:steps][None] + self.decay_alpha[:steps][None, :, None] * subject_offset[:, None]
+                alpha = self.decay_alpha[:steps][None]
+                if self.sc_alpha_component is not None:
+                    alpha = self.sc_alpha_component(sc_matrix if sc_alpha_matrix is None else sc_alpha_matrix)[:, :steps]
+                residual_baseline = self.group_template[:steps][None] + alpha[:, :, None] * subject_offset[:, None]
             else:
                 residual_baseline = self.group_template[:steps][None] + subject_offset[:, None]
             dynamic_residual = decoded

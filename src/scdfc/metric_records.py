@@ -1,4 +1,4 @@
-"""Explicit provenance for validation selection metrics, separate from evaluation."""
+"""Explicit checkpoint-selection provenance for validation or training-only CV."""
 from __future__ import annotations
 
 import math
@@ -7,10 +7,10 @@ from typing import Any
 
 def selection_record(
     metrics: dict[str, float], primary_metric: str, best_epoch: int | None,
-    *, definition: dict[str, Any], source: str = "training_validation",
+    *, definition: dict[str, Any], source: str = "training_validation", split: str = "val",
 ) -> dict[str, Any]:
     record = {
-        "schema_version": 2, "kind": "selection", "split": "val",
+        "schema_version": 2, "kind": "selection", "split": split,
         "primary_metric": primary_metric, "metrics": metrics,
         "best_epoch": best_epoch, "epoch_index_base": 0,
         "metric_definition": definition, "source": source,
@@ -20,7 +20,10 @@ def selection_record(
 
 
 def validate_selection_record(record: dict[str, Any], primary_metric: str) -> None:
-    if record.get("schema_version") != 2 or record.get("kind") != "selection" or record.get("split") != "val":
+    training_cv = (record.get("split") == "train_cv" and record.get("source") == "sc_alpha_training_cv"
+                   and record.get("metric_definition", {}).get("implementation") == "sc_alpha_training_cv/v1"
+                   and record.get("metric_definition", {}).get("split") == "train_cv")
+    if record.get("schema_version") != 2 or record.get("kind") != "selection" or (record.get("split") != "val" and not training_cv):
         raise ValueError("Unverified selection metrics; restore metrics_best.json from the checkpoint or validation log using scripts/repair_metric_records.py")
     if record.get("primary_metric") != primary_metric:
         raise ValueError("Selection primary_metric does not match experiment primary_metric")

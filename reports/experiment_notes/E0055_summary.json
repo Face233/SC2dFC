@@ -1,0 +1,56 @@
+{
+  "experiment_id": "E0055",
+  "primary_metric": "long_edge_mse",
+  "completed_runs": 1,
+  "split": "train_cv",
+  "metric_source": "training_cv_selection",
+  "metric_definition": {
+    "implementation": "sc_alpha_training_cv/v1",
+    "split": "train_cv",
+    "aggregation": "out-of-fold subject-weighted long MSE at fold-selected epochs",
+    "nonoverlap_start": 17
+  },
+  "failed_runs": 0,
+  "mean": 0.18966830162417275,
+  "std": 0.0,
+  "preprocessing": {
+    "dataset_version": "dataset_lr_v1",
+    "preprocessing_version": "preprocess_lr_v1",
+    "split_version": "split_lr_v1",
+    "window_length_tr": 83,
+    "stride_tr": 5,
+    "tr_seconds": 0.72,
+    "window_length_seconds": 59.76,
+    "stride_seconds": 3.5999999999999996,
+    "n_timepoints": 1200,
+    "n_dfc_windows_per_run": 224,
+    "n_nodes": 90,
+    "fisher_clip": 0.999999,
+    "estimator": "rectangular_pearson",
+    "fc_representation": "Fisher-z transformed upper-triangle edges",
+    "cache_path": "data/cache/dfc/window_83.zarr"
+  },
+  "runs": [
+    {
+      "schema_version": 1,
+      "experiment_id": "E0055",
+      "run_id": "E0055-s42-20261028T023111Z-0eb37e3",
+      "seed": 42,
+      "level": 1,
+      "status": "COMPLETED",
+      "started_at": "2026-10-28T02:31:11Z",
+      "config_sha256": "7cd2f8c06c095d874850f3d4cf99ff8c77375ac1ed7a71eb005082b47152d8a6",
+      "git": {
+        "commit": "0eb37e36311707537c7592a70f92e5e2d8ff0f55",
+        "branch": "",
+        "remote": "https://github.com/Face233/SC2dFC.git",
+        "dirty": false,
+        "status": []
+      },
+      "ended_at": "2026-10-28T02:32:41Z",
+      "checkpoint": "D:\\Code\\Canlab\\_codex_runs\\E0055\\outputs\\E0055\\runs\\E0055-s42-20261028T023111Z-0eb37e3\\checkpoints\\best.pt",
+      "selection_split": "train_cv"
+    }
+  ],
+  "generated_at": "2026-10-28T06:31:02Z"
+}

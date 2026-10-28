@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "experiment_id": "E0063",
+  "run_id": "E0063-s42-20261028T034901Z-88b6157",
+  "seed": 42,
+  "level": 1,
+  "status": "COMPLETED",
+  "started_at": "2026-10-28T03:49:02Z",
+  "config_sha256": "ca5d02295e83b8c6a1036cea7e459ff79332b532e2a60aee8b05535398af6366",
+  "git": {
+    "commit": "88b6157a7232dd995b897a1fbea9ea516249f547",
+    "branch": "master",
+    "remote": "",
+    "dirty": false,
+    "status": []
+  },
+  "ended_at": "2026-10-28T03:52:52Z",
+  "checkpoint": "D:\\Code\\Canlab\\_codex_runs\\E0061_E0066\\outputs\\E0063\\runs\\E0063-s42-20261028T034901Z-88b6157\\checkpoints\\best.pt"
+}

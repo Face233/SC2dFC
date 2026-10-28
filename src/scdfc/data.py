@@ -373,7 +373,7 @@ class DFCSequenceDataset(Dataset):
         sc_matrix = load_sc(self.config, subject)
         sc_edges = np.log1p(matrix_to_edges(sc_matrix))
         sc_edges = (sc_edges - self.stats["sc_mean"]) / self.stats["sc_std"]
-        if self.ablation == "fc1_only":
+        if self.ablation == "fc1_only" and not self.config.get("artifacts", {}).get("sc_alpha"):
             sc_edges = np.zeros_like(sc_edges)
             sc_matrix = np.zeros_like(sc_matrix)
         elif self.ablation == "mean_sc":

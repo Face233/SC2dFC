@@ -1,0 +1,57 @@
+{
+  "experiment_id": "E0049",
+  "primary_metric": "validation_loss",
+  "completed_runs": 1,
+  "split": "val",
+  "metric_source": "selection",
+  "metric_definition": {
+    "implementation": "AutoencoderLoss/v1",
+    "weights": {
+      "edge": 1.0
+    },
+    "loss_type": "mse"
+  },
+  "failed_runs": 0,
+  "mean": 0.043602765482222194,
+  "std": 0.0,
+  "preprocessing": {
+    "dataset_version": "dataset_lr_v1",
+    "preprocessing_version": "preprocess_lr_v1",
+    "split_version": "split_lr_v1",
+    "window_length_tr": 83,
+    "stride_tr": 5,
+    "tr_seconds": 0.72,
+    "window_length_seconds": 59.76,
+    "stride_seconds": 3.5999999999999996,
+    "n_timepoints": 1200,
+    "n_dfc_windows_per_run": 224,
+    "n_nodes": 90,
+    "fisher_clip": 0.999999,
+    "estimator": "rectangular_pearson",
+    "fc_representation": "Fisher-z transformed upper-triangle edges",
+    "cache_path": "data/cache/dfc/window_83.zarr"
+  },
+  "runs": [
+    {
+      "schema_version": 1,
+      "experiment_id": "E0049",
+      "run_id": "E0049-s42-20261026T073302Z-fe5b2db",
+      "seed": 42,
+      "level": 1,
+      "status": "COMPLETED",
+      "started_at": "2026-10-26T07:33:02Z",
+      "config_sha256": "95821c45c4cf61281b65325665ef6f812831b596be5c7b1dca479f37584333ad",
+      "git": {
+        "commit": "fe5b2dbc2810ed0ac3fa27f0c2859804b7f093a2",
+        "branch": "",
+        "remote": "https://github.com/Face233/SC2dFC.git",
+        "dirty": false,
+        "status": []
+      },
+      "ended_at": "2026-10-26T07:37:47Z",
+      "checkpoint": "D:\\Code\\Canlab\\_codex_runs\\E0049\\outputs\\E0049\\runs\\E0049-s42-20261026T073302Z-fe5b2db\\checkpoints\\best.pt",
+      "artifact_manifest": "D:\\Code\\Canlab\\_codex_runs\\E0049\\configs\\artifacts\\A0049.yaml"
+    }
+  ],
+  "generated_at": "2026-10-28T06:31:02Z"
+}

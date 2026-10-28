@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "experiment_id": "E0061",
+  "run_id": "E0061-s42-20261028T033525Z-6da2444",
+  "seed": 42,
+  "level": 1,
+  "status": "FAILED",
+  "started_at": "2026-10-28T03:35:25Z",
+  "config_sha256": "fa21acd0db290daa9a4cafe5c6dd9d9649581d93aab3b8e4744eab7a6dfdfe45",
+  "git": {
+    "commit": "6da24448a8282269db6a1d11a2ebd04edac92e6d",
+    "branch": "master",
+    "remote": "",
+    "dirty": false,
+    "status": []
+  },
+  "ended_at": "2026-10-28T03:38:43Z",
+  "error": "Superseded by requested patience=20 protocol at epoch 17; partial checkpoint not evaluated."
+}

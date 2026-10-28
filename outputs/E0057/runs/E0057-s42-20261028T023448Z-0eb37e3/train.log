@@ -1,0 +1,4 @@
+{"event": "epoch_complete", "epoch": 1, "train_loss": 0.1827733238457341, "train_mse": 0.18230679631233215, "cv_long_edge_mse": null}
+{"event": "epoch_complete", "epoch": 2, "train_loss": 0.18258138550167807, "train_mse": 0.18229623138904572, "cv_long_edge_mse": null}
+{"event": "epoch_complete", "epoch": 3, "train_loss": 0.1824797839330141, "train_mse": 0.18225139379501343, "cv_long_edge_mse": null}
+{"event": "epoch_complete", "epoch": 4, "train_loss": 0.18244456974309958, "train_mse": 0.1822177618741989, "cv_long_edge_mse": null}

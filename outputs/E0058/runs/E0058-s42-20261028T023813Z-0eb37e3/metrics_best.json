@@ -1,0 +1,18 @@
+{
+  "schema_version": 2,
+  "kind": "selection",
+  "split": "train_cv",
+  "primary_metric": "long_edge_mse",
+  "metrics": {
+    "long_edge_mse": 0.18967141598705353
+  },
+  "best_epoch": null,
+  "epoch_index_base": 0,
+  "metric_definition": {
+    "implementation": "sc_alpha_training_cv/v1",
+    "split": "train_cv",
+    "aggregation": "out-of-fold subject-weighted long MSE at fold-selected epochs",
+    "nonoverlap_start": 17
+  },
+  "source": "sc_alpha_training_cv"
+}

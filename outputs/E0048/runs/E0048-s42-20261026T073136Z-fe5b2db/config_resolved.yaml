@@ -1,0 +1,117 @@
+seed: 42
+paths:
+  root: D:\Code\Canlab\_codex_runs\E0048
+  atlas_labels: data/raw/atlas/ROI_MNI_V4.txt
+  sc_dir: data/raw/sc/HCP_Structure/AAL90
+  timeseries:
+    LR: data/raw/timeseries_lr
+  split_csv: data/manifests/split_lr_v1.csv
+  cache_dir: data/cache/dfc
+  output_dir: outputs
+data:
+  n_nodes: 90
+  n_timepoints: 1200
+  tr_seconds: 0.72
+  window_length: 83
+  stride: 5
+  warmup_windows: 1
+  sensitivity_windows:
+  - 42
+  - 125
+  fisher_clip: 0.999999
+  cache_dtype: float32
+  dataset_version: dataset_lr_v1
+  preprocessing_version: preprocess_lr_v1
+  manifest_path: data/manifests/dataset_lr_v1.json
+  manifest_sha256: 6ebb22662b4deb3fc7e38d45f2b76fc303d5c3ec973d36e6d7d0e2d3ffc29ac3
+  split_version: split_lr_v1
+  split_sha256: e08cd05e20ed048ba976dcf6487ecab8f6ba4671ea90ed778cbe21176b599862
+split:
+  train: 0.7
+  val: 0.15
+  test: 0.15
+model:
+  sc_encoder: hybrid
+  fc_latent_dim: 256
+  hidden_dim: 256
+  sc_graph_layers: 3
+  sc_graph_heads: 4
+  hcp_gcn_hidden_dim: 128
+  hcp_gcn_output_dim: 64
+  tcn_dilations:
+  - 1
+  - 2
+  - 4
+  - 8
+  - 16
+  - 32
+  transformer_layers: 4
+  transformer_heads: 8
+  transformer_ffn_dim: 1024
+  dropout: 0.1
+  baseline_hidden_dim: 256
+  ridge_pca_components: 128
+  ridge_alpha: 1.0
+  warmup_encoder: none
+  warmup_gru_layers: 1
+  name: fc_autoencoder
+training:
+  batch_size: 4
+  autoencoder_batch_size: 256
+  epochs: 200
+  autoencoder_epochs: 100
+  decoder_frozen_epochs: 20
+  learning_rate: 0.0003
+  decoder_learning_rate_scale: 0.1
+  learning_rate_schedule:
+    name: constant
+  weight_decay: 0.0001
+  gradient_clip: 1.0
+  patience: 101
+  num_workers: 0
+  seeds:
+  - 42
+  autoencoder_loss_weights:
+    edge: 1.0
+  loss_weights:
+    edge: 1.0
+    difference: 0.25
+  autoencoder_data_mode: all_lr_windows
+  autoencoder_train_sampling: fixed32
+  autoencoder_loss_type: mse
+  autoencoder_expected_subjects:
+    train: 738
+    val: 158
+  autoencoder_step_checkpoints:
+  - 9300
+evaluation:
+  primary_metric: validation_loss
+  bootstrap_replicates: 2000
+  state_clusters: 5
+  projection_epsilon: 1.0e-06
+experiment:
+  id: E0048
+  name: ae_fixed32_mse_matched_v1
+  level: 1
+  task: autoencoder
+  research_question: 在严格匹配E0044训练LR缓存、统一MSE与完整验证集后，固定32窗AE作为全量数据AE的配对基线表现如何？
+  hypothesis: 新MSE抽样对照可将数据覆盖因素与历史A0003的SmoothL1目标差异分开，不能用旧A0003直接归因。
+  primary_change: 新建从头训练的MSE AE对照，固定32槽位每run，严格LR白名单、PCA缓存哈希匹配和完整验证。
+  baseline: E0003
+  owner: Face88
+  status: planned
+  ablation: full
+  artifact_id: A0048
+decision_rule:
+  description: 全部新AE统一MSE；只训练738名train LR，验证158名的全部224窗，不读test。固定seed42与32槽位/run有放回抽样，窗口不跨epoch刷新。100轮不早停，完整验证MSE选best；保存last和第9300步。与E0049比较等步数及100轮结果，不将旧SmoothL1工件的差异解释为纯数据效应。
+artifacts:
+  pca_reference:
+    path: outputs/E0044/diagnostics/E0044-20261020T070318Z-b83fc41d/pca.npz
+    sha256: 53319615564f4123762664173dd2d2fce51bfd39bf3fe2f035355dbe5e7d4a6e
+  pca_data_audit:
+    path: outputs/E0044/diagnostics/E0044-20261020T070318Z-b83fc41d/data_audit.json
+    sha256: 97b5a0c7d984fc30d1bb1cc2c110e49cb7b40267d49610b8a2a221b9b23d5007
+_config_source: D:\Code\Canlab\_codex_runs\E0048\configs\experiments\E0048_ae_fixed32_mse_matched_v1.yaml
+runtime:
+  run_id: E0048-s42-20261026T073136Z-fe5b2db
+  config_sha256: 1115644d800b0aa9ba25205f3a9a04e43128387b969bff050f65529bc08e4fc9

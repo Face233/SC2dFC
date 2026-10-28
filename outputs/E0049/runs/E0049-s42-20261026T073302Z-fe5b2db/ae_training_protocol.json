@@ -1,0 +1,15 @@
+{
+  "completed_epochs": 100,
+  "optimizer_steps": 64600,
+  "requested_step_checkpoints": [
+    9300
+  ],
+  "saved_step_checkpoints": [
+    9300
+  ],
+  "train_windows": 165312,
+  "validation_windows": 35392,
+  "loss_type": "mse",
+  "test_fc_read": false,
+  "initial_parameters_sha256": "d8369323f70a1713f11b4c8a83eb59bead58871d251162a747bad42710a264eb"
+}

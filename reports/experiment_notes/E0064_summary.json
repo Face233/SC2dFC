@@ -1,0 +1,55 @@
+{
+  "experiment_id": "E0064",
+  "primary_metric": "long_edge_mse",
+  "completed_runs": 1,
+  "split": "val",
+  "metric_source": "selection",
+  "metric_definition": {
+    "implementation": "sequence_validation_long_edge_mse/v1",
+    "split": "val",
+    "nonoverlap_start": 17,
+    "aggregation": "mean squared Fisher-z edge error per subject/run, then mean over samples"
+  },
+  "failed_runs": 0,
+  "mean": 0.18368789968611318,
+  "std": 0.0,
+  "preprocessing": {
+    "dataset_version": "dataset_lr_v1",
+    "preprocessing_version": "preprocess_lr_v1",
+    "split_version": "split_lr_v1",
+    "window_length_tr": 83,
+    "stride_tr": 5,
+    "tr_seconds": 0.72,
+    "window_length_seconds": 59.76,
+    "stride_seconds": 3.5999999999999996,
+    "n_timepoints": 1200,
+    "n_dfc_windows_per_run": 224,
+    "n_nodes": 90,
+    "fisher_clip": 0.999999,
+    "estimator": "rectangular_pearson",
+    "fc_representation": "Fisher-z transformed upper-triangle edges",
+    "cache_path": "data/cache/dfc/window_83.zarr"
+  },
+  "runs": [
+    {
+      "schema_version": 1,
+      "experiment_id": "E0064",
+      "run_id": "E0064-s42-20261028T042222Z-1b6e0b2",
+      "seed": 42,
+      "level": 1,
+      "status": "COMPLETED",
+      "started_at": "2026-10-28T04:22:22Z",
+      "config_sha256": "65714c1cc51efd204578ea0d27ca421671f994e89c4eab065614cc1d426040c3",
+      "git": {
+        "commit": "1b6e0b2d9907d0395f80fa68cb0c6aee333deff6",
+        "branch": "master",
+        "remote": "",
+        "dirty": false,
+        "status": []
+      },
+      "ended_at": "2026-10-28T04:27:55Z",
+      "checkpoint": "D:\\Code\\Canlab\\_codex_runs\\E0061_E0066\\outputs\\E0064\\runs\\E0064-s42-20261028T042222Z-1b6e0b2\\checkpoints\\best.pt"
+    }
+  ],
+  "generated_at": "2026-10-28T06:31:02Z"
+}

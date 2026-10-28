@@ -2,7 +2,9 @@
 
 目标约定是：普通实验提交只发布轻量记录，决定长期保留的 checkpoint 放入 `checkpoint-archive` 分支并由 Git LFS 按需下载。**当前仓库尚未完全遵守该约定**：截至 `main` 的 `6ea9cb1`，E0014–E0024 共 11 个 `best.pt` LFS 指针也被跟踪在 `main`；归档分支与下述索引只包含 E0003、E0004–E0007、E0009–E0011 共 8 个 checkpoint。`.gitignore` 不会自动取消这些已跟踪文件。
 
-[`reports/checkpoint_catalog.json`](../reports/checkpoint_catalog.json) 只索引上述 8 个归档模型的路径、LFS SHA256 与文件大小；不能用它断言 E0014–E0024 已归档。E0013 的登记运行 checkpoint 当前不可用；没有相应模型文件时，文档、图和旧汇总不足以重建其训练选模结果。
+[`reports/checkpoint_catalog.json`](../reports/checkpoint_catalog.json) 当前索引25个归档模型的路径、LFS SHA256与文件大小：上述8个历史模型，以及2026-10-28新增的17个已完成实验的best.pt（E0048/E0049、E0052–E0060、E0061–E0066）。本轮没有迁移main上既有的34个checkpoint指针；不能根据catalog断言其他历史实验已经归档。E0013的登记运行checkpoint当前不可用。
+
+E0061最初使用旧早停设置的中断运行不归档权重，只保留失败记录；正式六组的耐心值均为20。last.pt与step checkpoint保留在本地。新checkpoint目录默认不加入main，归档时需显式以Git LFS添加。main包含组件清单、选模记录、聚合评价、图及代码；含被试标识的数据清单、AE审计明细与逐被试表留在本地。
 
 ## 日常轻量使用
 

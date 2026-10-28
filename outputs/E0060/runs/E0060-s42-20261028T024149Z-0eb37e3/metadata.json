@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "experiment_id": "E0060",
+  "run_id": "E0060-s42-20261028T024149Z-0eb37e3",
+  "seed": 42,
+  "level": 1,
+  "status": "COMPLETED",
+  "started_at": "2026-10-28T02:41:50Z",
+  "config_sha256": "07f17c2d866dc48af70c4ec100f1740f988c636e2d1df3d044893a97362352bb",
+  "git": {
+    "commit": "0eb37e36311707537c7592a70f92e5e2d8ff0f55",
+    "branch": "",
+    "remote": "https://github.com/Face233/SC2dFC.git",
+    "dirty": false,
+    "status": []
+  },
+  "ended_at": "2026-10-28T02:43:16Z",
+  "checkpoint": "D:\\Code\\Canlab\\_codex_runs\\E0060\\outputs\\E0060\\runs\\E0060-s42-20261028T024149Z-0eb37e3\\checkpoints\\best.pt",
+  "selection_split": "train_cv"
+}

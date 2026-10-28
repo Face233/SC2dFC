@@ -1,0 +1,229 @@
+{
+  "split": "val",
+  "n_subjects": 158,
+  "seed": 42,
+  "nonoverlap_start": 17,
+  "validation_cohort_sha256": "89415f5ecd33f8cb5ad96e10309b7eafde0430701072dcacf2bd9ee60520c824",
+  "static_definition": "Pearson of future mean FC minus mean training template across edges",
+  "dynamic_definition": "Pearson of per-edge time-demeaned future FC trajectories flattened over time and edges",
+  "rank_direction": "each prediction ranks all true validation subjects; stable descending similarity",
+  "chance": {
+    "top1": 0.006329113924050633,
+    "top5": 0.03164556962025317
+  },
+  "device": "cuda",
+  "private_ranks_sha256": "1ab9af4490d0abd5f1e799450552c30fcc540dea2a8376a47cf4c2e1319715df",
+  "methods": [
+    {
+      "experiment": "E0032",
+      "static": {
+        "top1_count": 107,
+        "top5_count": 136,
+        "top1": 0.6772151898734177,
+        "top5": 0.8607594936708861,
+        "mean_rank": 4.544303797468355
+      },
+      "dynamic": {
+        "top1_count": 1,
+        "top5_count": 5,
+        "top1": 0.006329113924050633,
+        "top5": 0.03164556962025317,
+        "mean_rank": 78.49367088607595
+      },
+      "mean_alpha_long_min": 0.20395706536121738,
+      "alpha_sha256": "dcb8a74c2a06d753791a7b2dbe1be582c57c3e6a77e7562a957b575359689efa"
+    },
+    {
+      "experiment": "E0052",
+      "static": {
+        "top1_count": 107,
+        "top5_count": 136,
+        "top1": 0.6772151898734177,
+        "top5": 0.8607594936708861,
+        "mean_rank": 4.544303797468355
+      },
+      "dynamic": {
+        "top1_count": 1,
+        "top5_count": 5,
+        "top1": 0.006329113924050633,
+        "top5": 0.03164556962025317,
+        "mean_rank": 78.49367088607595
+      },
+      "mean_alpha_long_min": 0.14104513766117466,
+      "run_id": "E0052-s42-20261028T020855Z-0eb37e3",
+      "config_sha256": "608d6926f721f93a9e8db867e1f1375863ff0fdea7cb6550397827445680120e",
+      "checkpoint_sha256": "956b14661ada0e5451ee364086f21c55bfd319a4026e2844e60c62306da06328"
+    },
+    {
+      "experiment": "E0053",
+      "static": {
+        "top1_count": 107,
+        "top5_count": 136,
+        "top1": 0.6772151898734177,
+        "top5": 0.8607594936708861,
+        "mean_rank": 4.544303797468355
+      },
+      "dynamic": {
+        "top1_count": 1,
+        "top5_count": 5,
+        "top1": 0.006329113924050633,
+        "top5": 0.03164556962025317,
+        "mean_rank": 78.65189873417721
+      },
+      "mean_alpha_long_min": 0.11396010390039786,
+      "run_id": "E0053-s42-20261028T021445Z-0eb37e3",
+      "config_sha256": "3f04e4de75c3f86eb8deb295349a4ace5b7ca447a17a3028df63de4d51ae6c55",
+      "checkpoint_sha256": "f21b5db75784bd6f87664d68df2b9bab2993b9b1233d25f90d74206b77864182"
+    },
+    {
+      "experiment": "E0054",
+      "static": {
+        "top1_count": 107,
+        "top5_count": 136,
+        "top1": 0.6772151898734177,
+        "top5": 0.8607594936708861,
+        "mean_rank": 4.544303797468355
+      },
+      "dynamic": {
+        "top1_count": 1,
+        "top5_count": 5,
+        "top1": 0.006329113924050633,
+        "top5": 0.03164556962025317,
+        "mean_rank": 78.41772151898734
+      },
+      "mean_alpha_long_min": 0.17372645944625634,
+      "run_id": "E0054-s42-20261028T021613Z-0eb37e3",
+      "config_sha256": "7e513534eb1d0395745bb7107c633a62f51d1017db132c1dfd30cf4d6b8cb9a2",
+      "checkpoint_sha256": "ff8b721e97887e04b3d9e6d0779492cf931910506bca3c29043fe58e4a512fcb"
+    },
+    {
+      "experiment": "E0055",
+      "static": {
+        "top1_count": 107,
+        "top5_count": 136,
+        "top1": 0.6772151898734177,
+        "top5": 0.8607594936708861,
+        "mean_rank": 4.544303797468355
+      },
+      "dynamic": {
+        "top1_count": 1,
+        "top5_count": 5,
+        "top1": 0.006329113924050633,
+        "top5": 0.03164556962025317,
+        "mean_rank": 78.49367088607595
+      },
+      "mean_alpha_long_min": 0.18769580626733673,
+      "run_id": "E0055-s42-20261028T023111Z-0eb37e3",
+      "config_sha256": "7cd2f8c06c095d874850f3d4cf99ff8c77375ac1ed7a71eb005082b47152d8a6",
+      "checkpoint_sha256": "58ae860ccfaee986d61df9966bfc506063a60e540c37be73f9e1c5c5f5d68b23"
+    },
+    {
+      "experiment": "E0056",
+      "static": {
+        "top1_count": 107,
+        "top5_count": 136,
+        "top1": 0.6772151898734177,
+        "top5": 0.8607594936708861,
+        "mean_rank": 4.544303797468355
+      },
+      "dynamic": {
+        "top1_count": 1,
+        "top5_count": 5,
+        "top1": 0.006329113924050633,
+        "top5": 0.03164556962025317,
+        "mean_rank": 78.59493670886076
+      },
+      "mean_alpha_long_min": 0.18752949379239847,
+      "run_id": "E0056-s42-20261028T023304Z-0eb37e3",
+      "config_sha256": "0be4156a1960972585a8f30f44f18707632c0d5a0f607c37b1084237d71821c7",
+      "checkpoint_sha256": "1534494d550ab2f8ddcef298db787140d4896c924d79860a76a04519f6801e1f"
+    },
+    {
+      "experiment": "E0057",
+      "static": {
+        "top1_count": 107,
+        "top5_count": 136,
+        "top1": 0.6772151898734177,
+        "top5": 0.8607594936708861,
+        "mean_rank": 4.544303797468355
+      },
+      "dynamic": {
+        "top1_count": 1,
+        "top5_count": 5,
+        "top1": 0.006329113924050633,
+        "top5": 0.03164556962025317,
+        "mean_rank": 78.53164556962025
+      },
+      "mean_alpha_long_min": 0.19331756696241764,
+      "run_id": "E0057-s42-20261028T023448Z-0eb37e3",
+      "config_sha256": "0c506c089118b134272524f0f1347690843193b1bf832cbe5a73913278e7f60f",
+      "checkpoint_sha256": "5310ddf8ba6b38e2d7df90e13c8a6424a023a86ccdcb3021c09e3cc8b5023c57"
+    },
+    {
+      "experiment": "E0058",
+      "static": {
+        "top1_count": 107,
+        "top5_count": 136,
+        "top1": 0.6772151898734177,
+        "top5": 0.8607594936708861,
+        "mean_rank": 4.544303797468355
+      },
+      "dynamic": {
+        "top1_count": 1,
+        "top5_count": 5,
+        "top1": 0.006329113924050633,
+        "top5": 0.03164556962025317,
+        "mean_rank": 78.49367088607595
+      },
+      "mean_alpha_long_min": 0.20113454980649126,
+      "run_id": "E0058-s42-20261028T023813Z-0eb37e3",
+      "config_sha256": "43ba996221e9153aae639de657fa978884532fd92cd2702c42155d009144d3d7",
+      "checkpoint_sha256": "530eeb8f37db8a9f6a300fe950074ceeaddec1d9414157db3c03a251b1be1b40"
+    },
+    {
+      "experiment": "E0059",
+      "static": {
+        "top1_count": 107,
+        "top5_count": 136,
+        "top1": 0.6772151898734177,
+        "top5": 0.8607594936708861,
+        "mean_rank": 4.544303797468355
+      },
+      "dynamic": {
+        "top1_count": 1,
+        "top5_count": 5,
+        "top1": 0.006329113924050633,
+        "top5": 0.03164556962025317,
+        "mean_rank": 78.40506329113924
+      },
+      "mean_alpha_long_min": 0.19692108794146565,
+      "run_id": "E0059-s42-20261028T024001Z-0eb37e3",
+      "config_sha256": "aa68767b797b284eb2c319b3d701f86cbe8ad48f60df75411b6bba9a058ee943",
+      "checkpoint_sha256": "3d31e827ab481bfcf23895ace7341728c374d433484c423429a7f0fce0b3ff8d"
+    },
+    {
+      "experiment": "E0060",
+      "static": {
+        "top1_count": 107,
+        "top5_count": 136,
+        "top1": 0.6772151898734177,
+        "top5": 0.8607594936708861,
+        "mean_rank": 4.544303797468355
+      },
+      "dynamic": {
+        "top1_count": 1,
+        "top5_count": 5,
+        "top1": 0.006329113924050633,
+        "top5": 0.03164556962025317,
+        "mean_rank": 78.54430379746836
+      },
+      "mean_alpha_long_min": 0.18560857956526006,
+      "run_id": "E0060-s42-20261028T024149Z-0eb37e3",
+      "config_sha256": "07f17c2d866dc48af70c4ec100f1740f988c636e2d1df3d044893a97362352bb",
+      "checkpoint_sha256": "cdc6ab1f36064ab15a1debb9807ce0806dc8357ac2efb0f1054f34f30a467fca"
+    }
+  ],
+  "test_data_read": false,
+  "models_refitted": false,
+  "scope": "supplementary frozen-component retrieval; not the full primary MSE/SC-swap evaluation"
+}

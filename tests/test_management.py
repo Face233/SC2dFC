@@ -204,8 +204,15 @@ def test_summary_and_human_conclusion_update_registry(tmp_path: Path):
     from scdfc.metric_records import selection_record
     record = selection_record({"mse": 0.25}, "mse", None, definition={"metric": "mse"})
     (run_dir / "metrics_best.json").write_text(json.dumps(record), encoding="utf-8")
+    failed_dir = run_dir.parent / "superseded-failed-protocol"
+    failed_dir.mkdir()
+    (failed_dir / "metadata.json").write_text(json.dumps({
+        "run_id": failed_dir.name, "status": "FAILED", "config_sha256": "old-patience",
+    }), encoding="utf-8")
     summary = summarize_experiment(tmp_path, "E0001")
     assert summary["mean"] == 0.25
+    assert summary["completed_runs"] == 1 and summary["failed_runs"] == 1
+    assert next(r for r in summary["runs"] if r["status"] == "FAILED")["selection_exclusion"]
     assert summary["preprocessing"]["window_length_tr"] == 83
     assert summary["preprocessing"]["n_dfc_windows_per_run"] == 224
     conclude_experiment(tmp_path, "E0001", "KEEP", "useful", "run L2")
